@@ -98,6 +98,7 @@ class EstimateApp(QMainWindow):
         self.escalations    = []
         self.detail_view    = True          # show stay/earth/CG symbols
         self.span_start_pole = None
+        self.last_placed_node = None        # for auto-span chain when placing nodes
         self.autosave_file  = "autosave_erp.json"
         self.current_tool   = "SELECT"
 
@@ -378,11 +379,24 @@ class EstimateApp(QMainWindow):
     #  TOOL MANAGEMENT
     # =========================================================================
 
+    # Drawing tools — switching between these keeps the auto-span chain alive
+    _DRAWING_TOOLS = frozenset({"ADD_LT", "ADD_HT", "ADD_EXISTING", "ADD_STRUCTURE", "ADD_CONSUMER"})
+
     def set_tool(self, tool_name):
+        prev_tool = self.current_tool
         self.current_tool = tool_name
         if self.span_start_pole:
             self.span_start_pole.setPen(QPen(Qt.GlobalColor.black, 1))
         self.span_start_pole = None
+        # Clear auto-connect chain ONLY when leaving drawing mode
+        # (i.e. switching to SELECT or ADD_SPAN — not between placement tools)
+        leaving_drawing = tool_name not in self._DRAWING_TOOLS
+        if leaving_drawing and self.last_placed_node is not None:
+            try:
+                self.last_placed_node.setPen(QPen(Qt.GlobalColor.black, 1))
+            except RuntimeError:
+                pass
+            self.last_placed_node = None
         for key, btn in self.tools_btns.items():
             active = key == tool_name
             btn.setStyleSheet(
@@ -433,6 +447,7 @@ class EstimateApp(QMainWindow):
                 detail_view=self.detail_view
             )
             self.scene.addItem(pole)
+            self._auto_connect_span(pole)
             self.refresh_live_estimate()
 
         # ── Structure placement ───────────────────────────────────────────
@@ -442,6 +457,7 @@ class EstimateApp(QMainWindow):
                 detail_view=self.detail_view
             )
             self.scene.addItem(struct)
+            self._auto_connect_span(struct)
             self.refresh_live_estimate()
 
         # ── Consumer placement ────────────────────────────────────────────
@@ -451,6 +467,7 @@ class EstimateApp(QMainWindow):
                 detail_view=self.detail_view
             )
             self.scene.addItem(consumer)
+            self._auto_connect_span(consumer)
             self.refresh_live_estimate()
 
         # ── Span drawing ──────────────────────────────────────────────────
@@ -483,6 +500,72 @@ class EstimateApp(QMainWindow):
                 self.span_start_pole.setPen(QPen(Qt.GlobalColor.black, 1))
                 self.span_start_pole = None
                 self.refresh_live_estimate()
+
+    # =========================================================================
+    #  AUTO-CONNECT SPAN HELPER
+    # =========================================================================
+
+    # HT-class node types: includes HT poles and all existing structure subtypes
+    _HT_SUBTYPES = frozenset({"HT", "DP", "TP", "4P", "DTR"})
+
+    @staticmethod
+    def _is_ht_node(node) -> bool:
+        """
+        Returns True if a node is effectively HT.
+        SmartStructure is always HT.
+        SmartPole: check existing_subtype (DP/TP/4P/DTR/HT) or pole_type.
+        SmartConsumer: always LT.
+        """
+        if isinstance(node, SmartStructure):
+            return True
+        if isinstance(node, SmartPole):
+            eff = node.existing_subtype if node.is_existing else node.pole_type
+            return eff in EstimateApp._HT_SUBTYPES
+        return False  # SmartConsumer = LT
+
+    def _auto_connect_span(self, new_node):
+        """
+        Called every time a new pole / structure / consumer is placed.
+        If a previous node exists (last_placed_node), automatically draw
+        a span connecting it to the new node.
+        The new node then becomes last_placed_node for the next placement.
+        Right-click / switching to SELECT clears the chain.
+        """
+        prev = self.last_placed_node
+
+        # Remove yellow highlight from previous node
+        if prev is not None:
+            try:
+                prev.setPen(QPen(Qt.GlobalColor.black, 1))
+            except RuntimeError:
+                prev = None
+
+        if prev is not None and prev is not new_node:
+            p1, p2 = prev, new_node
+
+            # HT ↔ LT cross-connection warning
+            # DP/TP/4P/DTR existing poles are treated as HT
+            if self._is_ht_node(p1) != self._is_ht_node(p2):
+                ans = QMessageBox.question(
+                    self, "Warning",
+                    "Connect HT to LT node?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if ans == QMessageBox.StandardButton.No:
+                    # Break chain — don't connect, but still update chain start
+                    self.last_placed_node = new_node
+                    new_node.setPen(QPen(Qt.GlobalColor.yellow, 3))
+                    return
+
+            span = SmartSpan(p1, p2, detail_view=self.detail_view)
+            p1.connected_spans.append(span)
+            p2.connected_spans.append(span)
+            self.scene.addItem(span)
+            self.scene.addItem(span.label)
+
+        # New node becomes the chain anchor — highlighted yellow
+        self.last_placed_node = new_node
+        new_node.setPen(QPen(Qt.GlobalColor.yellow, 3))
 
     # =========================================================================
     #  SELECTION / PROPERTY EDITOR
@@ -2390,6 +2473,32 @@ class EstimateApp(QMainWindow):
 
         self.refresh_live_estimate()
 
+    def _place_default_existing_pole(self):
+        """
+        Place a single existing pole at the centre of the visible scene area
+        and mark it as the auto-span chain starting point.
+        Called when the canvas is blank so users can immediately start drawing.
+        """
+        # Reset any stale chain state first
+        self.last_placed_node = None
+        self.span_start_pole  = None
+
+        view_rect = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
+        cx = view_rect.center().x()
+        cy = view_rect.center().y()
+
+        pole = SmartPole(
+            cx, cy, self.refresh_signal,
+            pole_type="LT", is_existing=True,
+            detail_view=self.detail_view
+        )
+        self.scene.addItem(pole)
+        self.refresh_live_estimate()
+
+        # Mark as chain anchor so the next placed node auto-connects
+        self.last_placed_node = pole
+        pole.setPen(QPen(Qt.GlobalColor.yellow, 3))
+
     def new_drawing(self):
         ans = QMessageBox.question(
             self, "New Canvas", "Clear canvas and start fresh?",
@@ -2397,9 +2506,11 @@ class EstimateApp(QMainWindow):
         )
         if ans == QMessageBox.StandardButton.Yes:
             self.scene.clear()
-            self.span_start_pole = None
+            self.span_start_pole  = None
+            self.last_placed_node = None
             self.bom_overrides.clear()
             self.refresh_live_estimate()
+            self._place_default_existing_pole()
 
     def load_from_file(self):
         filename, _ = QFileDialog.getOpenFileName(
@@ -2423,14 +2534,21 @@ class EstimateApp(QMainWindow):
                 json.dump(self.compile_save_data(), f, indent=2)
 
     def load_autosave(self):
-        if not os.path.exists(self.autosave_file):
-            return
-        try:
-            if os.path.getsize(self.autosave_file) > 0:
-                with open(self.autosave_file, "r") as f:
-                    self.parse_load_data(json.load(f))
-        except (json.JSONDecodeError, KeyError):
-            pass
+        loaded_any = False
+        if os.path.exists(self.autosave_file):
+            try:
+                if os.path.getsize(self.autosave_file) > 0:
+                    with open(self.autosave_file, "r") as f:
+                        data = json.load(f)
+                    # Only load if there is actual canvas content
+                    if data.get("nodes") or data.get("spans"):
+                        self.parse_load_data(data)
+                        loaded_any = True
+            except (json.JSONDecodeError, KeyError):
+                pass
+        # Blank canvas — place a default existing pole as starting point
+        if not loaded_any:
+            QTimer.singleShot(100, self._place_default_existing_pole)
 
     def closeEvent(self, event):
         with open(self.autosave_file, "w") as f:
