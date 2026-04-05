@@ -969,13 +969,14 @@ class SmartSpan(QGraphicsPathItem):
             lw     = self.label.boundingRect().width()
 
             # Keep horizontal span labels above the line for cleaner drawings.
-            if abs(dx) >= abs(dy):
-                self.label.setPos(mid_x - lw / 2, mid_y - 24)
-            else:
-                self.label.setPos(
-                    mid_x + nx_n * 16 - lw / 2,
-                    mid_y + ny_n * 16 - 10
-                )
+            if not getattr(self.label, "user_moved", False):
+                if abs(dx) >= abs(dy):
+                    self.label.set_auto_pos(mid_x - lw / 2, mid_y - 24)
+                else:
+                    self.label.set_auto_pos(
+                        mid_x + nx_n * 16 - lw / 2,
+                        mid_y + ny_n * 16 - 10
+                    )
 
     # ── Visual update ─────────────────────────────────────────────────────────
 

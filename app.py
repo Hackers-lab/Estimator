@@ -33,7 +33,7 @@ from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
     QAction, QKeySequence, QIcon, QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, pyqtSignal
 from PyQt6.QtPrintSupport import QPrinter
 
 from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
@@ -807,6 +807,182 @@ class EstimateApp(QMainWindow):
             return auto_orient, False
         return auto_orient, False
 
+    def _build_continuation_marks_for_tiles(self, tiles, inset_scene: float = 20.0):
+        """Build O---A / A---O continuation marks for neighboring tiles."""
+        if not tiles:
+            return {}
+
+        spans = [
+            i for i in self.scene.items()
+            if isinstance(i, SmartSpan)
+        ]
+        tile_lookup = {
+            (t.get("row", 0), t.get("col", 0)): t
+            for t in tiles
+        }
+
+        def _continuation_label(idx: int) -> str:
+            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            if idx < len(alphabet):
+                return alphabet[idx]
+            return f"{alphabet[idx % len(alphabet)]}{idx // len(alphabet) + 1}"
+
+        def _inset_point(hit_pt: QPointF, side: str) -> QPointF:
+            pt = QPointF(hit_pt)
+            if side == "right":
+                pt.setX(pt.x() - inset_scene)
+            elif side == "left":
+                pt.setX(pt.x() + inset_scene)
+            elif side == "bottom":
+                pt.setY(pt.y() - inset_scene)
+            else:  # top
+                pt.setY(pt.y() + inset_scene)
+            return pt
+
+        def _anchor_on_rect(span: SmartSpan, rect: QRectF, marker_pt: QPointF) -> QPointF:
+            p1 = span.p1.pos()
+            p2 = span.p2.pos()
+            p1_in = rect.contains(p1)
+            p2_in = rect.contains(p2)
+
+            if p1_in and not p2_in:
+                return p1
+            if p2_in and not p1_in:
+                return p2
+
+            if not p1_in and not p2_in:
+                line = QLineF(p1, p2)
+                edges = [
+                    QLineF(rect.topLeft(), rect.topRight()),
+                    QLineF(rect.topRight(), rect.bottomRight()),
+                    QLineF(rect.bottomRight(), rect.bottomLeft()),
+                    QLineF(rect.bottomLeft(), rect.topLeft()),
+                ]
+                hits = []
+                for edge in edges:
+                    inter_type, pt = line.intersects(edge)
+                    if inter_type == QLineF.IntersectionType.BoundedIntersection:
+                        hits.append(pt)
+                if hits:
+                    return max(
+                        hits,
+                        key=lambda p: (p.x() - marker_pt.x()) ** 2 + (p.y() - marker_pt.y()) ** 2,
+                    )
+
+            d1 = (p1.x() - marker_pt.x()) ** 2 + (p1.y() - marker_pt.y()) ** 2
+            d2 = (p2.x() - marker_pt.x()) ** 2 + (p2.y() - marker_pt.y()) ** 2
+            return p1 if d1 <= d2 else p2
+
+        marks = {t.get("page_num", 0): [] for t in tiles}
+        marker_idx = 0
+
+        for tile in tiles:
+            row = tile.get("row", 0)
+            col = tile.get("col", 0)
+            rect = tile["rect"]
+
+            neighbors = [
+                ("right", tile_lookup.get((row, col + 1))),
+                ("bottom", tile_lookup.get((row + 1, col))),
+            ]
+            for edge_kind, neighbor in neighbors:
+                if neighbor is None:
+                    continue
+
+                if edge_kind == "right":
+                    boundary = QLineF(rect.topRight(), rect.bottomRight())
+                    source_side = "right"
+                    target_side = "left"
+                else:
+                    boundary = QLineF(rect.bottomLeft(), rect.bottomRight())
+                    source_side = "bottom"
+                    target_side = "top"
+
+                for span in spans:
+                    span_rect = span.sceneBoundingRect()
+                    if not rect.intersects(span_rect):
+                        continue
+                    if not neighbor["rect"].intersects(span_rect):
+                        continue
+
+                    line = QLineF(span.p1.pos(), span.p2.pos())
+                    intersection_type, hit_pt = line.intersects(boundary)
+                    if intersection_type != QLineF.IntersectionType.BoundedIntersection:
+                        continue
+
+                    label = _continuation_label(marker_idx)
+                    marker_idx += 1
+
+                    marks.setdefault(tile["page_num"], []).append({
+                        "page_num": tile["page_num"],
+                        "label": label,
+                        "scene_point": hit_pt,
+                        "marker_scene_point": _inset_point(hit_pt, source_side),
+                        "anchor_scene_point": _anchor_on_rect(
+                            span, rect, _inset_point(hit_pt, source_side)
+                        ),
+                        "side": source_side,
+                        "target_page": neighbor["page_num"],
+                        "span": span,
+                    })
+                    marks.setdefault(neighbor["page_num"], []).append({
+                        "page_num": neighbor["page_num"],
+                        "label": label,
+                        "scene_point": hit_pt,
+                        "marker_scene_point": _inset_point(hit_pt, target_side),
+                        "anchor_scene_point": _anchor_on_rect(
+                            span, neighbor["rect"], _inset_point(hit_pt, target_side)
+                        ),
+                        "side": target_side,
+                        "target_page": tile["page_num"],
+                        "span": span,
+                    })
+
+        return marks
+
+    def _position_split_span_labels(self, continuation_marks):
+        """Place each split span's real label on the incoming A---O segment once."""
+        incoming_by_span = {}
+        for marks in continuation_marks.values():
+            for mark in marks:
+                span = mark.get("span")
+                if span is None:
+                    continue
+                # Incoming means this page receives continuation from previous page.
+                if mark.get("target_page", 0) < mark.get("page_num", 0):
+                    incoming_by_span[id(span)] = mark
+
+        for mark in incoming_by_span.values():
+            span = mark.get("span")
+            if span is None or not hasattr(span, "label"):
+                continue
+            lbl = span.label
+            if getattr(lbl, "user_moved", False):
+                continue
+
+            marker = mark.get("marker_scene_point")
+            anchor = mark.get("anchor_scene_point")
+            if marker is None or anchor is None:
+                continue
+
+            # Extra guard: if label is already far from the span midpoint,
+            # treat it as manually placed and preserve user position.
+            p1 = span.p1.pos()
+            p2 = span.p2.pos()
+            default_mid = QPointF((p1.x() + p2.x()) / 2.0, (p1.y() + p2.y()) / 2.0)
+            label_center = lbl.sceneBoundingRect().center()
+            if (
+                abs(label_center.x() - default_mid.x()) > 35.0
+                or abs(label_center.y() - default_mid.y()) > 35.0
+            ):
+                lbl.user_moved = True
+                continue
+
+            mid_x = (marker.x() + anchor.x()) / 2.0
+            mid_y = (marker.y() + anchor.y()) / 2.0
+            lw = lbl.boundingRect().width()
+            lbl.set_auto_pos(mid_x - lw / 2.0, mid_y - 12.0)
+
     def _refresh_page_grid(self):
         """
         Recompute the A4 page tiles in scene coordinates and push them
@@ -838,6 +1014,7 @@ class EstimateApp(QMainWindow):
                 "page_num": 1,
                 "total": 1,
             }]
+            self.view.continuation_marks = {}
             margin = max(pw, ph)
             self.scene.setSceneRect(blank_rect.adjusted(-margin, -margin, margin, margin))
             vp = self.view.viewport()
@@ -892,6 +1069,7 @@ class EstimateApp(QMainWindow):
                     "page_num": 1,
                     "total": 1,
                 }]
+                self.view.continuation_marks = {}
                 margin = max(pw_L, ph_L)
                 self.scene.setSceneRect(single_rect.adjusted(-margin, -margin, margin, margin))
                 vp = self.view.viewport()
@@ -963,6 +1141,8 @@ class EstimateApp(QMainWindow):
             }
 
         self.view.grid_tiles = final_tiles
+        self.view.continuation_marks = self._build_continuation_marks_for_tiles(final_tiles)
+        self._position_split_span_labels(self.view.continuation_marks)
 
         # Constrain the scene rect to exactly the generated tiles + margin
         if final_tiles:
@@ -2639,6 +2819,7 @@ class EstimateApp(QMainWindow):
 
         # ── UI margins in device pixels ────────────────────────────────────
         MARG_T, MARG_B, MARG_L, MARG_R = 10, 10, 10, 10
+        PAGE_EDGE_GAP = 20
         TITLE_H  = 32   # title strip height (device px) — tall enough for 2-line wrap
         FOOTER_H = 16   # footer strip height
 
@@ -2660,6 +2841,137 @@ class EstimateApp(QMainWindow):
                 qt_orient,
                 QMarginsF(0, 0, 0, 0)
             )
+
+        drawable_items = [
+            i for i in self.scene.items()
+            if isinstance(i, (SmartPole, SmartStructure, SmartConsumer, SmartSpan))
+        ]
+        continuation_marks = self._build_continuation_marks_for_tiles(tiles, inset_scene=20.0)
+
+        def _anchor_bounds_for(src_rect: QRectF):
+            node_bounds = None
+            all_bounds = None
+            for item in drawable_items:
+                item_rect = item.sceneBoundingRect()
+                if not src_rect.intersects(item_rect):
+                    continue
+                inter = src_rect.intersected(item_rect)
+                if inter.isNull() or inter.isEmpty():
+                    continue
+                all_bounds = inter if all_bounds is None else all_bounds.united(inter)
+                if not isinstance(item, SmartSpan):
+                    node_bounds = inter if node_bounds is None else node_bounds.united(inter)
+            return node_bounds if node_bounds is not None else all_bounds
+
+        def _scene_to_page_pt(scene_pt: QPointF, render_rect: QRectF, src_rect: QRectF) -> QPointF:
+            if src_rect.width() <= 0 or src_rect.height() <= 0:
+                return QPointF(render_rect.left(), render_rect.top())
+            sx = render_rect.width() / src_rect.width()
+            sy = render_rect.height() / src_rect.height()
+            return QPointF(
+                render_rect.left() + (scene_pt.x() - src_rect.left()) * sx,
+                render_rect.top() + (scene_pt.y() - src_rect.top()) * sy,
+            )
+
+        def _span_pen_for_export(span: SmartSpan) -> QPen:
+            color = span._PEN_COLORS.get(span.conductor, QColor("#222222"))
+            pen = QPen(color, 1.8)
+            if span.is_existing_span:
+                pen.setStyle(Qt.PenStyle.SolidLine)
+                pen.setWidthF(1.2)
+            elif span.conductor == "ACSR":
+                pen.setStyle(Qt.PenStyle.DashLine)
+            return pen
+
+        def _anchor_scene_for_mark(span: SmartSpan, marker_scene: QPointF, src_rect: QRectF) -> QPointF:
+            p1 = span.p1.pos()
+            p2 = span.p2.pos()
+            p1_in = src_rect.contains(p1)
+            p2_in = src_rect.contains(p2)
+
+            if p1_in and not p2_in:
+                return p1
+            if p2_in and not p1_in:
+                return p2
+
+            # If both endpoints are outside, use clipped intersection on current page.
+            if not p1_in and not p2_in:
+                line = QLineF(p1, p2)
+                edges = [
+                    QLineF(src_rect.topLeft(), src_rect.topRight()),
+                    QLineF(src_rect.topRight(), src_rect.bottomRight()),
+                    QLineF(src_rect.bottomRight(), src_rect.bottomLeft()),
+                    QLineF(src_rect.bottomLeft(), src_rect.topLeft()),
+                ]
+                hits = []
+                for e in edges:
+                    inter_type, pt = line.intersects(e)
+                    if inter_type == QLineF.IntersectionType.BoundedIntersection:
+                        hits.append(pt)
+                if hits:
+                    return max(
+                        hits,
+                        key=lambda p: (p.x() - marker_scene.x()) ** 2 + (p.y() - marker_scene.y()) ** 2,
+                    )
+
+            d1 = (p1.x() - marker_scene.x()) ** 2 + (p1.y() - marker_scene.y()) ** 2
+            d2 = (p2.x() - marker_scene.x()) ** 2 + (p2.y() - marker_scene.y()) ** 2
+            return p1 if d1 <= d2 else p2
+
+        def _draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark):
+            span = mark.get("span")
+            if span is None:
+                return
+
+            marker_scene = mark.get("marker_scene_point", mark["scene_point"])
+            marker_page = _scene_to_page_pt(marker_scene, render_rect, src_rect)
+            radius = 10.0
+            marker_page.setX(max(draw_rect.left() + radius + 2.0,
+                                 min(draw_rect.right() - radius - 2.0, marker_page.x())))
+            marker_page.setY(max(draw_rect.top() + radius + 2.0,
+                                 min(draw_rect.bottom() - radius - 2.0, marker_page.y())))
+            anchor_scene = mark.get("anchor_scene_point")
+            if anchor_scene is None:
+                anchor_scene = _anchor_scene_for_mark(span, marker_scene, src_rect)
+            anchor_page = _scene_to_page_pt(anchor_scene, render_rect, src_rect)
+
+            painter.save()
+            painter.setClipRect(draw_rect)
+
+            # Draw visible continuation segment inside the page: O---A / A---O
+            painter.setPen(_span_pen_for_export(span))
+            painter.drawLine(anchor_page, marker_page)
+
+            # Draw circled continuation marker label.
+            painter.setBrush(QColor(255, 255, 255, 235))
+            painter.setPen(QPen(QColor(180, 60, 60), 1.2))
+            painter.drawEllipse(marker_page, radius, radius)
+
+            painter.setPen(QColor(180, 60, 60))
+            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            painter.drawText(
+                QRectF(marker_page.x() - radius, marker_page.y() - radius - 1, radius * 2, radius * 2),
+                Qt.AlignmentFlag.AlignCenter,
+                mark["label"]
+            )
+
+            # Page reference near marker (e.g., "Pg 3")
+            target_page = mark.get("target_page")
+            if target_page is not None:
+                painter.setPen(QColor(160, 55, 55))
+                painter.setFont(QFont("Arial", 7))
+                side = mark.get("side", "right")
+                if side in ("left", "right"):
+                    # Horizontal page crossing: show page ref above A.
+                    txt_rect = QRectF(marker_page.x() - 21, marker_page.y() - 26, 42, 14)
+                    align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom
+                else:
+                    # Vertical page crossing: show page ref to the right of A.
+                    txt_rect = QRectF(marker_page.x() + 14, marker_page.y() - 7, 42, 14)
+                    align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                painter.drawText(txt_rect, align, f"Pg {target_page}")
+
+            painter.restore()
 
         painter = None   # opened on first page
 
@@ -2738,64 +3050,42 @@ class EstimateApp(QMainWindow):
             # ── Drawing area ─────────────────────────────────────────────
             draw_top  = oy + TITLE_H + 2
             draw_h    = page_h - TITLE_H - FOOTER_H - 4
-            draw_rect = QRectF(ox, draw_top, page_w, draw_h)
+            draw_rect = QRectF(
+                ox + PAGE_EDGE_GAP,
+                draw_top + PAGE_EDGE_GAP,
+                max(1.0, page_w - 2 * PAGE_EDGE_GAP),
+                max(1.0, draw_h - 2 * PAGE_EDGE_GAP),
+            )
+            page_marks = continuation_marks.get(page_num, [])
 
+            hidden_spans = []
+            for mark in page_marks:
+                span = mark.get("span")
+                if span is None or span in hidden_spans:
+                    continue
+                if span.isVisible():
+                    hidden_spans.append(span)
+                    span.setVisible(False)
+
+            render_rect = QRectF(draw_rect)
+
+            painter.save()
+            painter.setClipRect(draw_rect)
             self.scene.render(
-                painter, draw_rect, src_rect,
+                painter, render_rect, src_rect,
                 Qt.AspectRatioMode.IgnoreAspectRatio
             )
+            painter.restore()
+
+            for span in hidden_spans:
+                span.setVisible(True)
 
             # ── Legend: only on the last page ────────────────────────────
             if is_last and self.pdf_show_legend:
                 self._draw_pdf_legend(painter, draw_rect)
 
-            # ── Continuation markers at tile edges (Sparse Grid) ─────────────
-            _col = tile.get("col", 0)
-            _row = tile.get("row", 0)
-
-            def get_neighbor(r, c):
-                for t in tiles:
-                    if t.get("row") == r and t.get("col") == c:
-                        return t.get("page_num")
-                return None
-
-            cut_pen = QPen(QColor(200, 80, 80, 160), 0.7)
-            cut_pen.setStyle(Qt.PenStyle.DashLine)
-            painter.setPen(cut_pen)
-            painter.setFont(QFont("Arial", 7, QFont.Weight.Bold))
-            painter.setPen(QColor(200, 60, 60, 200))
-
-            # Right edge → next column
-            next_right = get_neighbor(_row, _col + 1)
-            if next_right:
-                painter.drawText(
-                    QRectF(ox + page_w - 60, draw_top + 4, 56, 14),
-                    Qt.AlignmentFlag.AlignRight, f"Page {next_right}→"
-                )
-            
-            # Left edge ← previous column
-            next_left = get_neighbor(_row, _col - 1)
-            if next_left:
-                painter.drawText(
-                    QRectF(ox + 4, draw_top + 4, 56, 14),
-                    Qt.AlignmentFlag.AlignLeft, f"←Page {next_left}"
-                )
-            
-            # Bottom edge ↓ next row
-            next_down = get_neighbor(_row + 1, _col)
-            if next_down:
-                painter.drawText(
-                    QRectF(ox + page_w / 2 - 30, footer_y - 16, 60, 14),
-                    Qt.AlignmentFlag.AlignCenter, f"Page {next_down}↓"
-                )
-            
-            # Top edge ↑ previous row
-            next_up = get_neighbor(_row - 1, _col)
-            if next_up:
-                painter.drawText(
-                    QRectF(ox + page_w / 2 - 30, draw_top + 4, 60, 14),
-                    Qt.AlignmentFlag.AlignCenter, f"↑Page {next_up}"
-                )
+            for mark in page_marks:
+                _draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark)
 
         if painter:
             painter.end()

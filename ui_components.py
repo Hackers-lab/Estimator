@@ -74,6 +74,7 @@ class InteractiveView(QGraphicsView):
         # Page grid overlay state — populated by app._refresh_page_grid()
         # List of dicts: {rect: QRectF, orient: 'L'|'P', page_num: int}
         self.grid_tiles      = []
+        self.continuation_marks = {}
         self.grid_show       = True    # master toggle
         self.grid_crosshatch = True    # crosshatch inside pages
 
@@ -114,6 +115,9 @@ class InteractiveView(QGraphicsView):
 
     def drawForeground(self, painter: QPainter, rect: QRectF):
         super().drawForeground(painter, rect)
+
+        # Draw live continuation stubs first so tool ghost previews stay on top.
+        self._draw_continuation_stubs(painter)
 
         if self._hover_scene_pos is None:
             return
@@ -160,6 +164,105 @@ class InteractiveView(QGraphicsView):
             painter.setPen(QPen(QColor(120, 80, 30, 220), 1.6, Qt.PenStyle.DashLine))
             painter.setBrush(QBrush(QColor(243, 156, 18, 60)))
             painter.drawRect(QRectF(x - 8, y - 8, 16, 16))
+
+        painter.restore()
+
+    def _scene_gap_for_pixels(self, px: float) -> float:
+        p0 = self.mapToScene(0, 0)
+        p1 = self.mapToScene(int(px), 0)
+        return max(1.0, abs(p1.x() - p0.x()))
+
+    def _draw_continuation_stubs(self, painter: QPainter):
+        if not self.continuation_marks:
+            return
+
+        page_rect_by_num = {
+            t.get("page_num", 0): t.get("rect")
+            for t in self.grid_tiles
+        }
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # First mask the original full crossing span, then redraw stubs only.
+        masked_spans = set()
+        for marks in self.continuation_marks.values():
+            for mark in marks:
+                span = mark.get("span")
+                if span is None:
+                    continue
+                sid = id(span)
+                if sid in masked_spans:
+                    continue
+                masked_spans.add(sid)
+                p1 = span.p1.pos()
+                p2 = span.p2.pos()
+                erase_pen = QPen(QColor(255, 255, 255, 235), 4.6)
+                erase_pen.setStyle(Qt.PenStyle.SolidLine)
+                painter.setPen(erase_pen)
+                painter.drawLine(p1, p2)
+
+        for marks in self.continuation_marks.values():
+            for mark in marks:
+                span = mark.get("span")
+                marker_scene = mark.get("marker_scene_point")
+                if span is None or marker_scene is None:
+                    continue
+
+                anchor = mark.get("anchor_scene_point")
+                if anchor is None:
+                    p1 = span.p1.pos()
+                    p2 = span.p2.pos()
+                    page_rect = page_rect_by_num.get(mark.get("page_num", 0))
+                    p1_in = bool(page_rect is not None and page_rect.contains(p1))
+                    p2_in = bool(page_rect is not None and page_rect.contains(p2))
+
+                    if p1_in and not p2_in:
+                        anchor = p1
+                    elif p2_in and not p1_in:
+                        anchor = p2
+                    else:
+                        d1 = (p1.x() - marker_scene.x()) ** 2 + (p1.y() - marker_scene.y()) ** 2
+                        d2 = (p2.x() - marker_scene.x()) ** 2 + (p2.y() - marker_scene.y()) ** 2
+                        anchor = p1 if d1 <= d2 else p2
+
+                color = span._PEN_COLORS.get(span.conductor, QColor("#222222"))
+                span_pen = QPen(color, 1.8)
+                if span.is_existing_span:
+                    span_pen.setStyle(Qt.PenStyle.SolidLine)
+                    span_pen.setWidthF(1.2)
+                elif span.conductor == "ACSR":
+                    span_pen.setStyle(Qt.PenStyle.DashLine)
+                painter.setPen(span_pen)
+                painter.drawLine(anchor, marker_scene)
+
+                painter.setBrush(QBrush(QColor(255, 255, 255, 235)))
+                painter.setPen(QPen(QColor(180, 60, 60), 1.2))
+                painter.drawEllipse(marker_scene, 7.5, 7.5)
+
+                painter.setPen(QColor(180, 60, 60))
+                painter.setFont(QFont("Arial", 7, QFont.Weight.Bold))
+                painter.drawText(
+                    QRectF(marker_scene.x() - 7.5, marker_scene.y() - 8.5, 15, 15),
+                    Qt.AlignmentFlag.AlignCenter,
+                    mark.get("label", "A")
+                )
+
+                # Page reference near marker (e.g., "Pg 3")
+                target_page = mark.get("target_page")
+                if target_page is not None:
+                    painter.setPen(QColor(160, 55, 55))
+                    painter.setFont(QFont("Arial", 6))
+                    side = mark.get("side", "right")
+                    if side in ("left", "right"):
+                        # Horizontal page crossing: show page ref above A.
+                        txt_rect = QRectF(marker_scene.x() - 16, marker_scene.y() - 21, 32, 12)
+                        align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom
+                    else:
+                        # Vertical page crossing: show page ref to the right of A.
+                        txt_rect = QRectF(marker_scene.x() + 12, marker_scene.y() - 6, 32, 12)
+                        align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                    painter.drawText(txt_rect, align, f"Pg {target_page}")
 
         painter.restore()
 
@@ -554,9 +657,12 @@ class DraggableLabel(QGraphicsTextItem):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.user_moved = False
+        self._auto_positioning = False
 
         self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         doc = self.document()
         assert doc is not None
@@ -565,6 +671,22 @@ class DraggableLabel(QGraphicsTextItem):
         )
         self.setZValue(20)
         self.setFont(self._FONT)
+
+    def set_auto_pos(self, x: float, y: float):
+        self._auto_positioning = True
+        try:
+            self.setPos(x, y)
+        finally:
+            self._auto_positioning = False
+
+    def itemChange(self, change, value):
+        if (
+            change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged
+            and not self._auto_positioning
+            and self.scene() is not None
+        ):
+            self.user_moved = True
+        return super().itemChange(change, value)
 
     # ── Inline editing ────────────────────────────────────────────────────────
 
