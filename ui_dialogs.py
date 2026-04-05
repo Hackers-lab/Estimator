@@ -49,6 +49,19 @@ from constants import (
 )
 
 
+class ClickableCard(QWidget):
+    """Simple clickable container used by RulesetManager rule cards."""
+
+    def __init__(self, on_click, parent=None):
+        super().__init__(parent)
+        self._on_click = on_click
+
+    def mousePressEvent(self, event):
+        if self._on_click:
+            self._on_click()
+        super().mousePressEvent(event)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  ProjectSetupDialog
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,10 +189,11 @@ class ProjectSetupDialog(QDialog):
         btns.accepted.connect(self._on_accept)
         btns.rejected.connect(self.reject)
         ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
-        ok_btn.setText("✔ Continue" if first_run else "✔ Save")
-        ok_btn.setStyleSheet(
-            "background:#2980b9; color:white; font-weight:bold; padding:6px 16px;"
-        )
+        if ok_btn is not None:
+            ok_btn.setText("✔ Continue" if first_run else "✔ Save")
+            ok_btn.setStyleSheet(
+                "background:#2980b9; color:white; font-weight:bold; padding:6px 16px;"
+            )
         root.addWidget(btns)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
@@ -295,6 +309,8 @@ class SearchDialog(QDialog):
         text = text.lower()
         for i in range(self._list.count()):
             item = self._list.item(i)
+            if item is None:
+                continue
             item.setHidden(text not in item.text().lower())
 
     def get_selected(self):
@@ -378,9 +394,11 @@ class DatabaseManagerDialog(QDialog):
             for c, val in enumerate(row):
                 tbl.setItem(r, c, QTableWidgetItem(str(val)))
         tbl.resizeColumnsToContents()
-        tbl.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        hdr = tbl.horizontalHeader()
+        if hdr is not None:
+            hdr.setSectionResizeMode(
+                1, QHeaderView.ResizeMode.Stretch
+            )
 
     def _load(self):
         self.mat_table.clear()
@@ -441,7 +459,7 @@ class DatabaseManagerDialog(QDialog):
                     continue
                 ws = wb[tbl]
                 cur.execute(f"DELETE FROM {tbl}")
-                hdrs  = [c.value for c in ws[1]]
+                hdrs  = [str(c.value) for c in ws[1]]
                 ph    = ", ".join(["?"] * len(hdrs))
                 query = (
                     f"INSERT OR REPLACE INTO {tbl} "
@@ -520,6 +538,15 @@ class RulesetManagerDialog(QDialog):
         root.addWidget(self._build_left())
         root.addWidget(self._build_centre())
         root.addWidget(self._build_right())
+
+    @staticmethod
+    def _combo_box_stylesheet() -> str:
+        return (
+            "QComboBox { color:#222; background:white; border:0.5px solid #ccc; "
+            "border-radius:4px; padding:3px 6px; font-size:12px; }"
+            "QComboBox QAbstractItemView { color:#222; background:white; "
+            "selection-color:#222; selection-background-color:#ddeeff; }"
+        )
 
     # ── LEFT ──────────────────────────────────────────────────────────────────
 
@@ -629,6 +656,12 @@ class RulesetManagerDialog(QDialog):
         )
         self._card_search.textChanged.connect(self._refresh_cards)
 
+        self._type_filter = QComboBox()
+        self._type_filter.addItems(["All", "Material", "Labor"])
+        self._type_filter.setFixedWidth(86)
+        self._type_filter.setStyleSheet(self._combo_box_stylesheet())
+        self._type_filter.currentTextChanged.connect(self._refresh_cards)
+
         self._logic_btn = QPushButton("AND")
         self._logic_btn.setCheckable(True)
         self._logic_btn.setChecked(True)
@@ -650,6 +683,7 @@ class RulesetManagerDialog(QDialog):
         tl.addWidget(self._centre_title)
         tl.addStretch()
         tl.addWidget(self._card_search)
+        tl.addWidget(self._type_filter)
         tl.addWidget(self._logic_btn)
         tl.addWidget(new_btn)
         lay.addWidget(topbar)
@@ -690,8 +724,11 @@ class RulesetManagerDialog(QDialog):
     def _rebuild_chips(self):
         while self._chip_layout.count():
             item = self._chip_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
 
         chips = FILTER_CHIPS.get(self.active_obj_type, [])
         self._chip_bar.setVisible(bool(chips))
@@ -736,6 +773,40 @@ class RulesetManagerDialog(QDialog):
 
     # ── Card list ─────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _cond_has(cond: str, key: str, val_str: str) -> bool:
+        """Return True when a condition string contains a key/value test."""
+        if key == "condition_true":
+            return cond.strip() in ("", "True")
+
+        if key.endswith("_gt"):
+            base = key[:-3]
+            return (f"{base} >" in cond) or (f"{base}>" in cond)
+        if key.endswith("_ne"):
+            base = key[:-3]
+            return (
+                f"{base} != '{val_str}'" in cond or
+                f"{base} != \"{val_str}\"" in cond or
+                f"{base} != {val_str}" in cond
+            )
+
+        if val_str.lower() == "false":
+            return (
+                f"not {key}" in cond or
+                f"{key} == False" in cond
+            )
+        if val_str.lower() == "true":
+            return (
+                (key in cond and f"not {key}" not in cond)
+                or f"{key} == True" in cond
+            )
+
+        return (
+            f"{key} == '{val_str}'" in cond or
+            f"{key} == \"{val_str}\"" in cond or
+            f"{key} == {val_str}" in cond
+        )
+
     def _get_matching_rules(self, obj_type, fdict, chips):
         result = []
         for i, rule in enumerate(self.rules):
@@ -747,13 +818,7 @@ class RulesetManagerDialog(QDialog):
                 ok = True
                 for prop, val in fdict.items():
                     vs = str(val)
-                    patterns = [
-                        f"{prop} == '{vs}'",
-                        f"{prop} == \"{vs}\"",
-                        f"{prop} == {vs}",
-                        f"== {vs}",
-                    ]
-                    if not any(p in cond for p in patterns):
+                    if not self._cond_has(cond, prop, vs):
                         ok = False
                         break
                 if not ok:
@@ -762,26 +827,7 @@ class RulesetManagerDialog(QDialog):
             if chips:
                 chip_results = []
                 for (key, val_str) in chips:
-                    if key.endswith("_gt"):
-                        match = f"{key[:-3]} >" in cond
-                    elif key.endswith("_ne"):
-                        match = f"{key[:-3]} !=" in cond
-                    elif val_str.lower() == "false":
-                        match = (
-                            f"not {key}" in cond or
-                            f"{key} == False" in cond
-                        )
-                    elif val_str.lower() == "true":
-                        match = (
-                            (key in cond and f"not {key}" not in cond)
-                            or f"{key} == True" in cond
-                        )
-                    else:
-                        match = (
-                            f"{key} == '{val_str}'" in cond or
-                            f"{key} == \"{val_str}\"" in cond or
-                            f"{key} == {val_str}" in cond
-                        )
+                    match = self._cond_has(cond, key, val_str)
                     chip_results.append(match)
 
                 if self.filter_logic == "AND" and not all(chip_results):
@@ -797,9 +843,18 @@ class RulesetManagerDialog(QDialog):
             self._card_search.text().lower()
             if hasattr(self, "_card_search") else ""
         )
+        type_filter = (
+            self._type_filter.currentText()
+            if hasattr(self, "_type_filter") else "All"
+        )
         matched = self._get_matching_rules(
             self.active_obj_type, self.active_tree_filter, self.active_chips
         )
+        if type_filter != "All":
+            matched = [
+                (i, r) for i, r in matched
+                if r.get("type", "Material") == type_filter
+            ]
         if search:
             matched = [
                 (i, r) for i, r in matched
@@ -811,8 +866,11 @@ class RulesetManagerDialog(QDialog):
     def _refresh_cards(self):
         while self._card_layout.count() > 1:
             item = self._card_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
 
         matched   = self._visible_indices()
         sim_hits  = self._sim_hits() if self.sim_visible else set()
@@ -827,7 +885,7 @@ class RulesetManagerDialog(QDialog):
         self._update_tree_counts()
 
     def _make_card(self, rule_index, rule, sim_hit=False):
-        card     = QWidget()
+        card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
         selected = rule_index == self.selected_rule_index
 
         bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#ddd")
@@ -870,7 +928,6 @@ class RulesetManagerDialog(QDialog):
         bl.addWidget(form_l)
         lay.addWidget(body, 1)
 
-        card.mousePressEvent = lambda e, idx=rule_index: self._on_card(idx)
         return card
 
     def _on_card(self, rule_index):
@@ -931,9 +988,11 @@ class RulesetManagerDialog(QDialog):
         self._sim_table.setHorizontalHeaderLabels(
             ["Type", "Item", "Qty", "Formula"]
         )
-        self._sim_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        sim_hdr = self._sim_table.horizontalHeader()
+        if sim_hdr is not None:
+            sim_hdr.setSectionResizeMode(
+                1, QHeaderView.ResizeMode.Stretch
+            )
         self._sim_table.setMaximumHeight(160)
         self._sim_table.setStyleSheet("font-size:11px;")
         self._sim_table.setVisible(False)
@@ -955,8 +1014,11 @@ class RulesetManagerDialog(QDialog):
     def _rebuild_sim_inputs(self):
         while self._sim_inputs_l.count():
             item = self._sim_inputs_l.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
         self.sim_widgets = {}
 
         defaults = SIM_DEFAULTS.get(self.active_obj_type, {})
@@ -1177,6 +1239,7 @@ class RulesetManagerDialog(QDialog):
         self._type_combo = QComboBox()
         self._type_combo.addItems(["Material", "Labor"])
         self._type_combo.setCurrentText(rule.get("type", "Material"))
+        self._type_combo.setStyleSheet(self._combo_box_stylesheet())
         self._editor_body_l.addWidget(self._field_row("Type", self._type_combo))
 
         self._item_display = QLineEdit(rule.get("item_name", ""))
@@ -1234,6 +1297,88 @@ class RulesetManagerDialog(QDialog):
         )
         self._editor_body_l.addWidget(self._preview_lbl)
 
+        # Exact raw condition string (authoritative on save)
+        self._editor_body_l.addWidget(self._sec_lbl("Raw condition (exact)"))
+        self._raw_cond_input = QLineEdit(rule.get("condition", ""))
+        self._raw_cond_input.setStyleSheet(
+            "font-family:monospace; font-size:12px;"
+        )
+        self._editor_body_l.addWidget(self._raw_cond_input)
+        self._raw_cond_input.textChanged.connect(self._update_preview)
+
+        apply_builder_btn = QPushButton("Use builder preview as raw condition")
+        apply_builder_btn.setStyleSheet(
+            "font-size:11px; color:#185FA5; background:none; border:none; text-align:left;"
+        )
+        apply_builder_btn.clicked.connect(
+            lambda: self._raw_cond_input.setText(" ".join(self._build_condition_parts()))
+        )
+        self._editor_body_l.addWidget(apply_builder_btn)
+
+        self._cond_sync_hint = QLabel("")
+        self._cond_sync_hint.setWordWrap(True)
+        self._cond_sync_hint.setStyleSheet("font-size:10px; color:#a15c00;")
+        self._editor_body_l.addWidget(self._cond_sync_hint)
+
+        # Guided raw-condition composer
+        self._editor_body_l.addWidget(self._sec_lbl("Guided condition composer"))
+
+        helper_row = QWidget()
+        hr = QHBoxLayout(helper_row)
+        hr.setContentsMargins(0, 0, 0, 0)
+        hr.setSpacing(4)
+
+        obj_props = list(PROPERTY_DATA.get(rule.get("object", self.active_obj_type), {}).keys())
+        self._expr_prop_cb = QComboBox()
+        self._expr_prop_cb.addItems(obj_props)
+        self._expr_prop_cb.setToolTip("Available condition keys for this object")
+        self._expr_prop_cb.setStyleSheet(self._combo_box_stylesheet())
+
+        self._expr_op_cb = QComboBox()
+        self._expr_op_cb.addItems(["==", "!=", ">", "<", ">=", "<=", "in", "not in"])
+        self._expr_op_cb.setFixedWidth(70)
+        self._expr_op_cb.setStyleSheet(self._combo_box_stylesheet())
+
+        self._expr_val_w = QLineEdit()
+        self._expr_val_w.setPlaceholderText("value")
+
+        ins_clause_btn = QPushButton("Insert clause")
+        ins_clause_btn.setStyleSheet("font-size:11px; padding:3px 8px;")
+        ins_clause_btn.clicked.connect(self._insert_clause_from_helper)
+
+        hr.addWidget(self._expr_prop_cb, 2)
+        hr.addWidget(self._expr_op_cb)
+        hr.addWidget(self._expr_val_w, 2)
+        hr.addWidget(ins_clause_btn)
+        self._editor_body_l.addWidget(helper_row)
+
+        token_row = QWidget()
+        tr = QHBoxLayout(token_row)
+        tr.setContentsMargins(0, 0, 0, 0)
+        tr.setSpacing(4)
+
+        for lbl, token in [
+            ("AND", " and "),
+            ("OR", " or "),
+            ("NOT", "not "),
+            ("(", "("),
+            (")", ")"),
+        ]:
+            b = QPushButton(lbl)
+            b.setStyleSheet("font-size:10px; padding:2px 6px;")
+            b.clicked.connect(lambda _, t=token: self._insert_raw_text(t))
+            tr.addWidget(b)
+
+        clear_btn = QPushButton("Clear raw")
+        clear_btn.setStyleSheet("font-size:10px; padding:2px 6px; color:#a00;")
+        clear_btn.clicked.connect(lambda: self._raw_cond_input.setText(""))
+        tr.addWidget(clear_btn)
+        tr.addStretch()
+        self._editor_body_l.addWidget(token_row)
+
+        self._expr_prop_cb.currentTextChanged.connect(self._sync_expr_value_widget)
+        self._sync_expr_value_widget(self._expr_prop_cb.currentText())
+
         # Formula
         self._editor_body_l.addWidget(self._sec_lbl("Quantity formula"))
         avail = FORMULA_VARS.get(rule.get("object", ""), [])
@@ -1281,14 +1426,17 @@ class RulesetManagerDialog(QDialog):
         logic_cb.setVisible(len(self.condition_widgets) > 0)
         if logical_op:
             logic_cb.setCurrentText(logical_op)
+        logic_cb.setStyleSheet(self._combo_box_stylesheet())
         logic_cb.currentTextChanged.connect(self._update_preview)
 
         prop_cb = QComboBox()
         prop_cb.addItems(props)
+        prop_cb.setStyleSheet(self._combo_box_stylesheet())
 
         op_cb = QComboBox()
         op_cb.addItems(["==", "!=", ">", "<", ">=", "<="])
         op_cb.setFixedWidth(50)
+        op_cb.setStyleSheet(self._combo_box_stylesheet())
         op_cb.currentTextChanged.connect(self._update_preview)
 
         val_w = QLineEdit()
@@ -1345,6 +1493,7 @@ class RulesetManagerDialog(QDialog):
                 new_w.setRange(-100000, 100000)
                 new_w.valueChanged.connect(self._update_preview)
             elif isinstance(new_w, QComboBox):
+                new_w.setStyleSheet(self._combo_box_stylesheet())
                 new_w.currentTextChanged.connect(self._update_preview)
             else:
                 new_w.textChanged.connect(self._update_preview)
@@ -1442,6 +1591,93 @@ class RulesetManagerDialog(QDialog):
         text  = " ".join(parts) if parts else "(no conditions)"
         if hasattr(self, "_preview_lbl"):
             self._preview_lbl.setText(text)
+        if hasattr(self, "_cond_sync_hint") and hasattr(self, "_raw_cond_input"):
+            raw = self._raw_cond_input.text().strip()
+            builder = " ".join(parts).strip()
+            # Normalise empty/no-condition variants for comparison
+            if raw in ("", "True") and builder in ("", "(no conditions)"):
+                self._cond_sync_hint.setText("")
+            elif raw == builder:
+                self._cond_sync_hint.setText("")
+            else:
+                self._cond_sync_hint.setText(
+                    "Builder preview differs from raw condition. "
+                    "For complex rules (groups/in/not), edit Raw condition directly."
+                )
+
+    def _insert_raw_text(self, token: str):
+        if not hasattr(self, "_raw_cond_input"):
+            return
+        old = self._raw_cond_input.text()
+        pos = self._raw_cond_input.cursorPosition()
+        new = old[:pos] + token + old[pos:]
+        self._raw_cond_input.setText(new)
+        self._raw_cond_input.setCursorPosition(pos + len(token))
+
+    def _sync_expr_value_widget(self, prop: str):
+        obj = self.active_obj_type
+        pinfo = PROPERTY_DATA.get(obj, {}).get(prop)
+
+        new_w = None
+        if isinstance(pinfo, list):
+            cb = QComboBox()
+            cb.addItems([str(v) for v in pinfo])
+            cb.setEditable(False)
+            new_w = cb
+        elif pinfo == "int":
+            sp = QSpinBox()
+            sp.setRange(-100000, 100000)
+            new_w = sp
+        else:
+            le = QLineEdit()
+            le.setPlaceholderText("value")
+            new_w = le
+
+        row = self._expr_val_w.parentWidget()
+        lay = row.layout() if row else None
+        if lay is not None:
+            lay.replaceWidget(self._expr_val_w, new_w)
+        self._expr_val_w.deleteLater()
+        self._expr_val_w = new_w
+
+    def _insert_clause_from_helper(self):
+        if not hasattr(self, "_expr_prop_cb"):
+            return
+        prop = self._expr_prop_cb.currentText().strip()
+        op = self._expr_op_cb.currentText().strip()
+        if not prop:
+            return
+
+        v = self._expr_val_w
+        if isinstance(v, QSpinBox):
+            raw_val = str(v.value())
+        elif isinstance(v, QComboBox):
+            raw_val = v.currentText().strip()
+        else:
+            raw_val = v.text().strip()
+
+        def _fmt_token(t: str) -> str:
+            is_num = re.match(r"^-?\d+(\.\d+)?$", t)
+            is_bool = t.lower() in ("true", "false")
+            if is_num or is_bool:
+                return t
+            return f"'{t}'"
+
+        if op in ("in", "not in"):
+            vals = [x.strip() for x in raw_val.split(",") if x.strip()]
+            if not vals:
+                vals = ["value"]
+            seq = ", ".join(_fmt_token(x) for x in vals)
+            clause = f"{prop} {op} ({seq})"
+        else:
+            if raw_val == "":
+                raw_val = "value"
+            clause = f"{prop} {op} {_fmt_token(raw_val)}"
+
+        if self._raw_cond_input.text().strip():
+            self._insert_raw_text(" and " + clause)
+        else:
+            self._insert_raw_text(clause)
 
     # ── Editor actions ────────────────────────────────────────────────────────
 
@@ -1465,7 +1701,8 @@ class RulesetManagerDialog(QDialog):
         if self.selected_rule_index == -1:
             return
         rule = self.rules[self.selected_rule_index]
-        rule["condition"] = " ".join(self._build_condition_parts())
+        # Save the exact condition text so complex JSON conditions are preserved.
+        rule["condition"] = self._raw_cond_input.text().strip()
         if self.selected_result_item:
             rule["type"]      = self.selected_result_item["type"]
             rule["item_code"] = self.selected_result_item.get("code", "")
@@ -1539,7 +1776,12 @@ class RulesetManagerDialog(QDialog):
             return
         while layout.count():
             child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-            elif child.layout():
-                self._clear_layout(child.layout())
+            if child is None:
+                continue
+            w = child.widget()
+            if w is not None:
+                w.deleteLater()
+                continue
+            l = child.layout()
+            if l is not None:
+                self._clear_layout(l)

@@ -21,6 +21,7 @@ Visual improvements over v4
 """
 
 import math
+from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsItemGroup
 from PyQt6.QtGui import (
     QPainterPath, QBrush, QColor, QPen, QFont, QPainter
@@ -28,6 +29,11 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 
 from ui_components import DraggableLabel
+
+if TYPE_CHECKING:
+    _NodeBase = QGraphicsPathItem
+else:
+    _NodeBase = object
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,7 +160,7 @@ def _cg_path() -> QPainterPath:
 #  BASE MIXIN  — common flags + itemChange + detail_view propagation
 # ─────────────────────────────────────────────────────────────────────────────
 
-class _NodeMixin:
+class _NodeMixin(_NodeBase):
     """
     Mixin providing shared setup for all node-type canvas items
     (SmartPole, SmartStructure, SmartConsumer).
@@ -227,6 +233,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         else:
             self.earth_count = 1
             self.stay_count  = 0
+
+        self._updating_visuals = False
 
         # Angle overrides for stay/earth symbols (None = auto-calculate from spans)
         self.stay_angle_override  = None   # float degrees, or None
@@ -322,105 +330,161 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         # 3. Fallback
         return (stay_angle + 180) % 360
 
+    def _label_pos_from_stay(self, r: float, lw: float, lh: float, stay_angle: float) -> QPointF:
+        """Place label in the same quadrant as stay direction."""
+        rad = math.radians(stay_angle % 360)
+        vx = math.cos(rad)
+        vy = math.sin(rad)
+
+        sx = 1 if vx >= 0 else -1
+        sy = 1 if vy >= 0 else -1
+
+        margin_x = r + 10
+        margin_y = r + 8
+
+        x = margin_x if sx > 0 else -(lw + margin_x)
+        y = margin_y if sy > 0 else -(lh + margin_y)
+        return QPointF(x, y)
+
+    def _connected_span_layout(self) -> str:
+        """Return 'vertical', 'horizontal', or 'mixed' for connected span directions."""
+        has_vertical = False
+        has_horizontal = False
+        my_x, my_y = self.x(), self.y()
+
+        for span in self.connected_spans:
+            other = span.p1 if span.p2 is self else span.p2
+            dx = abs(other.x() - my_x)
+            dy = abs(other.y() - my_y)
+            if dy >= dx:
+                has_vertical = True
+            if dx >= dy:
+                has_horizontal = True
+
+        if has_vertical and has_horizontal:
+            return "mixed"
+        if has_vertical:
+            return "vertical"
+        return "horizontal"
+
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self):
-        path = QPainterPath()
+        if self._updating_visuals:
+            return
+        self._updating_visuals = True
 
-        # Main pole symbol
-        r = 9
-        if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
-            path.addPath(_existing_struct_path(self.existing_subtype))
-        else:
-            path.addEllipse(-r, -r, r * 2, r * 2)
+        try:
+            path = QPainterPath()
 
-        # Extension indicator — small square on top
-        if self.has_extension:
-            path.addRect(-4, -(r + 10), 8, 8)
-
-        # ── Determine stay / earth angles ─────────────────────────────────
-        if self.stay_angle_override is not None:
-            stay_angle = self.stay_angle_override % 360
-        else:
-            stay_angle = self._calc_stay_angle()
-
-        if self.earth_angle_override is not None:
-            earth_angle = self.earth_angle_override % 360
-        else:
-            earth_angle = self._calc_earth_angle(stay_angle)
-
-        # ── Earth symbol at pole edge in earth_angle direction ────────────
-        if self.detail_view and self.earth_count > 0:
-            n         = min(self.earth_count, 3)
-            erad      = math.radians(earth_angle)
-            perp_rad  = math.radians(earth_angle + 90)
-            # attachment point on pole edge
-            att_x = math.cos(erad) * (r + 2)
-            att_y = math.sin(erad) * (r + 2)
-            for i in range(n):
-                offset = (i - (n - 1) / 2) * 10   # tighter spacing for smaller symbol
-                ex = att_x + math.cos(perp_rad) * offset
-                ey = att_y + math.sin(perp_rad) * offset
-                path.addPath(_earth_path(ex, ey, earth_angle))
-
-        # ── Stay wire symbols in stay_angle direction ─────────────────────
-        if self.detail_view and self.stay_count > 0:
-            # For multiple stays, fan them around the main stay angle
-            spread = [0, -25, 25, -50]
-            for i in range(min(self.stay_count, 4)):
-                ang = (stay_angle + spread[i]) % 360
-                path.addPath(_stay_path(ang))
-
-        self.setPath(path)
-
-        # Colours
-        black_pen = QPen(Qt.GlobalColor.black, 1)
-        if self.is_existing:
-            self.setBrush(QBrush(QColor("#cccccc")))
-            self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
-        elif self.pole_type == "LT":
-            self.setBrush(QBrush(QColor("#2980b9")))   # blue
-            self.setPen(black_pen)
-        else:  # HT
-            self.setBrush(QBrush(QColor("#c0392b")))   # red
-            self.setPen(black_pen)
-
-        # Label text
-        if self.is_existing:
-            _sub = self.existing_subtype
-            _sfx = " Struct" if _sub in ("DP", "TP", "4P", "DTR") else " Pole"
-            txt = f"Ex. {_sub}{_sfx}"
-        else:
-            ht_m = self.height.replace("MTR", "m")
-            txt  = f"{self.pole_type2} {ht_m} ({self.pole_type})"
-            if self.has_extension:
-                txt += f"\n+Ext {self.extension_height:.1f}m"
-
-        if not self.is_existing:
-            if self.earth_count > 0:
-                txt += f"\n⏚ {self.earth_count} Earth"
-            if self.stay_count > 0:
-                txt += f"\nS×{self.stay_count} Stay"
-        if self.custom_note:
-            txt += f"\n📝 {self.custom_note}"
-
-        self.label.setPlainText(txt)
-
-        # ── Label position: centered below the pole symbol ────────────────
-        # Only reposition on first draw (label at default 0,0); after that the
-        # user may have dragged it, so leave it where it is.
-        lw = self.label.boundingRect().width()
-        lh = self.label.boundingRect().height()
-        if self.label.pos() == QPointF(0, 0):
-            if self.is_existing and self.existing_subtype in ("TP", "4P"):
-                lbl_y = 27   # taller structure symbol
+            # Main pole symbol
+            r = 9
+            if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
+                path.addPath(_existing_struct_path(self.existing_subtype))
             else:
-                lbl_y = r + 8
-            self.label.setPos(-lw / 2, lbl_y)
+                path.addEllipse(-r, -r, r * 2, r * 2)
+
+            # Extension indicator — small square on top
+            if self.has_extension:
+                path.addRect(-4, -(r + 10), 8, 8)
+
+            # ── Determine stay / earth angles ─────────────────────────────────
+            if self.stay_angle_override is not None:
+                stay_angle = self.stay_angle_override % 360
+            else:
+                stay_angle = self._calc_stay_angle()
+
+            if self.earth_angle_override is not None:
+                earth_angle = self.earth_angle_override % 360
+            else:
+                earth_angle = self._calc_earth_angle(stay_angle)
+
+            # ── Earth symbol at pole edge in earth_angle direction ────────────
+            if self.detail_view and self.earth_count > 0:
+                n         = min(self.earth_count, 3)
+                erad      = math.radians(earth_angle)
+                perp_rad  = math.radians(earth_angle + 90)
+                # attachment point on pole edge
+                att_x = math.cos(erad) * (r + 2)
+                att_y = math.sin(erad) * (r + 2)
+                for i in range(n):
+                    offset = (i - (n - 1) / 2) * 10   # tighter spacing for smaller symbol
+                    ex = att_x + math.cos(perp_rad) * offset
+                    ey = att_y + math.sin(perp_rad) * offset
+                    path.addPath(_earth_path(ex, ey, earth_angle))
+
+            # ── Stay wire symbols in stay_angle direction ─────────────────────
+            if self.detail_view and self.stay_count > 0:
+                # For multiple stays, fan them around the main stay angle
+                spread = [0, -25, 25, -50]
+                for i in range(min(self.stay_count, 4)):
+                    ang = (stay_angle + spread[i]) % 360
+                    path.addPath(_stay_path(ang))
+
+            self.setPath(path)
+
+            # Colours
+            black_pen = QPen(Qt.GlobalColor.black, 1)
+            if self.is_existing:
+                self.setBrush(QBrush(QColor("#cccccc")))
+                self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
+            elif self.pole_type == "LT":
+                self.setBrush(QBrush(QColor("#2980b9")))   # blue
+                self.setPen(black_pen)
+            else:  # HT
+                self.setBrush(QBrush(QColor("#c0392b")))   # red
+                self.setPen(black_pen)
+
+            # Label text
+            if self.is_existing:
+                _sub = self.existing_subtype
+                _sfx = " Struct" if _sub in ("DP", "TP", "4P", "DTR") else " Pole"
+                txt = f"Ex. {_sub}{_sfx}"
+            else:
+                ht_m = self.height.replace("MTR", "m")
+                txt  = f"{self.pole_type2} {ht_m} ({self.pole_type})"
+                if self.has_extension:
+                    txt += f"\n+Ext {self.extension_height:.1f}m"
+
+            if not self.is_existing:
+                if self.earth_count > 0:
+                    txt += f"\n⏚ {self.earth_count} Earth"
+                if self.stay_count > 0:
+                    txt += f"\nS×{self.stay_count} Stay"
+            if self.custom_note:
+                txt += f"\n📝 {self.custom_note}"
+
+            self.label.setPlainText(txt)
+
+            # ── Label position auto-placement ──────────────────────────────────
+            # Preserve old behavior for pure vertical spans: label on right.
+            # Preserve old behavior for pure horizontal spans: label below.
+            # Only use stay-direction quadrant for mixed corner cases.
+            lw = self.label.boundingRect().width()
+            lh = self.label.boundingRect().height()
+            if self.connected_spans:
+                layout = self._connected_span_layout()
+                if layout == "vertical":
+                    self.label.setPos(r + 10, -lh / 2)
+                elif layout == "mixed":
+                    self.label.setPos(self._label_pos_from_stay(r, lw, lh, stay_angle))
+                else:
+                    lbl_y = r + 8
+                    self.label.setPos(-lw / 2, lbl_y)
+            else:
+                if self.is_existing and self.existing_subtype in ("TP", "4P"):
+                    lbl_y = 27   # taller structure symbol
+                else:
+                    lbl_y = r + 8
+                self.label.setPos(-lw / 2, lbl_y)
+        finally:
+            self._updating_visuals = False
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)
+        if painter is None:
+            return
         if self.has_extension:
             r = 9
             painter.save()
@@ -596,6 +660,8 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)
+        if painter is None:
+            return
         if self.has_extension:
             r = 8
             painter.save()
@@ -794,7 +860,7 @@ class SmartSpan(QGraphicsPathItem):
         p1_pos = self.p1.pos()
         p2_pos = self.p2.pos()
 
-        def _get_line_rect_intersection(line, rect):
+        def _get_line_rect_intersection(line, rect) -> QPointF:
             intersection_point = QPointF()
             
             # Check for intersection with each of the 4 lines of the rectangle
@@ -813,7 +879,7 @@ class SmartSpan(QGraphicsPathItem):
             
             return intersection_point
 
-        def get_connection_point(item, other_item_pos):
+        def get_connection_point(item, other_item_pos) -> QPointF:
             item_pos = item.pos()
             line = QLineF(other_item_pos, item_pos)
             
@@ -901,10 +967,15 @@ class SmartSpan(QGraphicsPathItem):
             mid_x  = (x1 + x2) / 2
             mid_y  = (y1 + y2) / 2
             lw     = self.label.boundingRect().width()
-            self.label.setPos(
-                mid_x + nx_n * 16 - lw / 2,
-                mid_y + ny_n * 16 - 10
-            )
+
+            # Keep horizontal span labels above the line for cleaner drawings.
+            if abs(dx) >= abs(dy):
+                self.label.setPos(mid_x - lw / 2, mid_y - 24)
+            else:
+                self.label.setPos(
+                    mid_x + nx_n * 16 - lw / 2,
+                    mid_y + ny_n * 16 - 10
+                )
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
@@ -927,6 +998,8 @@ class SmartSpan(QGraphicsPathItem):
         if self.is_existing_span:
             if self.conductor == "ACSR":
                 txt = f"{self.length}m {self.wire_count}w\nEx ACSR"
+            elif self.conductor == "AB Cable":
+                txt = f"Ex. ABC"
             else:
                 txt = f"Existing\n{self.conductor}"
         elif self.is_service_drop:
@@ -953,8 +1026,10 @@ class SmartSpan(QGraphicsPathItem):
         self.label.setPlainText(txt)
 
         # Ensure label is in scene
-        if not self.label.scene() and self.scene():
-            self.scene().addItem(self.label)
+        if not self.label.scene():
+            sc = self.scene()
+            if sc is not None:
+                sc.addItem(self.label)
 
     # ── Custom paint for CG symbol ────────────────────────────────────────────
 

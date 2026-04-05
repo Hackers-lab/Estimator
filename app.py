@@ -27,13 +27,13 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser
+    QFrame, QMenu, QTextBrowser, QInputDialog
 )
 from PyQt6.QtGui import (
-    QPen, QBrush, QColor, QPainter, QPageLayout, QFont,
+    QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
     QAction, QKeySequence, QIcon, QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, pyqtSignal
 from PyQt6.QtPrintSupport import QPrinter
 
 from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
@@ -102,8 +102,28 @@ class EstimateApp(QMainWindow):
         self.autosave_file  = "autosave_erp.json"
         self.current_tool   = "SELECT"
 
+        # ── Page grid state ────────────────────────────────────────────────
+        # 17.5 scene units ≈ 1 real-world metre  (calibrated: 40m span = ~700 units)
+        self.pdf_scale  = 200   # default print scale
+        self.pdf_show_project_name = True
+        self.pdf_show_legend = True
+        self.pdf_orientation_mode = "Auto + Overrides"
+        self.pdf_auto_gain_threshold = 1.08
+        self.pdf_page_overrides: dict[int, str] = {}
+        self.show_page_grid  = True
+        self.show_crosshatch = True
+
         # Rule engine (lazy-init on first refresh)
         self.rule_engine = DynamicRuleEngine()
+
+        # ── History state (Undo/Redo) ──────────────────────────────────────
+        self.history = []
+        self.history_index = -1
+        self._is_undoing = False
+        self._refreshing_live = False
+        self._history_timer = QTimer(self)
+        self._history_timer.setSingleShot(True)
+        self._history_timer.timeout.connect(self.push_history)
 
         # ── Build UI ───────────────────────────────────────────────────────
         self.setWindowTitle("ERP Estimate Generator — v5.0")
@@ -114,6 +134,10 @@ class EstimateApp(QMainWindow):
         self._build_menu_bar()
         self._build_ui()
 
+        app_inst = QApplication.instance()
+        if app_inst is not None:
+            app_inst.installEventFilter(self)
+
         # ── Wire signals ───────────────────────────────────────────────────
         self.refresh_signal.connect(self.refresh_live_estimate)
         self.scene.selectionChanged.connect(self.on_selection_changed)
@@ -121,6 +145,7 @@ class EstimateApp(QMainWindow):
         # ── Load autosave ──────────────────────────────────────────────────
         self.set_tool("SELECT")
         self.load_autosave()
+        self.on_selection_changed()
 
     # =========================================================================
     #  MENU BAR
@@ -128,6 +153,7 @@ class EstimateApp(QMainWindow):
 
     def _build_menu_bar(self):
         mb = self.menuBar()
+        assert mb is not None
         mb.setStyleSheet(
             "QMenuBar { background:#f5f5f5; font-size:12px; }"
             "QMenuBar::item:selected { background:#d0d0d0; }"
@@ -137,6 +163,7 @@ class EstimateApp(QMainWindow):
 
         # ── File ──────────────────────────────────────────────────────────
         file_menu = mb.addMenu("&File")
+        assert file_menu is not None
 
         act_new = QAction("📄  New Drawing", self)
         act_new.setShortcut(QKeySequence("Ctrl+N"))
@@ -155,6 +182,18 @@ class EstimateApp(QMainWindow):
 
         file_menu.addSeparator()
 
+        self.act_undo = QAction("↶ Undo", self)
+        self.act_undo.setShortcut(QKeySequence("Ctrl+Z"))
+        self.act_undo.triggered.connect(self.undo)
+        file_menu.addAction(self.act_undo)
+
+        self.act_redo = QAction("↷ Redo", self)
+        self.act_redo.setShortcut(QKeySequence("Ctrl+Y"))
+        self.act_redo.triggered.connect(self.redo)
+        file_menu.addAction(self.act_redo)
+
+        file_menu.addSeparator()
+
         act_exit = QAction("Exit", self)
         act_exit.setShortcut(QKeySequence("Ctrl+Q"))
         act_exit.triggered.connect(self.close)
@@ -162,6 +201,7 @@ class EstimateApp(QMainWindow):
 
         # ── Export ────────────────────────────────────────────────────────
         export_menu = mb.addMenu("E&xport")
+        assert export_menu is not None
 
         act_pdf = QAction("🗺️  Export PDF Drawing", self)
         act_pdf.triggered.connect(self.export_pdf)
@@ -173,6 +213,7 @@ class EstimateApp(QMainWindow):
 
         # ── Settings ─────────────────────────────────────────────────────
         settings_menu = mb.addMenu("&Settings")
+        assert settings_menu is not None
 
         act_proj = QAction("🗂  Project Settings", self)
         act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
@@ -190,6 +231,7 @@ class EstimateApp(QMainWindow):
 
         # ── Help ──────────────────────────────────────────────────────────
         help_menu = mb.addMenu("&Help")
+        assert help_menu is not None
 
         act_help = QAction("📖  User Guide", self)
         act_help.setShortcut(QKeySequence("F1"))
@@ -226,20 +268,129 @@ class EstimateApp(QMainWindow):
         left_layout.setSpacing(4)
         self.splitter.addWidget(left_panel)
 
+        left_layout.addLayout(self._build_icon_ribbon())
         left_layout.addLayout(self._build_draw_toolbar())
 
         self.scene = QGraphicsScene()
         self.view  = InteractiveView(self.scene, self)
         left_layout.addWidget(self.view)
 
-        # Show Symbols checkbox at bottom-left
+        # ── Bottom canvas control bar ──────────────────────────────────────
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setSpacing(8)
+        bottom_bar.setContentsMargins(2, 0, 2, 0)
+
+        # Show Symbols checkbox
         self.detail_chk = QCheckBox("Show Symbols")
         self.detail_chk.setChecked(True)
         self.detail_chk.setStyleSheet(
             "font-size:11px; font-weight:bold; color:#555; spacing:4px;"
         )
         self.detail_chk.toggled.connect(self._toggle_detail_view)
-        left_layout.addWidget(self.detail_chk)
+        bottom_bar.addWidget(self.detail_chk)
+
+        # Separator
+        sep1 = QLabel("|");
+        sep1.setStyleSheet("color:#ccc; font-size:14px;")
+        bottom_bar.addWidget(sep1)
+
+        # Page Grid toggle
+        self.grid_chk = QCheckBox("Page Grid")
+        self.grid_chk.setChecked(True)
+        self.grid_chk.setStyleSheet(
+            "font-size:11px; font-weight:bold; color:#3a7bd5; spacing:4px;"
+        )
+        self.grid_chk.toggled.connect(self._toggle_page_grid)
+        bottom_bar.addWidget(self.grid_chk)
+
+        # Crosshatch toggle
+        self.hatch_chk = QCheckBox("Crosshatch")
+        self.hatch_chk.setChecked(True)
+        self.hatch_chk.setStyleSheet(
+            "font-size:11px; color:#555; spacing:4px;"
+        )
+        self.hatch_chk.toggled.connect(self._toggle_crosshatch)
+        bottom_bar.addWidget(self.hatch_chk)
+
+        # Separator
+        sep2 = QLabel("|");
+        sep2.setStyleSheet("color:#ccc; font-size:14px;")
+        bottom_bar.addWidget(sep2)
+
+        # Scale label + dropdown
+        bottom_bar.addWidget(QLabel("Print Scale:"))
+        self.scale_cb = QComboBox()
+        self.scale_cb.addItems([
+            "1:150", "1:200", "1:300"
+        ])
+        self.scale_cb.setCurrentText("1:200")
+        self.scale_cb.setToolTip(
+            "Sets how much drawing area fits on one A4 page.\n"
+            "1:150 = more detailed  |  1:300 = wider area."
+        )
+        self.scale_cb.currentTextChanged.connect(self._on_scale_changed)
+        self.scale_cb.setStyleSheet(
+            "font-size:11px; font-weight:bold; color:#1a5276;"
+        )
+        bottom_bar.addWidget(self.scale_cb)
+
+        # Orientation mode
+        bottom_bar.addWidget(QLabel("Orientation:"))
+        self.orient_cb = QComboBox()
+        self.orient_cb.addItems([
+            "Landscape (All)",
+            "Portrait (All)",
+            "Auto (Global Best)",
+            "Auto + Overrides",
+        ])
+        self.orient_cb.setCurrentText(self.pdf_orientation_mode)
+        self.orient_cb.setToolTip(
+            "Landscape/Portrait force all pages.\n"
+            "Auto (Global Best) picks one best orientation for the full drawing.\n"
+            "Auto + Overrides allows manual page overrides."
+        )
+        self.orient_cb.currentTextChanged.connect(self._on_orientation_mode_changed)
+        self.orient_cb.setStyleSheet("font-size:11px; color:#1a5276;")
+        bottom_bar.addWidget(self.orient_cb)
+
+        self.page_override_btn = QPushButton("Page Overrides")
+        self.page_override_btn.setToolTip(
+            "Set manual orientation for specific pages, e.g. 2:P, 5:L.\n"
+            "Note: overrides that conflict with current grid geometry are ignored."
+        )
+        self.page_override_btn.setStyleSheet(
+            "font-size:10px; padding:3px 6px;"
+        )
+        self.page_override_btn.clicked.connect(self._edit_page_overrides)
+        bottom_bar.addWidget(self.page_override_btn)
+
+        # Separator
+        sep3 = QLabel("|")
+        sep3.setStyleSheet("color:#ccc; font-size:14px;")
+        bottom_bar.addWidget(sep3)
+
+        # PDF title toggle
+        self.pdf_title_chk = QCheckBox("Project Name")
+        self.pdf_title_chk.setChecked(True)
+        self.pdf_title_chk.setToolTip("Show project name in PDF drawing title strip")
+        self.pdf_title_chk.setStyleSheet(
+            "font-size:11px; color:#555; spacing:4px;"
+        )
+        self.pdf_title_chk.toggled.connect(self._toggle_pdf_project_name)
+        bottom_bar.addWidget(self.pdf_title_chk)
+
+        # PDF legend toggle
+        self.pdf_legend_chk = QCheckBox("Legend")
+        self.pdf_legend_chk.setChecked(True)
+        self.pdf_legend_chk.setToolTip("Show legend on the last PDF drawing page")
+        self.pdf_legend_chk.setStyleSheet(
+            "font-size:11px; color:#555; spacing:4px;"
+        )
+        self.pdf_legend_chk.toggled.connect(self._toggle_pdf_legend)
+        bottom_bar.addWidget(self.pdf_legend_chk)
+
+        bottom_bar.addStretch()
+        left_layout.addLayout(bottom_bar)
 
         # Right: properties + estimate table
         right_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -249,6 +400,44 @@ class EstimateApp(QMainWindow):
         right_splitter.addWidget(self._build_properties_panel())
         right_splitter.addWidget(self._build_estimate_panel())
         right_splitter.setSizes([320, 680])
+
+    def _build_icon_ribbon(self):
+        """Small icon-only ribbon above the main drawing tools."""
+        bar = QHBoxLayout()
+        bar.setSpacing(6)
+        bar.setContentsMargins(0, 0, 0, 2)
+        
+        def _make_icon_btn(text, tooltip, bg, color="#000"):
+            btn = QPushButton(text)
+            btn.setToolTip(tooltip)
+            btn.setFixedSize(28, 28)
+            btn.setStyleSheet(f"font-size:16px; font-weight:bold; background:{bg}; color:{color}; border-radius:3px; border:1px solid #ccc;")
+            return btn
+
+        # Undo / Redo
+        self.undo_btn = _make_icon_btn("↶", "Undo (Ctrl+Z)", "#e6e6e6")
+        self.undo_btn.clicked.connect(self.undo)
+        bar.addWidget(self.undo_btn)
+        
+        self.redo_btn = _make_icon_btn("↷", "Redo (Ctrl+Y)", "#e6e6e6")
+        self.redo_btn.clicked.connect(self.redo)
+        bar.addWidget(self.redo_btn)
+        
+        sep = QLabel("|")
+        sep.setStyleSheet("color:#bbb; padding:0 2px;")
+        bar.addWidget(sep)
+        
+        # PDF / Excel
+        btn_pdf = _make_icon_btn("📑", "Export PDF Drawing", "#f9ebea", "#78281f")
+        btn_pdf.clicked.connect(self.export_pdf)
+        bar.addWidget(btn_pdf)
+        
+        btn_xl = _make_icon_btn("📊", "Export Excel Estimate", "#eaf2f8", "#154360")
+        btn_xl.clicked.connect(self.generate_excel)
+        bar.addWidget(btn_xl)
+
+        bar.addStretch()
+        return bar
 
     def _build_draw_toolbar(self):
         bar = QHBoxLayout()
@@ -262,6 +451,24 @@ class EstimateApp(QMainWindow):
             )
             bar.addWidget(btn)
             self.tools_btns[key] = btn
+
+        # Thin visual separator
+        sep = QLabel("|")
+        sep.setStyleSheet("color:#bbb; font-size:16px; padding:0 4px;")
+        bar.addWidget(sep)
+
+        # Fit-View button — also triggered by F key on the canvas
+        fit_btn = QPushButton("⬡ Fit View")
+        fit_btn.setToolTip(
+            "Fit all drawing content in view  [F or Ctrl+0]\n"
+            "Useful after zooming out too far or after loading a project."
+        )
+        fit_btn.setStyleSheet(
+            "padding:7px 10px; font-weight:bold;"
+            "background:#d5e8f7; color:#1a5276; border-radius:3px;"
+        )
+        fit_btn.clicked.connect(self._fit_view)
+        bar.addWidget(fit_btn)
         return bar
 
     def _build_properties_panel(self):
@@ -274,6 +481,8 @@ class EstimateApp(QMainWindow):
         info_row = QHBoxLayout()
         info_row.setSpacing(0)
         self.proj_info_label = QLabel()
+        self.proj_info_label.setWordWrap(True)
+        self.proj_info_label.setMinimumWidth(0)
         self.proj_info_label.setStyleSheet(
             "font-size:11px; color:#555; padding:3px 5px;"
             "background:#f0f0f0; border-radius:3px 0 0 3px;"
@@ -320,7 +529,9 @@ class EstimateApp(QMainWindow):
         self.live_table.setHorizontalHeaderLabels(
             ["Type", "Code", "Name", "Qty", "Unit", "Total (Rs)"]
         )
-        self.live_table.horizontalHeader().setSectionResizeMode(
+        live_hdr = self.live_table.horizontalHeader()
+        assert live_hdr is not None
+        live_hdr.setSectionResizeMode(
             2, QHeaderView.ResizeMode.Stretch
         )
         self.live_table.setColumnWidth(0, 65)
@@ -406,22 +617,372 @@ class EstimateApp(QMainWindow):
         self.update_view_drag_mode()
 
     def update_view_drag_mode(self):
-        zoomed = self.view.transform().m11() > 1.0
+        """Delegate canvas interaction state to InteractiveView.
+
+        SELECT mode now uses dynamic drag mode/cursor behavior:
+        empty-space pan, hover-select pointer, selected-object drag pointer.
+        """
         if self.current_tool == "SELECT":
-            mode = (QGraphicsView.DragMode.ScrollHandDrag if zoomed
-                    else QGraphicsView.DragMode.RubberBandDrag)
+            self.view.refresh_interaction_state()
         else:
-            mode = QGraphicsView.DragMode.NoDrag
-        self.view.setDragMode(mode)
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.view.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _fit_view(self):
+        """Fit all drawing content in view. Called by toolbar button and F key."""
+        bounds = self.scene.itemsBoundingRect()
+        if not bounds.isNull():
+            self.view.fitInView(
+                bounds.adjusted(-60, -60, 60, 60),
+                Qt.AspectRatioMode.KeepAspectRatio
+            )
 
     def _toggle_detail_view(self, checked=None):
         self.detail_view = self.detail_chk.isChecked()
         # Redraw all canvas items
         for item in self.scene.items():
-            if hasattr(item, "detail_view"):
+            if isinstance(item, (SmartPole, SmartStructure, SmartSpan, SmartConsumer)):
                 item.detail_view = self.detail_view
-            if hasattr(item, "update_visuals"):
                 item.update_visuals()
+
+    def _toggle_page_grid(self, checked):
+        self.show_page_grid = checked
+        self.view.grid_show = checked
+        vp = self.view.viewport()
+        assert vp is not None
+        vp.update()
+
+    def _toggle_crosshatch(self, checked):
+        self.show_crosshatch = checked
+        self.view.grid_crosshatch = checked
+        vp = self.view.viewport()
+        assert vp is not None
+        vp.update()
+
+    def _toggle_pdf_project_name(self, checked):
+        self.pdf_show_project_name = checked
+
+    def _toggle_pdf_legend(self, checked):
+        self.pdf_show_legend = checked
+
+    def _on_scale_changed(self, text):
+        """Called when user picks a new print scale from the dropdown."""
+        try:
+            self.pdf_scale = int(text.split(":")[1])
+        except (IndexError, ValueError):
+            self.pdf_scale = 200
+        self._refresh_page_grid()
+
+    def _on_orientation_mode_changed(self, text):
+        self.pdf_orientation_mode = text
+        use_override = (text == "Auto + Overrides")
+        self.page_override_btn.setEnabled(use_override)
+        self._refresh_page_grid()
+
+    def _edit_page_overrides(self):
+        if self.pdf_orientation_mode != "Auto + Overrides":
+            QMessageBox.information(
+                self,
+                "Orientation Overrides",
+                "Switch Orientation mode to 'Auto + Overrides' to edit page overrides.",
+            )
+            return
+
+        self._refresh_page_grid()
+        tiles = self.view.grid_tiles
+        if not tiles:
+            QMessageBox.information(self, "Orientation Overrides", "No pages available.")
+            return
+
+        total_pages = tiles[0].get("total", len(tiles))
+        cur_parts = [f"{k}:{v}" for k, v in sorted(self.pdf_page_overrides.items())]
+        cur_text = ", ".join(cur_parts)
+
+        text, ok = QInputDialog.getText(
+            self,
+            "Page Orientation Overrides",
+            (
+                f"Enter overrides as page:orientation (L or P).\n"
+                f"Example: 2:P, 5:L\n"
+                f"Pages available: 1..{total_pages}\n"
+                f"Conflicting overrides may be ignored to keep non-overlapping page grid."
+            ),
+            text=cur_text,
+        )
+        if not ok:
+            return
+
+        raw = text.strip()
+        if not raw:
+            self.pdf_page_overrides = {}
+            self._refresh_page_grid()
+            return
+
+        parsed: dict[int, str] = {}
+        parts = [p.strip() for p in raw.split(",") if p.strip()]
+        for p in parts:
+            if ":" not in p:
+                QMessageBox.warning(self, "Invalid Override", f"Invalid token: {p}")
+                return
+            page_str, orient_str = p.split(":", 1)
+            try:
+                page_no = int(page_str.strip())
+            except ValueError:
+                QMessageBox.warning(self, "Invalid Override", f"Invalid page number: {page_str}")
+                return
+            orient = orient_str.strip().upper()
+            if orient not in ("L", "P"):
+                QMessageBox.warning(self, "Invalid Override", f"Invalid orientation for page {page_no}: {orient_str}")
+                return
+            if page_no < 1 or page_no > total_pages:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Override",
+                    f"Page {page_no} is out of range (1..{total_pages}).",
+                )
+                return
+            parsed[page_no] = orient
+
+        self.pdf_page_overrides = parsed
+        self._refresh_page_grid()
+
+    # =========================================================================
+    #  PAGE GRID COMPUTATION
+    # =========================================================================
+
+    # Physical A4 dimensions in millimetres
+    _A4_W_MM = 297.0   # landscape width
+    _A4_H_MM = 210.0   # landscape height
+    # Calibration: 40m real span ≈ 700 scene units → 17.5 units per metre
+    _SCENE_UNITS_PER_M = 17.5
+
+    def _a4_scene_dims(self, scale):
+        """
+        Return (page_w_scene, page_h_scene) — size of an A4 landscape sheet
+        in scene units at the given 1:scale ratio.
+        """
+        m_per_mm = scale / 1000.0          # 1mm paper → this many real metres
+        w = self._A4_W_MM * m_per_mm * self._SCENE_UNITS_PER_M
+        h = self._A4_H_MM * m_per_mm * self._SCENE_UNITS_PER_M
+        return w, h
+
+    def _a4_scene_dims_oriented(self, scale, orient: str):
+        w_l, h_l = self._a4_scene_dims(scale)
+        if orient == "P":
+            return h_l, w_l
+        return w_l, h_l
+
+    def _auto_tile_orientation(self, union_rect: QRectF, pad: float = 10.0) -> str:
+        """Pick L/P by comparing best fit scale of content in both orientations."""
+        if union_rect.isNull() or union_rect.isEmpty():
+            return "L"
+
+        content_w = max(1.0, union_rect.width())
+        content_h = max(1.0, union_rect.height())
+
+        pw_l, ph_l = self._a4_scene_dims_oriented(self.pdf_scale, "L")
+        pw_p, ph_p = self._a4_scene_dims_oriented(self.pdf_scale, "P")
+
+        s_l = min((pw_l - 2 * pad) / content_w, (ph_l - 2 * pad) / content_h)
+        s_p = min((pw_p - 2 * pad) / content_w, (ph_p - 2 * pad) / content_h)
+
+        if s_p > s_l * self.pdf_auto_gain_threshold:
+            return "P"
+        return "L"
+
+    def _auto_global_orientation(self, bounds: QRectF) -> str:
+        """Pick one stable orientation for the whole drawing bounds."""
+        return self._auto_tile_orientation(bounds)
+
+    def _resolve_orientation(self, auto_orient: str, page_num: int) -> tuple[str, bool]:
+        mode = self.pdf_orientation_mode
+        if mode == "Landscape (All)":
+            return "L", False
+        if mode == "Portrait (All)":
+            return "P", False
+        if mode == "Auto + Overrides":
+            ov = self.pdf_page_overrides.get(page_num)
+            if ov in ("L", "P"):
+                return ov, True
+            return auto_orient, False
+        return auto_orient, False
+
+    def _refresh_page_grid(self):
+        """
+        Recompute the A4 page tiles in scene coordinates and push them
+        to the InteractiveView for background rendering.
+        This uses a Sparse Grid algorithm -- only pages containing items are generated.
+        Tile positions are computed on a fixed landscape grid for stable row/col order,
+        while each tile is tagged L/P individually based on local drawing geometry.
+        Called after any placement, deletion, scale change, or load.
+        """
+        items = [
+            i for i in self.scene.items()
+            if isinstance(i, (SmartPole, SmartStructure, SmartConsumer, SmartSpan))
+        ]
+        if not items:
+            if self.pdf_orientation_mode == "Portrait (All)":
+                blank_orient = "P"
+            else:
+                blank_orient = "L"
+            pw, ph = self._a4_scene_dims_oriented(self.pdf_scale, blank_orient)
+            blank_rect = QRectF(-pw / 2.0, -ph / 2.0, pw, ph)
+            self.view.grid_tiles = [{
+                "rect": blank_rect,
+                "orient": blank_orient,
+                "auto_orient": blank_orient,
+                "is_override": False,
+                "items_count": 0,
+                "row": 0,
+                "col": 0,
+                "page_num": 1,
+                "total": 1,
+            }]
+            margin = max(pw, ph)
+            self.scene.setSceneRect(blank_rect.adjusted(-margin, -margin, margin, margin))
+            vp = self.view.viewport()
+            assert vp is not None
+            vp.update()
+            return
+
+        PAD = 50  # Increased padding for better object spacing
+        bounds = self.scene.itemsBoundingRect().adjusted(-PAD, -PAD, PAD, PAD)
+
+        if self.pdf_orientation_mode == "Landscape (All)":
+            base_orient = "L"
+        elif self.pdf_orientation_mode == "Portrait (All)":
+            base_orient = "P"
+        else:
+            # Use global auto orientation for stable non-overlapping page grid.
+            base_orient = self._auto_global_orientation(bounds)
+        pw_L, ph_L = self._a4_scene_dims_oriented(self.pdf_scale, base_orient)
+
+        # Edge margin: Minimum space between objects and page boundary (scene units)
+        # This ensures objects don't appear at the very edge of the page
+        EDGE_MARGIN = 30
+        
+        # Keep page 1 centered while the drawing still fits on a single page with safety margins.
+        # Only switch to top-left packed tiling when overflow requires more pages.
+        # Check if bounds fit within the page with additional edge protection
+        if (bounds.width() <= pw_L - 2 * EDGE_MARGIN and 
+            bounds.height() <= ph_L - 2 * EDGE_MARGIN):
+            single_rect = QRectF(-pw_L / 2.0, -ph_L / 2.0, pw_L, ph_L)
+            
+            # Ensure the centered page actually contains all items with margin
+            centered_bounds_check = bounds.adjusted(0, 0, 0, 0)  # Use bounds as-is
+            page_left = single_rect.left()
+            page_right = single_rect.right()
+            page_top = single_rect.top()
+            page_bottom = single_rect.bottom()
+            
+            # Verify bounds fit within centered page with margins
+            if (centered_bounds_check.left() >= page_left + EDGE_MARGIN and
+                centered_bounds_check.right() <= page_right - EDGE_MARGIN and
+                centered_bounds_check.top() >= page_top + EDGE_MARGIN and
+                centered_bounds_check.bottom() <= page_bottom - EDGE_MARGIN):
+                
+                self.view.grid_tiles = [{
+                    "rect": single_rect,
+                    "auto_orient": base_orient,
+                    "orient": base_orient,
+                    "is_override": False,
+                    "items_count": len(items),
+                    "row": 0,
+                    "col": 0,
+                    "page_num": 1,
+                    "total": 1,
+                }]
+                margin = max(pw_L, ph_L)
+                self.scene.setSceneRect(single_rect.adjusted(-margin, -margin, margin, margin))
+                vp = self.view.viewport()
+                assert vp is not None
+                vp.update()
+                return
+
+        # A tile is occupied when any drawable item's geometry touches it.
+        def items_in(rect):
+            return [i for i in items if rect.intersects(i.sceneBoundingRect())]
+
+        # Pack pages from the drawing bounds origin so page-1 starts where
+        # content starts, instead of snapping to world-origin multiples.
+        eps = 1e-6
+        cols = max(1, int(math.ceil(max(0.0, bounds.width() - eps) / pw_L)))
+        rows = max(1, int(math.ceil(max(0.0, bounds.height() - eps) / ph_L)))
+        base_left = bounds.left()
+        base_top = bounds.top()
+
+        occupied_tiles = []
+        # Generate occupied tiles strictly top-to-bottom, left-to-right
+        for r in range(rows):
+            for c in range(cols):
+                rect = QRectF(base_left + c * pw_L, base_top + r * ph_L, pw_L, ph_L)
+                ins = items_in(rect)
+                if not ins:
+                    continue
+
+                # Local orientation based on item spread inside this tile.
+                local_union = None
+                for item in ins:
+                    inter = rect.intersected(item.sceneBoundingRect())
+                    if inter.isNull() or inter.isEmpty():
+                        continue
+                    local_union = inter if local_union is None else local_union.united(inter)
+
+                occupied_tiles.append({
+                    "rect": rect,
+                    "auto_orient": base_orient,
+                    "items_count": len(ins),
+                    "row": r,
+                    "col": c,
+                })
+
+        # Number occupied tiles sequentially 1..N with no gaps.
+        total = len(occupied_tiles)
+        final_tiles = []
+        for i, t in enumerate(occupied_tiles):
+            page_num = i + 1
+            orient, is_override = self._resolve_orientation(t.get("auto_orient", base_orient), page_num)
+
+            # Keep page grid geometry stable/non-overlapping. If an override
+            # disagrees with the global geometry orientation, keep geometry
+            # orientation and drop override for this layout pass.
+            if orient != base_orient:
+                orient = base_orient
+                is_override = False
+
+            t["page_num"] = page_num
+            t["total"] = total
+            t["orient"] = orient
+            t["is_override"] = is_override
+            final_tiles.append(t)
+
+        # Drop overrides that no longer map to current page count.
+        if self.pdf_page_overrides:
+            self.pdf_page_overrides = {
+                k: v for k, v in self.pdf_page_overrides.items() if 1 <= k <= total
+            }
+
+        self.view.grid_tiles = final_tiles
+
+        # Constrain the scene rect to exactly the generated tiles + margin
+        if final_tiles:
+            full_rect = final_tiles[0]["rect"]
+            for t in final_tiles[1:]:
+                full_rect = full_rect.united(t["rect"])
+            
+            w_land, h_land = self._a4_scene_dims_oriented(self.pdf_scale, "L")
+            w_port, h_port = self._a4_scene_dims_oriented(self.pdf_scale, "P")
+            margin = max(w_land, h_land, w_port, h_port)
+            self.scene.setSceneRect(full_rect.adjusted(-margin, -margin, margin, margin))
+        else:
+             self.scene.setSceneRect(QRectF(-1500, -1500, 3000, 3000))
+
+        vp = self.view.viewport()
+        assert vp is not None
+        vp.update()
+
+
+
 
     # =========================================================================
     #  CANVAS CLICK HANDLER
@@ -581,12 +1142,16 @@ class EstimateApp(QMainWindow):
         # Clear editor
         while self.editor_layout.count():
             child = self.editor_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            if child is None:
+                continue
+            w = child.widget()
+            if w is not None:
+                w.deleteLater()
 
         sel = self.scene.selectedItems()
         if not sel:
-            self.editor_group.setTitle("Select an item to edit")
+            self.editor_group.setTitle("Canvas Shortcuts")
+            self._build_empty_editor_hint()
             return
         if len(sel) > 1:
             self.editor_group.setTitle(f"{len(sel)} items selected")
@@ -605,6 +1170,32 @@ class EstimateApp(QMainWindow):
             self._build_span_editor(item)
         elif isinstance(item, SmartConsumer):
             self._build_consumer_editor(item)
+
+    def _build_empty_editor_hint(self):
+        hint = QLabel(
+            "<b>Mouse</b><br>"
+            "• Left drag on blank space: Pan canvas<br>"
+            "• Shift + Left drag: Rubber-band multi-select<br>"
+            "• Hover on object: Select cursor<br>"
+            "• Middle drag / Ctrl + Left drag: Pan canvas<br>"
+            "• Wheel: Zoom, Ctrl + Wheel: Fine zoom<br><br>"
+            "<b>Keyboard</b><br>"
+            "• Esc: Select tool<br>"
+            "• F or Ctrl+0: Fit drawing to view<br>"
+            "• Ctrl+A: Select all objects"
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet(
+            "QLabel {"
+            "  background:#f7fbff;"
+            "  border:1px solid #d7e8f6;"
+            "  border-radius:6px;"
+            "  padding:10px;"
+            "  color:#2b3d4f;"
+            "  line-height:1.35;"
+            "}"
+        )
+        self.editor_layout.addRow(hint)
 
     # ── Pole editor ───────────────────────────────────────────────────────────
 
@@ -1236,9 +1827,27 @@ class EstimateApp(QMainWindow):
     # =========================================================================
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Shift:
+            if self.current_tool != "SELECT":
+                self.set_tool("SELECT")
+            event.accept()
+            return
+        # Ctrl+A — select all canvas items
+        if (event.key() == Qt.Key.Key_A and
+                event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            for item in self.scene.items():
+                item.setSelected(True)
+            event.accept()
+            return
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             self.delete_selected_items()
         super().keyPressEvent(event)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Shift:
+            if self.current_tool != "SELECT":
+                self.set_tool("SELECT")
+        return super().eventFilter(obj, event)
 
     def delete_selected_items(self):
         items = self.scene.selectedItems()
@@ -1353,92 +1962,107 @@ class EstimateApp(QMainWindow):
                         should_stay = True
 
             target = 1 if should_stay else 0
+            needs_visual_refresh = (pole.stay_count != target)
             if pole.stay_count != target:
                 pole.stay_count = target
+            if needs_visual_refresh or pole.connected_spans:
                 pole.update_visuals()
 
     def refresh_live_estimate(self):
-        self.recalculate_all_span_types()
-        self._auto_stay_update()
+        if self._refreshing_live:
+            return
+        self._refreshing_live = True
 
-        use_uh        = self.project_meta.get("use_uh", False)
-        project_type  = self.project_meta.get("project_type", "NSC")
-        sup_rate      = self.project_meta.get("supervision_rate", 0.10)
-
-        # Load rules
-        rules = []
         try:
-            with open("rules.json", "r") as f:
-                rules = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+            self.recalculate_all_span_types()
+            self._auto_stay_update()
+            self._refresh_page_grid()   # keep page grid in sync with canvas content
 
-        canvas_items = [
-            i for i in self.scene.items()
-            if isinstance(i, (SmartPole, SmartStructure, SmartSpan, SmartConsumer))
-        ]
-        raw_bom, raw_lab = self.rule_engine.process(
-            canvas_items, rules, use_uh, project_type
-        )
+            if not self._is_undoing:
+                # Debounce: Capture state 500ms after the last activity/refresh.
+                # This cleanly avoids saving history frames 60x/sec during a drag.
+                self._history_timer.start(500)
 
-        # Apply 3% wastage + sag to steel & conductor material quantities
-        _SAG_ITEMS = {
-            "M.S Channel 75X40 mm", "M.S Angle 65X65X6mm",
-            "M.S Angle 50X50X6mm", "M.S Flat 65X6 mm",
-            "M.S Channel 100X50 mm",
-            "G.I. Wire 5 MM (6 SWG)", "G.I. Wire 4 MM (8 SWG)",
-            "ACSR Conductor 50SQMM (Rabbit)",
-            "ACSR Conductor 30SQMM (Weasel)",
-            "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
-            "CABLE (PVC 1.1KV GRADE) 4CX16SQMM",
-            "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
-            "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
-        }
-        for name in list(raw_bom):
-            if name in _SAG_ITEMS:
-                raw_bom[name] = raw_bom[name] * 1.03
+            use_uh        = self.project_meta.get("use_uh", False)
+            project_type  = self.project_meta.get("project_type", "NSC")
+            sup_rate      = self.project_meta.get("supervision_rate", 0.10)
 
-        # Build live_bom_data
-        self.live_bom_data = []
-        conn   = sqlite3.connect("erp_master.db")
-        cursor = conn.cursor()
-        processed = set()
+            # Load rules
+            rules = []
+            try:
+                with open("rules.json", "r") as f:
+                    rules = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
 
-        combined = (
-            [("Material", n, q) for n, q in raw_bom.items()] +
-            [("Labor",    n, q) for n, q in raw_lab.items()]
-        )
+            canvas_items = [
+                i for i in self.scene.items()
+                if isinstance(i, (SmartPole, SmartStructure, SmartSpan, SmartConsumer))
+            ]
+            raw_bom, raw_lab = self.rule_engine.process(
+                canvas_items, rules, use_uh, project_type
+            )
 
-        for item_type, name, qty in combined:
-            if name in self.bom_overrides and self.bom_overrides[name]["type"] == item_type:
-                qty = self.bom_overrides[name]["qty"]
+            # Apply 3% wastage + sag to steel & conductor material quantities
+            _SAG_ITEMS = {
+                "M.S Channel 75X40 mm", "M.S Angle 65X65X6mm",
+                "M.S Angle 50X50X6mm", "M.S Flat 65X6 mm",
+                "M.S Channel 100X50 mm",
+                "G.I. Wire 5 MM (6 SWG)", "G.I. Wire 4 MM (8 SWG)",
+                "ACSR Conductor 50SQMM (Rabbit)",
+                "ACSR Conductor 30SQMM (Weasel)",
+                "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
+                "CABLE (PVC 1.1KV GRADE) 4CX16SQMM",
+                "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
+                "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
+            }
+            for name in list(raw_bom):
+                if name in _SAG_ITEMS:
+                    raw_bom[name] = raw_bom[name] * 1.03
 
-            row = self._db_lookup(cursor, item_type, name)
-            if row:
-                code, rate, unit = row
-                self.live_bom_data.append({
-                    "type": item_type, "code": code, "name": name,
-                    "qty": qty, "unit": unit, "rate": rate,
-                    "amt": qty * rate
-                })
-            processed.add(name)
+            # Build live_bom_data
+            self.live_bom_data = []
+            conn   = sqlite3.connect("erp_master.db")
+            cursor = conn.cursor()
+            processed = set()
 
-        # Custom overrides not in auto-BOM
-        for name, override in self.bom_overrides.items():
-            if name not in processed:
-                row = self._db_lookup(cursor, override["type"], name)
+            combined = (
+                [("Material", n, q) for n, q in raw_bom.items()] +
+                [("Labor",    n, q) for n, q in raw_lab.items()]
+            )
+
+            for item_type, name, qty in combined:
+                if name in self.bom_overrides and self.bom_overrides[name]["type"] == item_type:
+                    qty = self.bom_overrides[name]["qty"]
+
+                row = self._db_lookup(cursor, item_type, name)
                 if row:
                     code, rate, unit = row
-                    qty = override["qty"]
                     self.live_bom_data.append({
-                        "type": override["type"], "code": code, "name": name,
+                        "type": item_type, "code": code, "name": name,
                         "qty": qty, "unit": unit, "rate": rate,
                         "amt": qty * rate
                     })
+                processed.add(name)
 
-        conn.close()
-        self._refresh_table()
-        self._recalculate_totals(sup_rate)
+            # Custom overrides not in auto-BOM
+            for name, override in self.bom_overrides.items():
+                if name not in processed:
+                    row = self._db_lookup(cursor, override["type"], name)
+                    if row:
+                        code, rate, unit = row
+                        qty = override["qty"]
+                        self.live_bom_data.append({
+                            "type": override["type"], "code": code, "name": name,
+                            "qty": qty, "unit": unit, "rate": rate,
+                            "amt": qty * rate
+                        })
+
+            conn.close()
+            self._refresh_table()
+            self._recalculate_totals(sup_rate)
+        finally:
+            self._refreshing_live = False
 
     def _db_lookup(self, cursor, item_type, name):
         if item_type == "Material":
@@ -1505,8 +2129,12 @@ class EstimateApp(QMainWindow):
             return
         try:
             new_qty   = float(item.text())
-            name      = self.live_table.item(item.row(), 2).text()
-            row_type  = self.live_table.item(item.row(), 0).text()
+            name_item = self.live_table.item(item.row(), 2)
+            type_item = self.live_table.item(item.row(), 0)
+            if name_item is None or type_item is None:
+                return
+            name      = name_item.text()
+            row_type  = type_item.text()
             self.bom_overrides[name] = {"qty": new_qty, "type": row_type}
             self.refresh_live_estimate()
         except (ValueError, RuntimeError):
@@ -1981,7 +2609,11 @@ class EstimateApp(QMainWindow):
     # =========================================================================
 
     def export_pdf(self):
-        m = self.project_meta
+        """
+        Export a multi-page PDF whose page layout matches the canvas page grid.
+        Each tile visible in the grid becomes one page in the PDF.
+        """
+        m       = self.project_meta
         subject = m.get("subject", "Project_Drawing")
         safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
         default = f"{safe}.pdf" if safe else "Project_Drawing.pdf"
@@ -1992,80 +2624,195 @@ class EstimateApp(QMainWindow):
         if not filename:
             return
 
-        printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printer.setOutputFileName(filename)
-
-        source_rect = self.scene.itemsBoundingRect()
-        if source_rect.isNull():
+        if self.scene.itemsBoundingRect().isNull():
             QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
             return
 
-        center   = source_rect.center()
-        min_dim  = 300
-        new_w    = max(source_rect.width(),  min_dim)
-        new_h    = max(source_rect.height(), min_dim)
-        source_rect = QRectF(0, 0, new_w, new_h)
-        source_rect.moveCenter(center)
+        # Ensure grid tiles are current
+        self._refresh_page_grid()
+        tiles = self.view.grid_tiles
+        if not tiles:
+            QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
+            return
 
-        if source_rect.width() > source_rect.height():
-            printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-        else:
-            printer.setPageOrientation(QPageLayout.Orientation.Portrait)
+        total_pages = tiles[0]["total"]
 
-        painter = QPainter(printer)
-        # Use paperRect (full sheet) with per-side manual margins.
-        # Adjust these four values until all sides look equal in the PDF.
-        paper_rect    = printer.paperRect(QPrinter.Unit.DevicePixel)
-        margin_top    = 7
-        margin_bottom = 28
-        margin_left   = 7
-        margin_right  = 28
-        border = QRectF(
-            paper_rect.left()   + margin_left,
-            paper_rect.top()    + margin_top,
-            paper_rect.width()  - margin_left  - margin_right,
-            paper_rect.height() - margin_top   - margin_bottom,
+        # ── UI margins in device pixels ────────────────────────────────────
+        MARG_T, MARG_B, MARG_L, MARG_R = 10, 10, 10, 10
+        TITLE_H  = 32   # title strip height (device px) — tall enough for 2-line wrap
+        FOOTER_H = 16   # footer strip height
+
+        # ScreenResolution keeps device-pixel coords the same as screen coords,
+        # so TITLE_H/FOOTER_H sizes and font pt values render correctly in the PDF.
+        printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(filename)
+        printer.setFullPage(True)
+
+        def _layout_for(orient: str) -> QPageLayout:
+            qt_orient = (
+                QPageLayout.Orientation.Portrait
+                if orient == "P"
+                else QPageLayout.Orientation.Landscape
+            )
+            return QPageLayout(
+                QPageSize(QPageSize.PageSizeId.A4),
+                qt_orient,
+                QMarginsF(0, 0, 0, 0)
+            )
+
+        painter = None   # opened on first page
+
+        for page_idx, tile in enumerate(tiles):
+            src_rect  = tile["rect"]         # scene-coordinate source
+            page_num  = tile["page_num"]
+            is_last   = (page_idx == len(tiles) - 1)
+            orient    = tile.get("orient", "L")
+
+            if painter is None:
+                # First page must set layout before opening painter.
+                printer.setPageLayout(_layout_for(orient))
+                painter = QPainter(printer)
+            else:
+                # Set next-page layout then advance to next page.
+                printer.setPageLayout(_layout_for(orient))
+                printer.newPage()
+
+            paper   = printer.paperRect(QPrinter.Unit.DevicePixel)
+            page_w  = paper.width()  - MARG_L - MARG_R
+            page_h  = paper.height() - MARG_T  - MARG_B
+            ox, oy  = MARG_L, MARG_T
+
+            # ── Border ───────────────────────────────────────────────────
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(180, 180, 180), 0.8))
+            painter.drawRect(QRectF(ox, oy, page_w, page_h))
+
+            # ── Title strip ──────────────────────────────────────────────
+            painter.fillRect(QRectF(ox, oy, page_w, TITLE_H), QColor(240, 244, 250))
+            painter.setPen(Qt.GlobalColor.black)
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            if self.pdf_show_project_name:
+                title_text = m.get("subject") or "ERP PROJECT DRAWING"
+                painter.drawText(
+                    QRectF(ox + 4, oy, page_w * 0.70, TITLE_H),
+                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                    | Qt.TextFlag.TextWordWrap,
+                    title_text
+                )
+            # Page number (right side of title)
+            painter.setFont(QFont("Arial", 8))
+            painter.drawText(
+                QRectF(ox + page_w * 0.70, oy, page_w * 0.30 - 4, TITLE_H),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                f"Page {page_num} / {total_pages}   [Scale 1:{self.pdf_scale}]"
+            )
+            # Title separator line
+            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+            painter.drawLine(
+                QPointF(ox, oy + TITLE_H), QPointF(ox + page_w, oy + TITLE_H)
+            )
+
+            # ── Footer strip ─────────────────────────────────────────────
+            footer_y = oy + page_h - FOOTER_H
+            painter.fillRect(QRectF(ox, footer_y, page_w, FOOTER_H), QColor(240, 244, 250))
+            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+            painter.drawLine(QPointF(ox, footer_y), QPointF(ox + page_w, footer_y))
+            painter.setPen(Qt.GlobalColor.black)
+            painter.setFont(QFont("Arial", 7))
+            date_str   = datetime.now().strftime("%d-%m-%Y")
+            lat_str    = m.get("lat", "")
+            long_str   = m.get("long", "")
+            footer_txt = (
+                f"{m.get('project_type','')}  |  "
+                f"{date_str}  |  "
+                f"Lat: {lat_str}   Long: {long_str}  |  "
+                f"ERP Estimate Generator v5.0"
+            )
+            painter.drawText(
+                QRectF(ox + 4, footer_y, page_w - 8, FOOTER_H),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                footer_txt
+            )
+
+            # ── Drawing area ─────────────────────────────────────────────
+            draw_top  = oy + TITLE_H + 2
+            draw_h    = page_h - TITLE_H - FOOTER_H - 4
+            draw_rect = QRectF(ox, draw_top, page_w, draw_h)
+
+            self.scene.render(
+                painter, draw_rect, src_rect,
+                Qt.AspectRatioMode.IgnoreAspectRatio
+            )
+
+            # ── Legend: only on the last page ────────────────────────────
+            if is_last and self.pdf_show_legend:
+                self._draw_pdf_legend(painter, draw_rect)
+
+            # ── Continuation markers at tile edges (Sparse Grid) ─────────────
+            _col = tile.get("col", 0)
+            _row = tile.get("row", 0)
+
+            def get_neighbor(r, c):
+                for t in tiles:
+                    if t.get("row") == r and t.get("col") == c:
+                        return t.get("page_num")
+                return None
+
+            cut_pen = QPen(QColor(200, 80, 80, 160), 0.7)
+            cut_pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(cut_pen)
+            painter.setFont(QFont("Arial", 7, QFont.Weight.Bold))
+            painter.setPen(QColor(200, 60, 60, 200))
+
+            # Right edge → next column
+            next_right = get_neighbor(_row, _col + 1)
+            if next_right:
+                painter.drawText(
+                    QRectF(ox + page_w - 60, draw_top + 4, 56, 14),
+                    Qt.AlignmentFlag.AlignRight, f"Page {next_right}→"
+                )
+            
+            # Left edge ← previous column
+            next_left = get_neighbor(_row, _col - 1)
+            if next_left:
+                painter.drawText(
+                    QRectF(ox + 4, draw_top + 4, 56, 14),
+                    Qt.AlignmentFlag.AlignLeft, f"←Page {next_left}"
+                )
+            
+            # Bottom edge ↓ next row
+            next_down = get_neighbor(_row + 1, _col)
+            if next_down:
+                painter.drawText(
+                    QRectF(ox + page_w / 2 - 30, footer_y - 16, 60, 14),
+                    Qt.AlignmentFlag.AlignCenter, f"Page {next_down}↓"
+                )
+            
+            # Top edge ↑ previous row
+            next_up = get_neighbor(_row - 1, _col)
+            if next_up:
+                painter.drawText(
+                    QRectF(ox + page_w / 2 - 30, draw_top + 4, 60, 14),
+                    Qt.AlignmentFlag.AlignCenter, f"↑Page {next_up}"
+                )
+
+        if painter:
+            painter.end()
+
+        l_count = sum(1 for t in tiles if t.get("orient") == "L")
+        p_count = sum(1 for t in tiles if t.get("orient") == "P")
+        override_count = sum(1 for t in tiles if t.get("is_override"))
+        orient_summary = f"L:{l_count}  P:{p_count}"
+        if override_count:
+            orient_summary += f"  |  Overrides:{override_count}"
+
+        QMessageBox.information(
+            self, "PDF Exported",
+            f"Saved {total_pages} page(s) to:\n{filename}\n\n"
+            f"Scale: 1:{self.pdf_scale}  |  "
+            f"Orientation: {self.pdf_orientation_mode} ({orient_summary})"
         )
-
-        # Light page border — drawn first so everything sits on top
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(QColor(180, 180, 180), 1.0))
-        painter.drawRect(border)
-
-        # Title
-        title_font = QFont("Arial", 12, QFont.Weight.Bold)
-        title_font.setUnderline(True)
-        painter.setFont(title_font)
-        painter.setPen(Qt.GlobalColor.black)
-        title_text = m.get("subject") or "ERP PROJECT DRAWING"
-        text_flags = (
-            Qt.AlignmentFlag.AlignHCenter |
-            Qt.AlignmentFlag.AlignTop |
-            Qt.TextFlag.TextWordWrap
-        )
-        calc_rect = QRectF(border.x() + 5, border.y() + 4, border.width() - 10, 9999)
-        req = painter.boundingRect(calc_rect, text_flags, title_text)
-        title_h = req.height()
-        painter.drawText(
-            QRectF(border.x(), border.y() + 4, border.width(), title_h),
-            text_flags, title_text
-        )
-
-        # Canvas render
-        scene_target = QRectF(border)
-        scene_target.setTop(border.top() + title_h + 4 + 10)
-        source_rect.adjust(-50, -50, 50, 50)
-        self.scene.render(
-            painter, scene_target, source_rect,
-            Qt.AspectRatioMode.KeepAspectRatio
-        )
-
-        # Legend
-        self._draw_pdf_legend(painter, border)
-
-        painter.end()
-        QMessageBox.information(self, "Success", f"PDF exported to:\n{filename}")
 
     def _draw_pdf_legend(self, painter, border):
         legend_data = {
@@ -2266,10 +3013,11 @@ class EstimateApp(QMainWindow):
             "spans":         [],
         }
         node_map = {}
+        node_id_by_obj = {}
         for i, item in enumerate(self.scene.items()):
             if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
-                item._temp_id = i
                 node_map[i]   = item
+                node_id_by_obj[id(item)] = i
                 nd = {
                     "id":      i,
                     "type":    (
@@ -2322,9 +3070,13 @@ class EstimateApp(QMainWindow):
 
         for item in self.scene.items():
             if isinstance(item, SmartSpan):
+                p1_id = node_id_by_obj.get(id(item.p1))
+                p2_id = node_id_by_obj.get(id(item.p2))
+                if p1_id is None or p2_id is None:
+                    continue
                 state["spans"].append({
-                    "p1_id":          item.p1._temp_id,
-                    "p2_id":          item.p2._temp_id,
+                    "p1_id":          p1_id,
+                    "p2_id":          p2_id,
                     "length":         item.length,
                     "conductor":      item.conductor,
                     "conductor_size": item.conductor_size,
@@ -2342,7 +3094,7 @@ class EstimateApp(QMainWindow):
 
         return state
 
-    def parse_load_data(self, state):
+    def parse_load_data(self, state, fit_view=True):
         self.scene.clear()
 
         # Support v4 files
@@ -2473,31 +3225,75 @@ class EstimateApp(QMainWindow):
 
         self.refresh_live_estimate()
 
-    def _place_default_existing_pole(self):
-        """
-        Place a single existing pole at the centre of the visible scene area
-        and mark it as the auto-span chain starting point.
-        Called when the canvas is blank so users can immediately start drawing.
-        """
-        # Reset any stale chain state first
+        # After loading, optionally fit the view
+        if fit_view:
+            def _fit_after_load():
+                b = self.scene.itemsBoundingRect()
+                if not b.isNull():
+                    self.view.fitInView(
+                        b.adjusted(-60, -60, 60, 60),
+                        Qt.AspectRatioMode.KeepAspectRatio
+                    )
+            QTimer.singleShot(80, _fit_after_load)
+
+    # =========================================================================
+    #  UNDO / REDO
+    # =========================================================================
+
+    def push_history(self):
+        """Capture state and push to undo stack."""
+        if self._is_undoing:
+            return
+        
+        state = self.compile_save_data()
+        
+        # Don't push if nothing structurally changed
+        if self.history and self.history_index >= 0:
+            if state == self.history[self.history_index]:
+                return
+
+        # If user did something after undoing, truncate the 'redo' future
+        self.history = self.history[:self.history_index + 1]
+        self.history.append(state)
+        
+        if len(self.history) > 50:
+            self.history.pop(0)
+        else:
+            self.history_index += 1
+
+    def undo(self):
+        if self.history_index > 0:
+            self.history_index -= 1
+            self._is_undoing = True
+            
+            self.parse_load_data(self.history[self.history_index], fit_view=False)
+            
+            self._is_undoing = False
+
+    def redo(self):
+        if self.history_index < len(self.history) - 1:
+            self.history_index += 1
+            self._is_undoing = True
+            
+            self.parse_load_data(self.history[self.history_index], fit_view=False)
+            
+            self._is_undoing = False
+
+    def _show_blank_start_page(self):
+        """Show a clean blank A4 page on startup/new drawing with no auto-added objects."""
         self.last_placed_node = None
         self.span_start_pole  = None
-
-        view_rect = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
-        cx = view_rect.center().x()
-        cy = view_rect.center().y()
-
-        pole = SmartPole(
-            cx, cy, self.refresh_signal,
-            pole_type="LT", is_existing=True,
-            detail_view=self.detail_view
-        )
-        self.scene.addItem(pole)
         self.refresh_live_estimate()
 
-        # Mark as chain anchor so the next placed node auto-connects
-        self.last_placed_node = pole
-        pole.setPen(QPen(Qt.GlobalColor.yellow, 3))
+        def _fit_blank_page():
+            tiles = self.view.grid_tiles
+            if tiles:
+                self.view.fitInView(
+                    tiles[0]["rect"].adjusted(-60, -60, 60, 60),
+                    Qt.AspectRatioMode.KeepAspectRatio
+                )
+
+        QTimer.singleShot(80, _fit_blank_page)
 
     def new_drawing(self):
         ans = QMessageBox.question(
@@ -2509,8 +3305,7 @@ class EstimateApp(QMainWindow):
             self.span_start_pole  = None
             self.last_placed_node = None
             self.bom_overrides.clear()
-            self.refresh_live_estimate()
-            self._place_default_existing_pole()
+            self._show_blank_start_page()
 
     def load_from_file(self):
         filename, _ = QFileDialog.getOpenFileName(
@@ -2546,9 +3341,9 @@ class EstimateApp(QMainWindow):
                         loaded_any = True
             except (json.JSONDecodeError, KeyError):
                 pass
-        # Blank canvas — place a default existing pole as starting point
+        # Blank canvas — show a blank A4 page only
         if not loaded_any:
-            QTimer.singleShot(100, self._place_default_existing_pole)
+            QTimer.singleShot(100, self._show_blank_start_page)
 
     def closeEvent(self, event):
         with open(self.autosave_file, "w") as f:
