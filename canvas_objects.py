@@ -247,6 +247,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             self.earth_count = _d[_pfx + "earth_count"]
             self.stay_count  = _d[_pfx + "stay_count"]
 
+        # Distribution box flag — only meaningful on LT poles with AB Cable spans
+        self.dist_box_required: bool = bool(
+            _d.get("lt_dist_box_required", True)
+        ) if pole_type == "LT" and not is_existing else False
+
         self._updating_visuals = False
 
         # Angle overrides for stay/earth symbols (None = auto-calculate from spans)

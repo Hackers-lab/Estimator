@@ -216,9 +216,10 @@ class DynamicRuleEngine:
                     max_dev = max(max_dev, math.degrees(deviation))
             ab_needs_dead_end   = max_dev > 65
             ab_needs_suspension = not ab_needs_dead_end
-        ctx["ab_cable_count"]     = ab_cable_count
-        ctx["ab_needs_dead_end"]  = ab_needs_dead_end
+        ctx["ab_cable_count"]      = ab_cable_count
+        ctx["ab_needs_dead_end"]   = ab_needs_dead_end
         ctx["ab_needs_suspension"] = ab_needs_suspension
+        ctx["dist_box_required"]   = getattr(item, "dist_box_required", True)
 
         # Merge any dynamic props attached to the item
         ctx.update(getattr(item, "dynamic_props", {}))

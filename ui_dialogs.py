@@ -445,6 +445,10 @@ class PlacementDefaultsDialog(QDialog):
         self.lt_stay.setValue(d["lt_stay_count"])
         lt_frm.addRow("Stay Sets:", self.lt_stay)
 
+        self.lt_dist_box = QCheckBox("Distribution Box required by default")
+        self.lt_dist_box.setChecked(bool(d.get("lt_dist_box_required", True)))
+        lt_frm.addRow(self.lt_dist_box)
+
         lay.addWidget(lt_grp)
 
         # ── HT Pole ───────────────────────────────────────────────────────
@@ -647,7 +651,8 @@ class PlacementDefaultsDialog(QDialog):
             "lt_pole_type2":     self.lt_type2.currentText(),
             "lt_height":         self.lt_height.currentText(),
             "lt_earth_count":    self.lt_earth.value(),
-            "lt_stay_count":     self.lt_stay.value(),
+            "lt_stay_count":       self.lt_stay.value(),
+            "lt_dist_box_required": self.lt_dist_box.isChecked(),
             "ht_pole_type2":     self.ht_type2.currentText(),
             "ht_height":         self.ht_height.currentText(),
             "ht_earth_count":    self.ht_earth.value(),

@@ -16,7 +16,8 @@ import math
 import json
 import os
 import sqlite3
-from datetime import datetime
+import datetime
+from datetime import datetime, date as _date
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -36,7 +37,7 @@ from PyQt6.QtPrintSupport import QPrinter
 
 from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
 import defaults
-from app_config import APP_DISPLAY_NAME, APP_VERSION, APP_AUTHOR
+from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY
 from database import setup_database
 from rule_engine import DynamicRuleEngine
 from ui_components import InteractiveView, DraggableLabel
@@ -1480,6 +1481,21 @@ class EstimateApp(QMainWindow):
             )
         )
 
+        # ── Distribution box (LT poles with AB-Cable spans only) ─────────
+        if not item.is_existing and item.pole_type == "LT":
+            has_ab = any(
+                s.conductor == "AB Cable" and not s.is_service_drop
+                for s in item.connected_spans
+                if s.scene() is not None
+            )
+            if has_ab:
+                db_chk = QCheckBox("Distribution Box required")
+                db_chk.setChecked(getattr(item, "dist_box_required", True))
+                db_chk.stateChanged.connect(
+                    lambda v, i=item: self._update_pole(i, "dist_box_required", v == 2)
+                )
+                self.editor_layout.addRow(db_chk)
+
         # Note
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -2388,6 +2404,7 @@ class EstimateApp(QMainWindow):
                         "override_auto_stay":  item.override_auto_stay,
                         "stay_angle_override":  item.stay_angle_override,
                         "earth_angle_override": item.earth_angle_override,
+                        "dist_box_required":   item.dist_box_required,
                     })
                 elif isinstance(item, SmartStructure):
                     nd.update({
@@ -2493,6 +2510,7 @@ class EstimateApp(QMainWindow):
                     pole.override_auto_stay    = nd.get("override_auto_stay", False)
                     pole.stay_angle_override   = nd.get("stay_angle_override", None)
                     pole.earth_angle_override  = nd.get("earth_angle_override", None)
+                    pole.dist_box_required     = nd.get("dist_box_required", True)
                     pole.custom_note           = nd.get("custom_note", "")
                     pole.existing_subtype      = nd.get("existing_subtype", nd.get("pole_type", "LT"))
                     pole.existing_dtr_size     = nd.get("existing_dtr_size", "None")
@@ -2762,9 +2780,114 @@ class EstimateApp(QMainWindow):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  EXPIRY HELPERS  (tamper-resistant: internet time + rollback watermark)
+# ─────────────────────────────────────────────────────────────────────────────
+import base64 as _b64
+import struct  as _struct
+
+# Watermark stored in APPDATA so it survives across runs even if user rolls
+# back their system clock.  Content is XOR-obfuscated — not crypto-secure, but
+# opaque to casual inspection.
+_WM_DIR  = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), APP_NAME)
+_WM_FILE = os.path.join(_WM_DIR, "prefs.dat")
+_WM_KEY  = 0x5A   # single-byte XOR mask
+
+
+def _wm_encode(d: _date) -> bytes:
+    raw = _struct.pack(">I", d.toordinal())
+    return _b64.b64encode(bytes(b ^ _WM_KEY for b in raw))
+
+
+def _wm_decode(data: bytes) -> "_date | None":
+    try:
+        raw = bytes(b ^ _WM_KEY for b in _b64.b64decode(data.strip()))
+        return _date.fromordinal(_struct.unpack(">I", raw)[0])
+    except Exception:
+        return None
+
+
+def _load_watermark() -> "_date | None":
+    try:
+        with open(_WM_FILE, "rb") as f:
+            return _wm_decode(f.read())
+    except Exception:
+        return None
+
+
+def _save_watermark(d: _date) -> None:
+    try:
+        os.makedirs(_WM_DIR, exist_ok=True)
+        with open(_WM_FILE, "wb") as f:
+            f.write(_wm_encode(d))
+    except Exception:
+        pass
+
+
+def _internet_date() -> "_date | None":
+    """Fetch the real date from public HTTP server Date headers (no NTP needed)."""
+    import urllib.request
+    from email.utils import parsedate_to_datetime
+    for url in ("https://www.google.com", "https://www.microsoft.com", "https://www.cloudflare.com"):
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                hdr = resp.headers.get("Date", "")
+                if hdr:
+                    return parsedate_to_datetime(hdr).date()
+        except Exception:
+            continue
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
+def _check_expiry() -> bool:
+    """Return False (and show a dialog) if the app has expired.
+
+    Uses three independent date sources so rolling back the system clock
+    cannot alone bypass the check:
+
+      1. System date  — always available, but user-controllable.
+      2. Internet date — HTTP Date header from a public server; not user-
+                         controllable without blocking outbound traffic.
+      3. Watermark date — highest date ever seen, stored XOR-obfuscated in
+                         APPDATA.  A rolled-back system clock cannot erase a
+                         watermark that was written on a later date.
+
+    The effective date is max(all available sources).
+    """
+    if not APP_EXPIRY:
+        return True
+    try:
+        expiry = _date.fromisoformat(APP_EXPIRY)
+    except ValueError:
+        return True  # malformed date — fail open
+
+    system_date   = _date.today()
+    internet_date = _internet_date()
+    watermark_date = _load_watermark()
+
+    candidates = [d for d in (system_date, internet_date, watermark_date) if d is not None]
+    effective_date = max(candidates)
+
+    # Persist the highest date seen so far.
+    _save_watermark(effective_date)
+
+    if effective_date > expiry:
+        _tmp = QApplication.instance() or QApplication(sys.argv)  # noqa: F841
+        QMessageBox.critical(
+            None,
+            "Application Expired",
+            f"<b>{APP_DISPLAY_NAME}</b> expired on <b>{expiry.strftime('%d %b %Y')}</b>.<br>"
+            "Please contact the administrator for an updated version.",
+        )
+        return False
+    return True
+
+
 if __name__ == "__main__":
+    if not _check_expiry():
+        sys.exit(1)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     win = EstimateApp()

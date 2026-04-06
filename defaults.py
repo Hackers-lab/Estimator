@@ -33,6 +33,7 @@ _FACTORY: dict = {
     "lt_height":          "8MTR",
     "lt_earth_count":     1,
     "lt_stay_count":      0,
+    "lt_dist_box_required": True,
 
     # HT Pole
     "ht_pole_type2":      "PCC",

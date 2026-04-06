@@ -1305,7 +1305,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "not is_existing and ab_cable_count > 0",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Material",
     "item_code": "0504060941",
     "item_name": "LT Distribution Box 3Ph with Steel Strap & Buckle ABC",
@@ -1313,7 +1313,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "not is_existing and ab_cable_count > 0",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Labor",
     "item_code": "LAB-63",
     "item_name": "Erection of Distribution Box LT ABC",
@@ -1321,7 +1321,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "not is_existing and ab_cable_count > 0",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Material",
     "item_code": "0504027141",
     "item_name": "IPC for ABC to ABC TEE Joint",
@@ -1329,7 +1329,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "not is_existing and ab_cable_count > 0",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Labor",
     "item_code": "LAB-71",
     "item_name": "Fixing of IPC Connector LT ABC",
