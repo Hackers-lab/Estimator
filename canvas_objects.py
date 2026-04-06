@@ -720,8 +720,9 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
 
-        self.phase          = "3 Phase"
-        self.cable_size     = "10 SQMM"
+        _d = defaults.current
+        self.phase          = _d.get("sd_phase", "3 Phase")
+        self.cable_size     = _d.get("sd_conductor_size", "10 SQMM")
         self.agency_supply  = False
         self.consider_cable = False
 

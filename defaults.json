@@ -3,11 +3,13 @@
   "lt_height": "8MTR",
   "lt_earth_count": 1,
   "lt_stay_count": 0,
+  "lt_dist_box_required": true,
   "ht_pole_type2": "PCC",
   "ht_height": "9MTR",
   "ht_earth_count": 1,
   "ht_stay_count": 0,
   "extension_height": 3.0,
+  "node_min_gap": 36,
   "struct_pole_type2": "PCC",
   "struct_height": "9MTR",
   "struct_stay_count": 4,
@@ -21,5 +23,5 @@
   "ht_wire_count": "3",
   "sd_conductor_size": "10 SQMM",
   "sd_length": 20,
-  "sd_phase": "3 Phase"
+  "sd_phase": "1 Phase"
 }
