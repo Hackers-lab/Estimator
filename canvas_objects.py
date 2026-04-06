@@ -511,6 +511,28 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             painter.drawText(QRectF(-4, -(r + 10), 8, 8),
                              Qt.AlignmentFlag.AlignCenter, "E")
             painter.restore()
+
+        # Distribution Box marker on-canvas for quick visual verification.
+        show_db = (
+            not self.is_existing
+            and self.pole_type == "LT"
+            and getattr(self, "dist_box_required", False)
+            and any(
+                s.scene() is not None and s.conductor == "AB Cable" and not s.is_service_drop
+                for s in self.connected_spans
+            )
+        )
+        if show_db:
+            r = self._RADIUS
+            badge = QRectF(r + 2, -(r + 9), 15, 9)
+            painter.save()
+            painter.setPen(QPen(QColor("#7f6000"), 0.8))
+            painter.setBrush(QBrush(QColor("#fff2cc")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setPen(QPen(QColor("#7f6000"), 1))
+            painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "DB")
+            painter.restore()
     def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
             self._on_position_changed()

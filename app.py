@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy
+    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle
 )
 from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
@@ -55,10 +55,7 @@ from excel_exporter import ExcelExporter
 # ─────────────────────────────────────────────────────────────────────────────
 def resource_path(relative_path):
     """Return absolute path to a bundled resource, works for dev and PyInstaller."""
-    if getattr(sys, 'frozen', False):
-        base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, relative_path)
 
 
@@ -211,27 +208,29 @@ class EstimateApp(QMainWindow):
         settings_menu = mb.addMenu("&Settings")
         assert settings_menu is not None
 
+        _st = QApplication.style()
+        assert _st is not None
         act_proj = QAction("  Project Settings", self)
-        act_proj.setIcon(QIcon(resource_path("icons/icon_project.svg")))
+        act_proj.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
         act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
         settings_menu.addAction(act_proj)
 
         settings_menu.addSeparator()
 
         act_db = QAction("  Master Database (Excel Sync)", self)
-        act_db.setIcon(QIcon(resource_path("icons/icon_database.svg")))
+        act_db.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_DriveHDIcon))
         act_db.triggered.connect(self.open_db_manager)
         settings_menu.addAction(act_db)
 
         act_rules = QAction("  Ruleset Manager", self)
-        act_rules.setIcon(QIcon(resource_path("icons/icon_rules.svg")))
+        act_rules.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView))
         act_rules.triggered.connect(self.open_rule_manager)
         settings_menu.addAction(act_rules)
 
         settings_menu.addSeparator()
 
         act_defs = QAction("  Placement Defaults", self)
-        act_defs.setIcon(QIcon(resource_path("icons/icon_defaults.svg")))
+        act_defs.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogStart))
         act_defs.triggered.connect(self.open_placement_defaults)
         settings_menu.addAction(act_defs)
 
@@ -458,19 +457,19 @@ class EstimateApp(QMainWindow):
         bar.addWidget(sep2)
 
         # Settings quick-access icons
-        btn_proj = _make_svg_btn("icon_project.svg", "Project Settings", "#eaf4fb")
+        btn_proj = _make_icon_btn("⚙", "Project Settings", "#eaf4fb")
         btn_proj.clicked.connect(lambda: self._run_project_wizard(first_run=False))
         bar.addWidget(btn_proj)
 
-        btn_db = _make_svg_btn("icon_database.svg", "Master Database", "#eafaf1")
+        btn_db = _make_icon_btn("🗄", "Master Database", "#eafaf1")
         btn_db.clicked.connect(self.open_db_manager)
         bar.addWidget(btn_db)
 
-        btn_rules = _make_svg_btn("icon_rules.svg", "Ruleset Manager", "#fef9e7")
+        btn_rules = _make_icon_btn("📋", "Ruleset Manager", "#fef9e7")
         btn_rules.clicked.connect(self.open_rule_manager)
         bar.addWidget(btn_rules)
 
-        btn_defs = _make_svg_btn("icon_defaults.svg", "Placement Defaults", "#fdf2f8")
+        btn_defs = _make_icon_btn("🔧", "Placement Defaults", "#fdf2f8")
         btn_defs.clicked.connect(self.open_placement_defaults)
         bar.addWidget(btn_defs)
 
