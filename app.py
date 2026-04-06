@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser, QInputDialog
+    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy
 )
 from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
@@ -544,13 +544,40 @@ class EstimateApp(QMainWindow):
         # Object property editor
         self.editor_group = QGroupBox("Object Properties")
         self.editor_layout = QFormLayout()
-        self.editor_layout.setSpacing(5)
+        self.editor_layout.setSpacing(3)
+        self.editor_layout.setHorizontalSpacing(6)
+        self.editor_layout.setVerticalSpacing(3)
+        self.editor_layout.setContentsMargins(6, 4, 6, 4)
+        self.editor_layout.setLabelAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.editor_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        self.editor_layout.setRowWrapPolicy(
+            QFormLayout.RowWrapPolicy.DontWrapRows
+        )
         self.editor_group.setLayout(self.editor_layout)
+        self.editor_group.setStyleSheet(
+            "QGroupBox { font-size:11px; }"
+            "QLabel { font-size:11px; }"
+            "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {"
+            "  min-height:22px; padding:1px 4px; font-size:11px;"
+            "}"
+            "QPushButton { min-height:22px; padding:2px 6px; font-size:11px; }"
+            "QCheckBox { font-size:11px; spacing:6px; min-height:22px; }"
+            "QCheckBox::indicator { width:14px; height:14px; }"
+        )
+
+        # Property editor UX prefs (kept simple and session-local)
+        self._show_advanced_pole_props = False
 
         scroll = QScrollArea()
+        self.editor_scroll = scroll
         scroll.setWidget(self.editor_group)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         lay.addWidget(scroll)
 
         return w
@@ -1315,6 +1342,111 @@ class EstimateApp(QMainWindow):
         elif isinstance(item, SmartConsumer):
             self._build_consumer_editor(item)
 
+        self._normalize_editor_field_sizes()
+        self._pack_editor_rows_two_columns()
+
+    def _normalize_editor_field_sizes(self):
+        """Keep editor controls visually consistent regardless of content text."""
+        fields = self.editor_group.findChildren((QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox))
+        for w in fields:
+            w.setMinimumHeight(24)
+            w.setMinimumWidth(0)
+            w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            if isinstance(w, QComboBox):
+                w.setMinimumContentsLength(1)
+                w.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+                w.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+
+    def _pack_editor_rows_two_columns(self):
+        """Compact editor by showing two form entries per visual row."""
+        form = self.editor_layout
+
+        entries = []
+        for r in range(form.rowCount()):
+            li = form.itemAt(r, QFormLayout.ItemRole.LabelRole)
+            fi = form.itemAt(r, QFormLayout.ItemRole.FieldRole)
+            if li is None and fi is None:
+                continue
+
+            lw = li.widget() if li is not None else None
+            fw = fi.widget() if fi is not None else None
+
+            if lw is None and fw is not None:
+                entries.append(("full", fw))
+            elif lw is not None and fw is not None:
+                entries.append(("pair", lw, fw))
+
+        # Detach all items from existing form rows before re-adding packed rows.
+        while form.count():
+            item = form.takeAt(0)
+            if item is None:
+                continue
+
+        label_w = 88
+
+        def _make_cell(lbl: QWidget, fld: QWidget) -> QWidget:
+            cell = QWidget()
+            lay = QHBoxLayout(cell)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(4)
+            if isinstance(lbl, QLabel):
+                lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                lbl.setFixedWidth(label_w)
+                lbl.setStyleSheet("color:#2f3b45;")
+            lay.addWidget(lbl)
+            lay.addWidget(fld, 1)
+            lay.setStretch(0, 0)
+            lay.setStretch(1, 1)
+            return cell
+
+        def _make_vline() -> QFrame:
+            ln = QFrame()
+            ln.setFrameShape(QFrame.Shape.VLine)
+            ln.setFrameShadow(QFrame.Shadow.Plain)
+            ln.setLineWidth(1)
+            ln.setStyleSheet("color:#d9e0e7;")
+            return ln
+
+        def _make_full_row_widget(w: QWidget) -> QWidget:
+            if isinstance(w, QCheckBox):
+                wrap = QWidget()
+                l = QHBoxLayout(wrap)
+                l.setContentsMargins(label_w + 4, 0, 0, 0)
+                l.setSpacing(0)
+                l.addWidget(w)
+                l.addStretch(1)
+                return wrap
+            return w
+
+        idx = 0
+        while idx < len(entries):
+            e1 = entries[idx]
+            if e1[0] == "full":
+                form.addRow(_make_full_row_widget(e1[1]))
+                idx += 1
+                continue
+
+            row_w = QWidget()
+            row_l = QHBoxLayout(row_w)
+            row_l.setContentsMargins(0, 0, 0, 0)
+            row_l.setSpacing(6)
+            row_l.addWidget(_make_cell(e1[1], e1[2]), 1)
+            row_l.addWidget(_make_vline())
+
+            if idx + 1 < len(entries) and entries[idx + 1][0] == "pair":
+                e2 = entries[idx + 1]
+                row_l.addWidget(_make_cell(e2[1], e2[2]), 1)
+                idx += 2
+            else:
+                pad = QWidget()
+                row_l.addWidget(pad, 1)
+                idx += 1
+
+            row_l.setStretch(0, 1)
+            row_l.setStretch(2, 1)
+
+            form.addRow(row_w)
+
     def _build_empty_editor_hint(self):
         hint = QLabel(
             "<b>Mouse</b><br>"
@@ -1435,52 +1567,6 @@ class EstimateApp(QMainWindow):
         stay_w.setLayout(stay_row)
         self.editor_layout.addRow("Stay Sets:", stay_w)
 
-        # ── Stay angle rotation (manual override) ─────────────────────────
-        def _make_angle_row(label_text, angle_val, rotate_fn, reset_fn):
-            row_w   = QWidget()
-            row_lay = QHBoxLayout(row_w)
-            row_lay.setContentsMargins(0, 0, 0, 0)
-            row_lay.setSpacing(4)
-            angle_lbl = QLabel(f"{int(angle_val) if angle_val is not None else 'Auto'}°")
-            angle_lbl.setFixedWidth(40)
-            angle_lbl.setStyleSheet("color:#555; font-size:10px;")
-            ccw_btn = QPushButton("↺ −15°")
-            ccw_btn.setFixedWidth(55)
-            ccw_btn.setStyleSheet("font-size:10px; padding:2px;")
-            ccw_btn.clicked.connect(lambda _, fn=rotate_fn: fn(-15))
-            cw_btn  = QPushButton("↻ +15°")
-            cw_btn.setFixedWidth(55)
-            cw_btn.setStyleSheet("font-size:10px; padding:2px;")
-            cw_btn.clicked.connect(lambda _, fn=rotate_fn: fn(+15))
-            rst_btn = QPushButton("Auto")
-            rst_btn.setFixedWidth(40)
-            rst_btn.setStyleSheet("font-size:10px; padding:2px;")
-            rst_btn.clicked.connect(reset_fn)
-            row_lay.addWidget(angle_lbl)
-            row_lay.addWidget(ccw_btn)
-            row_lay.addWidget(cw_btn)
-            row_lay.addWidget(rst_btn)
-            return row_w
-
-        self.editor_layout.addRow(
-            "Stay dir.:",
-            _make_angle_row(
-                "Stay dir.",
-                item.stay_angle_override,
-                lambda delta, i=item: self._rotate_stay(i, delta),
-                lambda _, i=item: self._reset_stay_angle(i),
-            )
-        )
-        self.editor_layout.addRow(
-            "Earth dir.:",
-            _make_angle_row(
-                "Earth dir.",
-                item.earth_angle_override,
-                lambda delta, i=item: self._rotate_earth(i, delta),
-                lambda _, i=item: self._reset_earth_angle(i),
-            )
-        )
-
         # ── Distribution box (LT poles with AB-Cable spans only) ─────────
         if not item.is_existing and item.pole_type == "LT":
             has_ab = any(
@@ -1496,6 +1582,61 @@ class EstimateApp(QMainWindow):
                 )
                 self.editor_layout.addRow(db_chk)
 
+        # Advanced controls are collapsed by default to reduce scrolling.
+        adv_chk = QCheckBox("Show advanced controls")
+        adv_chk.setChecked(self._show_advanced_pole_props)
+        adv_chk.stateChanged.connect(
+            lambda v: self._set_pole_advanced_props(v == 2)
+        )
+        self.editor_layout.addRow(adv_chk)
+
+        if self._show_advanced_pole_props:
+            # ── Stay angle rotation (manual override) ─────────────────────
+            def _make_angle_row(label_text, angle_val, rotate_fn, reset_fn):
+                row_w   = QWidget()
+                row_lay = QHBoxLayout(row_w)
+                row_lay.setContentsMargins(0, 0, 0, 0)
+                row_lay.setSpacing(3)
+                angle_lbl = QLabel(f"{int(angle_val) if angle_val is not None else 'Auto'}°")
+                angle_lbl.setFixedWidth(40)
+                angle_lbl.setStyleSheet("color:#555; font-size:10px;")
+                ccw_btn = QPushButton("↺ −15°")
+                ccw_btn.setFixedWidth(52)
+                ccw_btn.setStyleSheet("font-size:10px; padding:2px;")
+                ccw_btn.clicked.connect(lambda _, fn=rotate_fn: fn(-15))
+                cw_btn  = QPushButton("↻ +15°")
+                cw_btn.setFixedWidth(52)
+                cw_btn.setStyleSheet("font-size:10px; padding:2px;")
+                cw_btn.clicked.connect(lambda _, fn=rotate_fn: fn(+15))
+                rst_btn = QPushButton("Auto")
+                rst_btn.setFixedWidth(40)
+                rst_btn.setStyleSheet("font-size:10px; padding:2px;")
+                rst_btn.clicked.connect(reset_fn)
+                row_lay.addWidget(angle_lbl)
+                row_lay.addWidget(ccw_btn)
+                row_lay.addWidget(cw_btn)
+                row_lay.addWidget(rst_btn)
+                return row_w
+
+            self.editor_layout.addRow(
+                "Stay dir.:",
+                _make_angle_row(
+                    "Stay dir.",
+                    item.stay_angle_override,
+                    lambda delta, i=item: self._rotate_stay(i, delta),
+                    lambda _, i=item: self._reset_stay_angle(i),
+                )
+            )
+            self.editor_layout.addRow(
+                "Earth dir.:",
+                _make_angle_row(
+                    "Earth dir.",
+                    item.earth_angle_override,
+                    lambda delta, i=item: self._rotate_earth(i, delta),
+                    lambda _, i=item: self._reset_earth_angle(i),
+                )
+            )
+
         # Note
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -1505,6 +1646,10 @@ class EstimateApp(QMainWindow):
         self.editor_layout.addRow("Note:", note)
 
         self._add_delete_btn(item)
+
+    def _set_pole_advanced_props(self, enabled: bool) -> None:
+        self._show_advanced_pole_props = enabled
+        self.on_selection_changed()
 
     # ── Structure editor ──────────────────────────────────────────────────────
 
