@@ -1376,22 +1376,6 @@
     "formula": "1"
   },
   {
-    "object": "SmartSpan",
-    "item_name": "New Rule \u2014 edit me",
-    "condition": "",
-    "type": "Material",
-    "item_code": "N/A",
-    "formula": "1"
-  },
-  {
-    "object": "SmartSpan",
-    "item_name": "New Rule \u2014 edit me",
-    "condition": "",
-    "type": "Material",
-    "item_code": "N/A",
-    "formula": "1"
-  },
-  {
     "object": "SmartPole",
     "condition": "not is_existing and pole_type == 'HT' and ht_spans_count == 1",
     "type": "Material",
@@ -1542,5 +1526,13 @@
     "item_code": "LAB-53",
     "item_name": "Fixing of Solid Tee-off Bracket on Double Pole",
     "formula": "1"
+  },
+  {
+    "object": "SmartSpan",
+    "item_name": "LT AB CABLE 1.1KV 3CX70+1CX16+1CX50SQMM",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "type": "Material",
+    "item_code": "0501030521",
+    "formula": "length / 1000"
   }
 ]

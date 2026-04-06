@@ -1,6 +1,6 @@
 """
 Main application module for the ERP Estimate Generator.
-Version 5.0 — Redesigned with:
+Application version is defined in app_config.py.
   - Project Setup Wizard (project type, UH toggle, supervision rate)
   - SmartPole with pole_type2 (PCC/STP/H-BEAM) + cascading heights
   - SmartStructure as separate canvas object (DP/TP/4P/DTR)
@@ -16,9 +16,7 @@ import math
 import json
 import os
 import sqlite3
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from datetime import datetime, date
+from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -33,18 +31,22 @@ from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
     QAction, QKeySequence, QIcon, QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, QSize, pyqtSignal
 from PyQt6.QtPrintSupport import QPrinter
 
 from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
+import defaults
+from app_config import APP_DISPLAY_NAME, APP_VERSION, APP_AUTHOR
 from database import setup_database
 from rule_engine import DynamicRuleEngine
 from ui_components import InteractiveView, DraggableLabel
 from canvas_objects import SmartPole, SmartStructure, SmartSpan, SmartConsumer
 from ui_dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
-    RulesetManagerDialog, ProjectSetupDialog
+    RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog
 )
+from pdf_exporter import PDFExporter
+from excel_exporter import ExcelExporter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,17 +79,10 @@ DEFAULT_PROJECT_META = {
 # ─────────────────────────────────────────────────────────────────────────────
 class EstimateApp(QMainWindow):
     refresh_signal = pyqtSignal()
+    _MIN_NODE_GAP = 36.0  # fallback scene units
 
     def __init__(self):
         super().__init__()
-
-        # Expiry guard
-        if date.today() >= date(2026, 4, 30):
-            QMessageBox.critical(
-                self, "Application Expired",
-                "This version has expired. Please obtain the latest release."
-            )
-            sys.exit()
 
         setup_database()
 
@@ -126,7 +121,7 @@ class EstimateApp(QMainWindow):
         self._history_timer.timeout.connect(self.push_history)
 
         # ── Build UI ───────────────────────────────────────────────────────
-        self.setWindowTitle("ERP Estimate Generator — v5.0")
+        self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
         self.setGeometry(50, 50, 1650, 930)
         logo_path = resource_path("logo.svg")
         if os.path.exists(logo_path):
@@ -215,19 +210,29 @@ class EstimateApp(QMainWindow):
         settings_menu = mb.addMenu("&Settings")
         assert settings_menu is not None
 
-        act_proj = QAction("🗂  Project Settings", self)
+        act_proj = QAction("  Project Settings", self)
+        act_proj.setIcon(QIcon(resource_path("icons/icon_project.svg")))
         act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
         settings_menu.addAction(act_proj)
 
         settings_menu.addSeparator()
 
-        act_db = QAction("🗃️  Master Database (Excel Sync)", self)
+        act_db = QAction("  Master Database (Excel Sync)", self)
+        act_db.setIcon(QIcon(resource_path("icons/icon_database.svg")))
         act_db.triggered.connect(self.open_db_manager)
         settings_menu.addAction(act_db)
 
-        act_rules = QAction("🧠  Ruleset Manager", self)
+        act_rules = QAction("  Ruleset Manager", self)
+        act_rules.setIcon(QIcon(resource_path("icons/icon_rules.svg")))
         act_rules.triggered.connect(self.open_rule_manager)
         settings_menu.addAction(act_rules)
+
+        settings_menu.addSeparator()
+
+        act_defs = QAction("  Placement Defaults", self)
+        act_defs.setIcon(QIcon(resource_path("icons/icon_defaults.svg")))
+        act_defs.triggered.connect(self.open_placement_defaults)
+        settings_menu.addAction(act_defs)
 
         # ── Help ──────────────────────────────────────────────────────────
         help_menu = mb.addMenu("&Help")
@@ -414,6 +419,17 @@ class EstimateApp(QMainWindow):
             btn.setStyleSheet(f"font-size:16px; font-weight:bold; background:{bg}; color:{color}; border-radius:3px; border:1px solid #ccc;")
             return btn
 
+        def _make_svg_btn(icon_name, tooltip, bg="#f5f5f5"):
+            btn = QPushButton()
+            btn.setToolTip(tooltip)
+            btn.setFixedSize(28, 28)
+            btn.setIcon(QIcon(resource_path(f"icons/{icon_name}")))
+            btn.setIconSize(QSize(20, 20))
+            btn.setStyleSheet(
+                f"background:{bg}; border-radius:3px; border:1px solid #ccc;"
+            )
+            return btn
+
         # Undo / Redo
         self.undo_btn = _make_icon_btn("↶", "Undo (Ctrl+Z)", "#e6e6e6")
         self.undo_btn.clicked.connect(self.undo)
@@ -435,6 +451,27 @@ class EstimateApp(QMainWindow):
         btn_xl = _make_icon_btn("📊", "Export Excel Estimate", "#eaf2f8", "#154360")
         btn_xl.clicked.connect(self.generate_excel)
         bar.addWidget(btn_xl)
+
+        sep2 = QLabel("|")
+        sep2.setStyleSheet("color:#bbb; padding:0 2px;")
+        bar.addWidget(sep2)
+
+        # Settings quick-access icons
+        btn_proj = _make_svg_btn("icon_project.svg", "Project Settings", "#eaf4fb")
+        btn_proj.clicked.connect(lambda: self._run_project_wizard(first_run=False))
+        bar.addWidget(btn_proj)
+
+        btn_db = _make_svg_btn("icon_database.svg", "Master Database", "#eafaf1")
+        btn_db.clicked.connect(self.open_db_manager)
+        bar.addWidget(btn_db)
+
+        btn_rules = _make_svg_btn("icon_rules.svg", "Ruleset Manager", "#fef9e7")
+        btn_rules.clicked.connect(self.open_rule_manager)
+        bar.addWidget(btn_rules)
+
+        btn_defs = _make_svg_btn("icon_defaults.svg", "Placement Defaults", "#fdf2f8")
+        btn_defs.clicked.connect(self.open_placement_defaults)
+        bar.addWidget(btn_defs)
 
         bar.addStretch()
         return bar
@@ -808,180 +845,12 @@ class EstimateApp(QMainWindow):
         return auto_orient, False
 
     def _build_continuation_marks_for_tiles(self, tiles, inset_scene: float = 20.0):
-        """Build O---A / A---O continuation marks for neighboring tiles."""
-        if not tiles:
-            return {}
-
-        spans = [
-            i for i in self.scene.items()
-            if isinstance(i, SmartSpan)
-        ]
-        tile_lookup = {
-            (t.get("row", 0), t.get("col", 0)): t
-            for t in tiles
-        }
-
-        def _continuation_label(idx: int) -> str:
-            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            if idx < len(alphabet):
-                return alphabet[idx]
-            return f"{alphabet[idx % len(alphabet)]}{idx // len(alphabet) + 1}"
-
-        def _inset_point(hit_pt: QPointF, side: str) -> QPointF:
-            pt = QPointF(hit_pt)
-            if side == "right":
-                pt.setX(pt.x() - inset_scene)
-            elif side == "left":
-                pt.setX(pt.x() + inset_scene)
-            elif side == "bottom":
-                pt.setY(pt.y() - inset_scene)
-            else:  # top
-                pt.setY(pt.y() + inset_scene)
-            return pt
-
-        def _anchor_on_rect(span: SmartSpan, rect: QRectF, marker_pt: QPointF) -> QPointF:
-            p1 = span.p1.pos()
-            p2 = span.p2.pos()
-            p1_in = rect.contains(p1)
-            p2_in = rect.contains(p2)
-
-            if p1_in and not p2_in:
-                return p1
-            if p2_in and not p1_in:
-                return p2
-
-            if not p1_in and not p2_in:
-                line = QLineF(p1, p2)
-                edges = [
-                    QLineF(rect.topLeft(), rect.topRight()),
-                    QLineF(rect.topRight(), rect.bottomRight()),
-                    QLineF(rect.bottomRight(), rect.bottomLeft()),
-                    QLineF(rect.bottomLeft(), rect.topLeft()),
-                ]
-                hits = []
-                for edge in edges:
-                    inter_type, pt = line.intersects(edge)
-                    if inter_type == QLineF.IntersectionType.BoundedIntersection:
-                        hits.append(pt)
-                if hits:
-                    return max(
-                        hits,
-                        key=lambda p: (p.x() - marker_pt.x()) ** 2 + (p.y() - marker_pt.y()) ** 2,
-                    )
-
-            d1 = (p1.x() - marker_pt.x()) ** 2 + (p1.y() - marker_pt.y()) ** 2
-            d2 = (p2.x() - marker_pt.x()) ** 2 + (p2.y() - marker_pt.y()) ** 2
-            return p1 if d1 <= d2 else p2
-
-        marks = {t.get("page_num", 0): [] for t in tiles}
-        marker_idx = 0
-
-        for tile in tiles:
-            row = tile.get("row", 0)
-            col = tile.get("col", 0)
-            rect = tile["rect"]
-
-            neighbors = [
-                ("right", tile_lookup.get((row, col + 1))),
-                ("bottom", tile_lookup.get((row + 1, col))),
-            ]
-            for edge_kind, neighbor in neighbors:
-                if neighbor is None:
-                    continue
-
-                if edge_kind == "right":
-                    boundary = QLineF(rect.topRight(), rect.bottomRight())
-                    source_side = "right"
-                    target_side = "left"
-                else:
-                    boundary = QLineF(rect.bottomLeft(), rect.bottomRight())
-                    source_side = "bottom"
-                    target_side = "top"
-
-                for span in spans:
-                    span_rect = span.sceneBoundingRect()
-                    if not rect.intersects(span_rect):
-                        continue
-                    if not neighbor["rect"].intersects(span_rect):
-                        continue
-
-                    line = QLineF(span.p1.pos(), span.p2.pos())
-                    intersection_type, hit_pt = line.intersects(boundary)
-                    if intersection_type != QLineF.IntersectionType.BoundedIntersection:
-                        continue
-
-                    label = _continuation_label(marker_idx)
-                    marker_idx += 1
-
-                    marks.setdefault(tile["page_num"], []).append({
-                        "page_num": tile["page_num"],
-                        "label": label,
-                        "scene_point": hit_pt,
-                        "marker_scene_point": _inset_point(hit_pt, source_side),
-                        "anchor_scene_point": _anchor_on_rect(
-                            span, rect, _inset_point(hit_pt, source_side)
-                        ),
-                        "side": source_side,
-                        "target_page": neighbor["page_num"],
-                        "span": span,
-                    })
-                    marks.setdefault(neighbor["page_num"], []).append({
-                        "page_num": neighbor["page_num"],
-                        "label": label,
-                        "scene_point": hit_pt,
-                        "marker_scene_point": _inset_point(hit_pt, target_side),
-                        "anchor_scene_point": _anchor_on_rect(
-                            span, neighbor["rect"], _inset_point(hit_pt, target_side)
-                        ),
-                        "side": target_side,
-                        "target_page": tile["page_num"],
-                        "span": span,
-                    })
-
-        return marks
+        """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
+        return PDFExporter(self)._build_continuation_marks_for_tiles(tiles, inset_scene)
 
     def _position_split_span_labels(self, continuation_marks):
-        """Place each split span's real label on the incoming A---O segment once."""
-        incoming_by_span = {}
-        for marks in continuation_marks.values():
-            for mark in marks:
-                span = mark.get("span")
-                if span is None:
-                    continue
-                # Incoming means this page receives continuation from previous page.
-                if mark.get("target_page", 0) < mark.get("page_num", 0):
-                    incoming_by_span[id(span)] = mark
-
-        for mark in incoming_by_span.values():
-            span = mark.get("span")
-            if span is None or not hasattr(span, "label"):
-                continue
-            lbl = span.label
-            if getattr(lbl, "user_moved", False):
-                continue
-
-            marker = mark.get("marker_scene_point")
-            anchor = mark.get("anchor_scene_point")
-            if marker is None or anchor is None:
-                continue
-
-            # Extra guard: if label is already far from the span midpoint,
-            # treat it as manually placed and preserve user position.
-            p1 = span.p1.pos()
-            p2 = span.p2.pos()
-            default_mid = QPointF((p1.x() + p2.x()) / 2.0, (p1.y() + p2.y()) / 2.0)
-            label_center = lbl.sceneBoundingRect().center()
-            if (
-                abs(label_center.x() - default_mid.x()) > 35.0
-                or abs(label_center.y() - default_mid.y()) > 35.0
-            ):
-                lbl.user_moved = True
-                continue
-
-            mid_x = (marker.x() + anchor.x()) / 2.0
-            mid_y = (marker.y() + anchor.y()) / 2.0
-            lw = lbl.boundingRect().width()
-            lbl.set_auto_pos(mid_x - lw / 2.0, mid_y - 12.0)
+        """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
+        PDFExporter(self)._position_split_span_labels(continuation_marks)
 
     def _refresh_page_grid(self):
         """
@@ -1180,6 +1049,14 @@ class EstimateApp(QMainWindow):
 
         # ── Pole placement ────────────────────────────────────────────────
         if self.current_tool in ("ADD_LT", "ADD_HT", "ADD_EXISTING"):
+            too_close = self._find_nearby_node(pos)
+            if too_close is not None:
+                QMessageBox.information(
+                    self,
+                    "Placement blocked",
+                    "Object is too close to an existing node. Place it a little farther away."
+                )
+                return
             p_type    = "LT" if self.current_tool in ("ADD_LT", "ADD_EXISTING") else "HT"
             is_exist  = self.current_tool == "ADD_EXISTING"
             pole = SmartPole(
@@ -1193,6 +1070,14 @@ class EstimateApp(QMainWindow):
 
         # ── Structure placement ───────────────────────────────────────────
         elif self.current_tool == "ADD_STRUCTURE":
+            too_close = self._find_nearby_node(pos)
+            if too_close is not None:
+                QMessageBox.information(
+                    self,
+                    "Placement blocked",
+                    "Object is too close to an existing node. Place it a little farther away."
+                )
+                return
             struct = SmartStructure(
                 pos.x(), pos.y(), self.refresh_signal,
                 detail_view=self.detail_view
@@ -1203,6 +1088,14 @@ class EstimateApp(QMainWindow):
 
         # ── Consumer placement ────────────────────────────────────────────
         elif self.current_tool == "ADD_CONSUMER":
+            too_close = self._find_nearby_node(pos)
+            if too_close is not None:
+                QMessageBox.information(
+                    self,
+                    "Placement blocked",
+                    "Object is too close to an existing node. Place it a little farther away."
+                )
+                return
             consumer = SmartConsumer(
                 pos.x(), pos.y(), self.refresh_signal,
                 detail_view=self.detail_view
@@ -1232,6 +1125,11 @@ class EstimateApp(QMainWindow):
                         )
                         if ans == QMessageBox.StandardButton.No:
                             return
+
+                ok, reason = self._validate_span_creation(p1, p2)
+                if not ok:
+                    QMessageBox.information(self, "Span blocked", reason)
+                    return
 
                 span = SmartSpan(p1, p2, detail_view=self.detail_view)
                 p1.connected_spans.append(span)
@@ -1263,6 +1161,65 @@ class EstimateApp(QMainWindow):
             eff = node.existing_subtype if node.is_existing else node.pole_type
             return eff in EstimateApp._HT_SUBTYPES
         return False  # SmartConsumer = LT
+
+    @staticmethod
+    def _is_node_item(item) -> bool:
+        return isinstance(item, (SmartPole, SmartStructure, SmartConsumer))
+
+    def _iter_nodes(self):
+        return [i for i in self.scene.items() if self._is_node_item(i)]
+
+    def _find_nearby_node(self, pos: QPointF, min_gap: float | None = None):
+        gap = float(defaults.current.get("node_min_gap", self._MIN_NODE_GAP)) if min_gap is None else float(min_gap)
+        for node in self._iter_nodes():
+            if math.hypot(node.x() - pos.x(), node.y() - pos.y()) < gap:
+                return node
+        return None
+
+    @staticmethod
+    def _span_other_endpoint(span, node):
+        if span.p1 == node:
+            return span.p2
+        if span.p2 == node:
+            return span.p1
+        return None
+
+    def _active_connected_spans(self, node):
+        return [s for s in getattr(node, "connected_spans", []) if s is not None and s.scene() is not None]
+
+    def _span_exists_between(self, p1, p2) -> bool:
+        for s in self._active_connected_spans(p1):
+            if (s.p1 == p1 and s.p2 == p2) or (s.p1 == p2 and s.p2 == p1):
+                return True
+        return False
+
+    def _has_path_between(self, start, target) -> bool:
+        if start == target:
+            return True
+        visited = {start}
+        queue = [start]
+        while queue:
+            node = queue.pop(0)
+            for span in self._active_connected_spans(node):
+                other = self._span_other_endpoint(span, node)
+                if other is None:
+                    continue
+                if other == target:
+                    return True
+                if other not in visited:
+                    visited.add(other)
+                    queue.append(other)
+        return False
+
+    def _validate_span_creation(self, p1, p2):
+        if p1 == p2:
+            return False, "Start and end node must be different."
+        if self._span_exists_between(p1, p2):
+            return False, "A span already exists between these two nodes."
+        # Prevent closing loops; layout should stay tree-like.
+        if self._has_path_between(p1, p2):
+            return False, "This connection would create a loop."
+        return True, ""
 
     def _auto_connect_span(self, new_node):
         """
@@ -1297,6 +1254,12 @@ class EstimateApp(QMainWindow):
                     self.last_placed_node = new_node
                     new_node.setPen(QPen(Qt.GlobalColor.yellow, 3))
                     return
+
+            ok, _ = self._validate_span_creation(p1, p2)
+            if not ok:
+                self.last_placed_node = new_node
+                new_node.setPen(QPen(Qt.GlobalColor.yellow, 3))
+                return
 
             span = SmartSpan(p1, p2, detail_view=self.detail_view)
             p1.connected_spans.append(span)
@@ -1420,9 +1383,7 @@ class EstimateApp(QMainWindow):
         ht_cb = QComboBox()
         ht_cb.addItems(self._height_options(item.pole_type2))
         ht_cb.setCurrentText(item.height)
-        ht_cb.currentTextChanged.connect(
-            lambda t, i=item: self._update_pole(i, "height", t)
-        )
+        self._bind_property_widget(item, "height", ht_cb)
         self.editor_layout.addRow("Height:", ht_cb)
 
         # Extension
@@ -1439,18 +1400,14 @@ class EstimateApp(QMainWindow):
             ext_ht.setSingleStep(0.5)
             ext_ht.setSuffix(" m")
             ext_ht.setValue(item.extension_height)
-            ext_ht.valueChanged.connect(
-                lambda v, i=item: self._update_pole(i, "extension_height", v)
-            )
+            self._bind_property_widget(item, "extension_height", ext_ht)
             self.editor_layout.addRow("Ext. Height:", ext_ht)
 
         # Earth count
         earth_sp = QSpinBox()
         earth_sp.setRange(0, 10)
         earth_sp.setValue(item.earth_count)
-        earth_sp.valueChanged.connect(
-            lambda v, i=item: self._update_pole(i, "earth_count", v)
-        )
+        self._bind_property_widget(item, "earth_count", earth_sp)
         self.editor_layout.addRow("Earthing Sets:", earth_sp)
 
         # Stay count + override indicator
@@ -1572,9 +1529,7 @@ class EstimateApp(QMainWindow):
         ht_cb = QComboBox()
         ht_cb.addItems(self._height_options(item.pole_type2))
         ht_cb.setCurrentText(item.height)
-        ht_cb.currentTextChanged.connect(
-            lambda t, i=item: self._update_structure(i, "height", t)
-        )
+        self._bind_property_widget(item, "height", ht_cb)
         self.editor_layout.addRow("Height:", ht_cb)
 
         # Extension
@@ -1591,27 +1546,21 @@ class EstimateApp(QMainWindow):
             ext_ht.setSingleStep(0.5)
             ext_ht.setSuffix(" m")
             ext_ht.setValue(item.extension_height)
-            ext_ht.valueChanged.connect(
-                lambda v, i=item: self._update_structure(i, "extension_height", v)
-            )
+            self._bind_property_widget(item, "extension_height", ext_ht)
             self.editor_layout.addRow("Ext. Height:", ext_ht)
 
         # Earth count
         earth_sp = QSpinBox()
         earth_sp.setRange(0, 20)
         earth_sp.setValue(item.earth_count)
-        earth_sp.valueChanged.connect(
-            lambda v, i=item: self._update_structure(i, "earth_count", v)
-        )
+        self._bind_property_widget(item, "earth_count", earth_sp)
         self.editor_layout.addRow("Earthing Sets:", earth_sp)
 
         # Stay count
         stay_sp = QSpinBox()
         stay_sp.setRange(0, 20)
         stay_sp.setValue(item.stay_count)
-        stay_sp.valueChanged.connect(
-            lambda v, i=item: self._update_structure(i, "stay_count", v)
-        )
+        self._bind_property_widget(item, "stay_count", stay_sp)
         self.editor_layout.addRow("Stay Sets:", stay_sp)
 
         # Note
@@ -1786,6 +1735,25 @@ class EstimateApp(QMainWindow):
         if phase == "1 Phase":
             return ["10 SQMM", "16 SQMM"]
         return ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+
+    def _bind_property_widget(self, item, prop_name: str, widget) -> None:
+        """
+        DRY helper: connect a QComboBox or QSpinBox/QDoubleSpinBox to an item
+        property via setattr, then trigger update_visuals + refresh.
+        Use for simple one-to-one property bindings only.
+        For properties with cascade side-effects use the dedicated handlers.
+        """
+        def _apply(val, i=item, p=prop_name):
+            setattr(i, p, val)
+            if hasattr(i, "update_visuals"):
+                i.update_visuals()
+            self.refresh_live_estimate()
+            QTimer.singleShot(10, self.on_selection_changed)
+
+        if isinstance(widget, QComboBox):
+            widget.currentTextChanged.connect(_apply)
+        elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+            widget.valueChanged.connect(_apply)
 
     def _add_delete_btn(self, item):
         del_btn = QPushButton("🗑 Delete Selected")
@@ -2050,8 +2018,19 @@ class EstimateApp(QMainWindow):
                 for endpoint in (span.p1, span.p2):
                     if hasattr(endpoint, "connected_spans") and span in endpoint.connected_spans:
                         endpoint.connected_spans.remove(span)
-        if isinstance(item, SmartSpan) and item.label and item.label.scene():
-            self.scene.removeItem(item.label)
+        if isinstance(item, SmartSpan):
+            # Remove from both endpoints' connected_spans BEFORE taking it off
+            # the scene.  Without this, ghost references remain and cause:
+            #   1. recalculate_all_span_types promoting a new pole to existing_set
+            #      (it sees 2 existing neighbours instead of 1), so any manually
+            #      drawn span to that pole is wrongly flagged is_existing_span.
+            #   2. _auto_stay_update miscounting active spans, leaving the pole's
+            #      stay count unreset after the span is deleted.
+            for endpoint in (item.p1, item.p2):
+                if hasattr(endpoint, "connected_spans") and item in endpoint.connected_spans:
+                    endpoint.connected_spans.remove(item)
+            if item.label and item.label.scene():
+                self.scene.removeItem(item.label)
         if item.scene():
             self.scene.removeItem(item)
         self.refresh_live_estimate()
@@ -2337,6 +2316,9 @@ class EstimateApp(QMainWindow):
     def open_settings_dialog(self):
         SettingsDialog(self).exec()
 
+    def open_placement_defaults(self):
+        PlacementDefaultsDialog(self).exec()
+
     def open_db_manager(self):
         DatabaseManagerDialog(self).exec()
 
@@ -2348,947 +2330,16 @@ class EstimateApp(QMainWindow):
     # =========================================================================
 
     def generate_excel(self):
-        m = self.project_meta
-        subject = m.get("subject", "ERP_Estimate")
-        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
-        default = f"{safe}_Estimate.xlsx" if safe else "ERP_Estimate.xlsx"
-
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Export ERP Estimate", default, "Excel Files (*.xlsx)"
-        )
-        if not filename:
-            return
-
-        wb = openpyxl.Workbook()
-        self._write_estimate_sheet(wb, m)
-        self._write_iron_breakup_sheet(wb)
-        wb.save(filename)
-        QMessageBox.information(self, "Success", f"Excel saved to:\n{filename}")
-
-    def _write_estimate_sheet(self, wb, m):
-        ws = wb.active
-        ws.title = "Estimate"
-
-        sup_rate = m.get("supervision_rate", 0.10)
-        sup_pct  = int(sup_rate * 100)
-
-        # Header
-        ws.merge_cells("A1:G1")
-        ws["A1"] = "AUTOMATED ERP ESTIMATE"
-        ws["A1"].font = Font(bold=True, size=14, color="FFFFFF")
-        ws["A1"].fill = PatternFill("solid", fgColor="4F81BD")
-        ws["A1"].alignment = Alignment(horizontal="center")
-
-        ws.merge_cells("A2:G2")
-        ws["A2"] = (
-            f"Subject: {m.get('subject','')}  |  "
-            f"Type: {m.get('project_type','')}  |  "
-            f"Date: {datetime.now().strftime('%d-%m-%Y')}"
-        )
-        ws.merge_cells("A3:G3")
-        ws["A3"] = (
-            f"Lat: {m.get('lat','')}   Long: {m.get('long','')}   |   "
-            f"Materials: {'UH (Readymade)' if m.get('use_uh') else 'Raw Steel'}"
-        )
-
-        header_row = ["Sl No.", "Code", "Description", "Qty", "Unit", "Rate", "Amount"]
-        ws.append(header_row)
-        for cell in ws[4]:
-            cell.font = Font(bold=True)
-        ws.column_dimensions["C"].width = 45
-        ws.column_dimensions["B"].width = 15
-
-        row = 5
-        mat_items = [x for x in self.live_bom_data if x["type"] == "Material"]
-        lab_items = [x for x in self.live_bom_data if x["type"] == "Labor"]
-
-        # ── Materials ──
-        ws.cell(row, 3, "A. MATERIALS").font = Font(bold=True)
-        row += 1
-        for i, item in enumerate(mat_items, 1):
-            ws.append([
-                i, item["code"], item["name"],
-                round(item["qty"], 3), item["unit"],
-                item["rate"], round(item["amt"], 2)
-            ])
-            row += 1
-
-        mat_base = sum(x["amt"] for x in mat_items)
-        ws.append(["", "", "Material Base Total", "", "", "", round(mat_base, 2)])
-        row += 1
-
-        cur = mat_base
-        for fy, esc in self.escalations:
-            ws.append([
-                "", "", f"Add: Escalation @ 5% for FY {fy}",
-                "", "", "", round(esc, 2)
-            ])
-            row += 1
-            cur += esc
-
-        sun     = cur * 0.05
-        mat_sub = cur + sun
-        ws.append(["", "", "Add: Sundries @ 5%", "", "", "", round(sun, 2)])
-        row += 1
-        ws.append(["", "", "TOTAL MATERIAL COST (A)", "", "", "", round(mat_sub, 2)])
-        ws.cell(row, 3).font = Font(bold=True)
-        ws.cell(row, 7).font = Font(bold=True)
-        row += 2
-
-        # ── Labor ──
-        ws.cell(row, 3, "B. ERECTION / LABOR").font = Font(bold=True)
-        row += 1
-        for i, item in enumerate(lab_items, 1):
-            ws.append([
-                i, "", item["name"],
-                round(item["qty"], 3), item["unit"],
-                item["rate"], round(item["amt"], 2)
-            ])
-            row += 1
-
-        lab_sub = sum(x["amt"] for x in lab_items)
-        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", round(lab_sub, 2)])
-        ws.cell(row, 3).font = Font(bold=True)
-        ws.cell(row, 7).font = Font(bold=True)
-        row += 2
-
-        # ── Taxes ──
-        sup  = (mat_sub + lab_sub) * sup_rate
-        gst  = lab_sub * 0.18
-        cess = (mat_sub + lab_sub + sup) * 0.01
-        sub_c = mat_sub + lab_sub + sup + gst
-        g_tot = sub_c + cess
-
-        ws.cell(row, 3, "C. OVERHEADS & TAXES").font = Font(bold=True)
-        row += 1
-        for label, val in [
-            (f"Supervision @ {sup_pct}% on (A+B)", sup),
-            ("GST @ 18% on Labour only",            gst),
-            ("Sub-Total",                           sub_c),
-            ("Add: Cess @ 1% on (Mat+Lab+Sup)",     cess),
-            ("GRAND TOTAL",                         g_tot),
-        ]:
-            ws.append(["", "", label, "", "", "", round(val, 2)])
-            row += 1
-        ws.cell(row - 1, 3).font = Font(bold=True, size=12)
-        ws.cell(row - 1, 7).font = Font(bold=True, size=12, color="FF0000")
-
-    def _write_iron_breakup_sheet(self, wb):
-        """
-        Generates a detailed Iron Breakup sheet showing where each steel
-        item comes from (HT bracket, extension, DTR structure, CG, tee-off
-        etc.) with per-source metre/kg rows, plus 3% wastage + sag.
-        Quantities are derived from the same rule-engine that drives the
-        Estimate sheet so the two sheets always agree.
-        """
-        ws = wb.create_sheet("Iron Breakup")
-
-        wastage_sag_pct = 0.03
-
-        # Section definitions — same unit-weights as rule_engine formulas
-        #   kg_m > 0  →  steel section (metres / kg display)
-        #   kg_m == 0 →  wire section  (kg-only display, formula already gives MT)
-        sections = [
-            ("B", "M.S. Channel (75X40mm)",   "0102010611", 6.8),
-            ("B2","M.S. Channel (100X50mm)",  "0102010911", 9.8),
-            ("C", "M.S. Angle (65X65X6mm)",   "0101011311", 5.8),
-            ("D", "M.S. Angle (50X50X6mm)",   "0101011011", 4.5),
-            ("E", "M.S. Flat (65X6mm)",       "0103011511", 3.1),
-            ("F", "G.I. Wire 5 MM (6 SWG)",   "0503010811", 0),
-            ("G", "G.I. Wire 4 MM (8 SWG)",   "0503010711", 0),
-        ]
-
-        detail = self._collect_iron_detail()
-
-        ws.column_dimensions["A"].width = 5
-        ws.column_dimensions["B"].width = 42
-        ws.column_dimensions["C"].width = 8
-        ws.column_dimensions["D"].width = 10
-        ws.column_dimensions["E"].width = 10
-        ws.column_dimensions["F"].width = 12
-
-        header_fill  = PatternFill("solid", fgColor="4F81BD")
-        section_fill = PatternFill("solid", fgColor="D9E1F2")
-        total_fill   = PatternFill("solid", fgColor="EBF1DE")
-        thin   = Side(border_style="thin", color="AAAAAA")
-        border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-        cr = 1
-        ws.cell(cr, 1, "IRON CALCULATION BREAKUP").font = Font(bold=True, size=13)
-        ws.merge_cells(start_row=cr, start_column=1, end_row=cr, end_column=6)
-        ws.cell(cr, 1).fill = header_fill
-        ws.cell(cr, 1).font = Font(bold=True, size=13, color="FFFFFF")
-        ws.cell(cr, 1).alignment = Alignment(horizontal="center")
-        cr += 1
-
-        ws.merge_cells(start_row=cr, start_column=1, end_row=cr, end_column=6)
-        ws.cell(cr, 1, "Steel quantities from rule-engine + 3% wastage & sag")
-        ws.cell(cr, 1).alignment = Alignment(horizontal="center")
-        ws.cell(cr, 1).font = Font(bold=True, color="2F5597")
-        cr += 1
-
-        for sec_key, sec_title, item_code, kg_m in sections:
-            rows = detail.get(item_code, [])
-            if not rows:
-                continue   # skip sections with zero quantity
-
-            # Section header
-            ws.cell(cr, 1, sec_key).font = Font(bold=True)
-            ws.cell(cr, 2, sec_title).font = Font(bold=True)
-            ws.cell(cr, 3, "No").font = Font(bold=True)
-            if kg_m:
-                ws.cell(cr, 4, "Lgth(m)").font = Font(bold=True)
-                ws.cell(cr, 5, "Total(m)").font = Font(bold=True)
-            else:
-                ws.cell(cr, 4, ""); ws.cell(cr, 5, "")
-            ws.cell(cr, 6, "Wt(kg)").font = Font(bold=True)
-            for col in range(1, 7):
-                ws.cell(cr, col).fill = section_fill
-                ws.cell(cr, col).border = border
-            cr += 1
-
-            is_wire = (kg_m == 0)  # wire sections show kg only
-
-            subtotal_m  = 0.0
-            subtotal_kg = 0.0
-            for i, (desc, count, length_each, total_m, wt_kg) in enumerate(rows, 1):
-                ws.cell(cr, 1, i)
-                ws.cell(cr, 2, desc)
-                ws.cell(cr, 3, count if count else "")
-                if is_wire:
-                    ws.cell(cr, 4, "")
-                    ws.cell(cr, 5, "")
-                else:
-                    ws.cell(cr, 4, round(length_each, 2) if length_each else "")
-                    ws.cell(cr, 5, round(total_m, 3))
-                ws.cell(cr, 6, round(wt_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                subtotal_m  += total_m
-                subtotal_kg += wt_kg
-                cr += 1
-
-            if is_wire:
-                extra_kg = subtotal_kg * wastage_sag_pct
-                # Wastage row
-                ws.cell(cr, 1, len(rows) + 1)
-                ws.cell(cr, 2, "Add: Wastage + Sag @ 3%")
-                ws.cell(cr, 3, ""); ws.cell(cr, 4, ""); ws.cell(cr, 5, "")
-                ws.cell(cr, 6, round(extra_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                cr += 1
-                # Total row
-                ws.cell(cr, 2, "Total (incl. 3% wastage & sag)").font = Font(bold=True)
-                ws.cell(cr, 5, "")
-                ws.cell(cr, 6, round(subtotal_kg + extra_kg, 2)).font = Font(bold=True)
-            else:
-                base_kg  = subtotal_m * kg_m
-                extra_m  = subtotal_m * wastage_sag_pct
-                extra_kg = base_kg * wastage_sag_pct
-                # Wastage row
-                ws.cell(cr, 1, len(rows) + 1)
-                ws.cell(cr, 2, "Add: Wastage + Sag @ 3%")
-                ws.cell(cr, 3, ""); ws.cell(cr, 4, "")
-                ws.cell(cr, 5, round(extra_m, 3))
-                ws.cell(cr, 6, round(extra_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                cr += 1
-                # Total row
-                ws.cell(cr, 2, "Total (incl. 3% wastage & sag)").font = Font(bold=True)
-                ws.cell(cr, 5, round(subtotal_m + extra_m, 3)).font = Font(bold=True)
-                ws.cell(cr, 6, round(base_kg + extra_kg, 2)).font = Font(bold=True)
-
-            for col in range(1, 7):
-                ws.cell(cr, col).border = border
-                ws.cell(cr, col).fill = total_fill
-            cr += 2
-
-    def _collect_iron_detail(self):
-        """
-        Re-evaluate each steel rule per canvas item and return a
-        per-item_code list of (description, count, length_each, total_m, wt_kg)
-        rows suitable for the detailed Iron Breakup sheet.
-
-        Returns dict  { item_code: [(desc, count, len_each, tot_m, wt_kg), ...] }
-        """
-        import json as _json
-
-        # unit weights — same as rule_engine.calculate_qty
-        # 0 = wire (formula already gives MT, no m→kg conversion)
-        UW = {
-            "0102010611": 6.8,   # CH_75X40
-            "0102010911": 9.8,   # CH_100X50
-            "0101011311": 5.8,   # ANG_65X65X6
-            "0101011011": 4.5,   # ANG_50X50X6
-            "0103011511": 3.1,   # FLAT_65X6
-            "0503010811": 0,     # GI Wire 5mm (qty already MT)
-            "0503010711": 0,     # GI Wire 4mm (qty already MT)
-        }
-
-        # Load rules
-        try:
-            with open("rules.json", "r") as f:
-                rules = _json.load(f)
-        except (FileNotFoundError, _json.JSONDecodeError):
-            rules = []
-
-        steel_rules = [
-            r for r in rules
-            if r.get("type") == "Material" and r.get("item_code") in UW
-        ]
-
-        use_uh       = self.project_meta.get("use_uh", False)
-        project_type = self.project_meta.get("project_type", "NSC")
-
-        # Accum: item_code → { (source_label, len_each) → [count, total_m, total_kg] }
-        accum: dict[str, dict[tuple, list]] = {code: {} for code in UW}
-
-        for item in self.scene.items():
-            if isinstance(item, SmartPole):
-                ctx = self.rule_engine._build_pole_context(item, use_uh, project_type)
-            elif isinstance(item, SmartStructure):
-                ctx = self.rule_engine._build_structure_context(item, use_uh, project_type)
-            elif isinstance(item, SmartSpan):
-                ctx = self.rule_engine._build_span_context(item, use_uh, project_type)
-            elif isinstance(item, SmartConsumer):
-                ctx = self.rule_engine._build_consumer_context(item, use_uh, project_type)
-            else:
-                continue
-
-            obj_type = ctx.get("object_type", "")
-
-            for rule in steel_rules:
-                target = rule.get("object", "")
-                if target == "SmartHome" and obj_type == "SmartConsumer":
-                    pass
-                elif target != obj_type:
-                    continue
-
-                if not self.rule_engine.evaluate_rule(ctx, rule.get("condition", "")):
-                    continue
-
-                qty_mt = self.rule_engine.calculate_qty(ctx, rule.get("formula", "1"))
-                if qty_mt <= 0:
-                    continue
-
-                code = rule["item_code"]
-                kg_m  = UW[code]
-                wt_kg = qty_mt * 1000.0
-                tot_m = wt_kg / kg_m if kg_m else 0.0  # 0 for wire
-
-                # Build a human-readable source label
-                label, len_each = self._iron_source_label(ctx, rule, tot_m)
-
-                key = (label, len_each)
-                if key not in accum[code]:
-                    accum[code][key] = [0, 0.0, 0.0]
-                accum[code][key][0] += 1
-                accum[code][key][1] += tot_m
-                accum[code][key][2] += wt_kg
-
-        # Flatten to sorted list
-        result: dict[str, list] = {}
-        for code, entries in accum.items():
-            rows = []
-            for (label, len_each), (cnt, tot_m, wt_kg) in sorted(entries.items()):
-                rows.append((label, cnt, len_each, round(tot_m, 4), round(wt_kg, 4)))
-            if rows:
-                result[code] = rows
-
-        return result
-
-    @staticmethod
-    def _iron_source_label(ctx, rule, total_m):
-        """
-        Return (description_string, length_per_unit) for iron breakup row.
-        """
-        obj = ctx.get("object_type", "")
-        cond = rule.get("condition", "")
-
-        if obj == "SmartPole":
-            pole_type = ctx.get("pole_type", "")
-            is_existing = ctx.get("is_existing", False)
-            prefix = "Existing" if is_existing else "New"
-
-            if "has_extension" in cond:
-                ext_h = ctx.get("extension_height", 3.0)
-                formula = rule.get("formula", "")
-                if "FLAT" in formula:
-                    return (f"{prefix} {pole_type} Pole Extension Flat ({ext_h}m)", round(total_m, 2))
-                return (f"{prefix} {pole_type} Pole Extension ({ext_h}m)", round(total_m, 2))
-            elif "has_cg" in cond:
-                return ("Cradle Guard (CG) Bracket on Pole", 1.9 if "ANG" in rule.get("formula", "") else 0.5)
-            elif "lt_acsr_count" in cond:
-                return (f"LT Bracket on {prefix} LT Pole", 1.0)
-            elif "ht_spans_count" in cond:
-                return (f"Tee-off Bracket on {prefix} HT Pole", round(total_m, 2))
-            elif "earth_count" in cond:
-                ec = ctx.get("earth_count", 1)
-                return (f"Earthing on {prefix} {pole_type} Pole ({ec} nos)", round(total_m, 2))
-            else:
-                return (f"{prefix} {pole_type} Pole Iron", round(total_m, 2))
-
-        elif obj == "SmartStructure":
-            st = ctx.get("structure_type", "")
-            # Check earth_count first — applies to any structure type
-            if "earth_count" in cond:
-                ec = ctx.get("earth_count", 1)
-                return (f"Earthing on {st} Structure ({ec} nos)", round(total_m, 2))
-
-            if st == "DTR":
-                # Identify specific DTR component from formula
-                formula = rule.get("formula", "")
-                if "CH_75X40" in formula or "CH_100X50" in formula:
-                    return ("DTR Sub-Stn (Channel — Top + Isolator + Base + Bolt)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("DTR Sub-Stn (Angle — Fuse + Switch + Support + FootRest)", round(total_m, 2))
-                elif "ANG_50X50X6" in formula:
-                    return ("DTR Sub-Stn (Angle 50 — Main Switch)", round(total_m, 2))
-                elif "FLAT_65X6" in formula:
-                    return ("DTR Sub-Stn (Flat — HT Clamp)", round(total_m, 2))
-                else:
-                    return (f"DTR Sub-Stn Iron", round(total_m, 2))
-            elif st == "DP":
-                formula = rule.get("formula", "")
-                if "CH_75X40" in formula:
-                    return ("DP Structure (Channel)", round(total_m, 2))
-                else:
-                    return ("DP Structure (Flat)", round(total_m, 2))
-            elif st == "TP":
-                formula = rule.get("formula", "")
-                if "CH_75X40" in formula:
-                    return ("TP Structure (Channel)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("TP Structure (Angle)", round(total_m, 2))
-                else:
-                    return ("TP Structure (Flat)", round(total_m, 2))
-            elif st == "4P":
-                formula = rule.get("formula", "")
-                if "CH_75X40" in formula:
-                    return ("4P Structure (Channel)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("4P Structure (Angle)", round(total_m, 2))
-                else:
-                    return ("4P Structure (Flat)", round(total_m, 2))
-            else:
-                return (f"{st} Structure Iron", round(total_m, 2))
-
-        elif obj == "SmartSpan":
-            formula = rule.get("formula", "")
-            if "0503010811" == rule.get("item_code") or "0503010711" == rule.get("item_code"):
-                length = ctx.get("length", 0)
-                return (f"CG Earthing Wire on Span ({length}m)", round(total_m, 2))
-            return ("AB Cable Span (Flat)", 0.5)
-
-        return ("Other Iron", round(total_m, 2))
+        """Delegate to ExcelExporter."""
+        ExcelExporter(self).generate()
 
     # =========================================================================
     #  PDF EXPORT
     # =========================================================================
 
     def export_pdf(self):
-        """
-        Export a multi-page PDF whose page layout matches the canvas page grid.
-        Each tile visible in the grid becomes one page in the PDF.
-        """
-        m       = self.project_meta
-        subject = m.get("subject", "Project_Drawing")
-        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
-        default = f"{safe}.pdf" if safe else "Project_Drawing.pdf"
-
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Export PDF Drawing", default, "PDF Files (*.pdf)"
-        )
-        if not filename:
-            return
-
-        if self.scene.itemsBoundingRect().isNull():
-            QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
-            return
-
-        # Ensure grid tiles are current
-        self._refresh_page_grid()
-        tiles = self.view.grid_tiles
-        if not tiles:
-            QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
-            return
-
-        total_pages = tiles[0]["total"]
-
-        # ── UI margins in device pixels ────────────────────────────────────
-        MARG_T, MARG_B, MARG_L, MARG_R = 10, 10, 10, 10
-        PAGE_EDGE_GAP = 20
-        TITLE_H  = 32   # title strip height (device px) — tall enough for 2-line wrap
-        FOOTER_H = 16   # footer strip height
-
-        # ScreenResolution keeps device-pixel coords the same as screen coords,
-        # so TITLE_H/FOOTER_H sizes and font pt values render correctly in the PDF.
-        printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printer.setOutputFileName(filename)
-        printer.setFullPage(True)
-
-        def _layout_for(orient: str) -> QPageLayout:
-            qt_orient = (
-                QPageLayout.Orientation.Portrait
-                if orient == "P"
-                else QPageLayout.Orientation.Landscape
-            )
-            return QPageLayout(
-                QPageSize(QPageSize.PageSizeId.A4),
-                qt_orient,
-                QMarginsF(0, 0, 0, 0)
-            )
-
-        drawable_items = [
-            i for i in self.scene.items()
-            if isinstance(i, (SmartPole, SmartStructure, SmartConsumer, SmartSpan))
-        ]
-        continuation_marks = self._build_continuation_marks_for_tiles(tiles, inset_scene=20.0)
-
-        def _anchor_bounds_for(src_rect: QRectF):
-            node_bounds = None
-            all_bounds = None
-            for item in drawable_items:
-                item_rect = item.sceneBoundingRect()
-                if not src_rect.intersects(item_rect):
-                    continue
-                inter = src_rect.intersected(item_rect)
-                if inter.isNull() or inter.isEmpty():
-                    continue
-                all_bounds = inter if all_bounds is None else all_bounds.united(inter)
-                if not isinstance(item, SmartSpan):
-                    node_bounds = inter if node_bounds is None else node_bounds.united(inter)
-            return node_bounds if node_bounds is not None else all_bounds
-
-        def _scene_to_page_pt(scene_pt: QPointF, render_rect: QRectF, src_rect: QRectF) -> QPointF:
-            if src_rect.width() <= 0 or src_rect.height() <= 0:
-                return QPointF(render_rect.left(), render_rect.top())
-            sx = render_rect.width() / src_rect.width()
-            sy = render_rect.height() / src_rect.height()
-            return QPointF(
-                render_rect.left() + (scene_pt.x() - src_rect.left()) * sx,
-                render_rect.top() + (scene_pt.y() - src_rect.top()) * sy,
-            )
-
-        def _span_pen_for_export(span: SmartSpan) -> QPen:
-            color = span._PEN_COLORS.get(span.conductor, QColor("#222222"))
-            pen = QPen(color, 1.8)
-            if span.is_existing_span:
-                pen.setStyle(Qt.PenStyle.SolidLine)
-                pen.setWidthF(1.2)
-            elif span.conductor == "ACSR":
-                pen.setStyle(Qt.PenStyle.DashLine)
-            return pen
-
-        def _anchor_scene_for_mark(span: SmartSpan, marker_scene: QPointF, src_rect: QRectF) -> QPointF:
-            p1 = span.p1.pos()
-            p2 = span.p2.pos()
-            p1_in = src_rect.contains(p1)
-            p2_in = src_rect.contains(p2)
-
-            if p1_in and not p2_in:
-                return p1
-            if p2_in and not p1_in:
-                return p2
-
-            # If both endpoints are outside, use clipped intersection on current page.
-            if not p1_in and not p2_in:
-                line = QLineF(p1, p2)
-                edges = [
-                    QLineF(src_rect.topLeft(), src_rect.topRight()),
-                    QLineF(src_rect.topRight(), src_rect.bottomRight()),
-                    QLineF(src_rect.bottomRight(), src_rect.bottomLeft()),
-                    QLineF(src_rect.bottomLeft(), src_rect.topLeft()),
-                ]
-                hits = []
-                for e in edges:
-                    inter_type, pt = line.intersects(e)
-                    if inter_type == QLineF.IntersectionType.BoundedIntersection:
-                        hits.append(pt)
-                if hits:
-                    return max(
-                        hits,
-                        key=lambda p: (p.x() - marker_scene.x()) ** 2 + (p.y() - marker_scene.y()) ** 2,
-                    )
-
-            d1 = (p1.x() - marker_scene.x()) ** 2 + (p1.y() - marker_scene.y()) ** 2
-            d2 = (p2.x() - marker_scene.x()) ** 2 + (p2.y() - marker_scene.y()) ** 2
-            return p1 if d1 <= d2 else p2
-
-        def _draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark):
-            span = mark.get("span")
-            if span is None:
-                return
-
-            marker_scene = mark.get("marker_scene_point", mark["scene_point"])
-            marker_page = _scene_to_page_pt(marker_scene, render_rect, src_rect)
-            radius = 10.0
-            marker_page.setX(max(draw_rect.left() + radius + 2.0,
-                                 min(draw_rect.right() - radius - 2.0, marker_page.x())))
-            marker_page.setY(max(draw_rect.top() + radius + 2.0,
-                                 min(draw_rect.bottom() - radius - 2.0, marker_page.y())))
-            anchor_scene = mark.get("anchor_scene_point")
-            if anchor_scene is None:
-                anchor_scene = _anchor_scene_for_mark(span, marker_scene, src_rect)
-            anchor_page = _scene_to_page_pt(anchor_scene, render_rect, src_rect)
-
-            painter.save()
-            painter.setClipRect(draw_rect)
-
-            # Draw visible continuation segment inside the page: O---A / A---O
-            painter.setPen(_span_pen_for_export(span))
-            painter.drawLine(anchor_page, marker_page)
-
-            # Draw circled continuation marker label.
-            painter.setBrush(QColor(255, 255, 255, 235))
-            painter.setPen(QPen(QColor(180, 60, 60), 1.2))
-            painter.drawEllipse(marker_page, radius, radius)
-
-            painter.setPen(QColor(180, 60, 60))
-            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-            painter.drawText(
-                QRectF(marker_page.x() - radius, marker_page.y() - radius - 1, radius * 2, radius * 2),
-                Qt.AlignmentFlag.AlignCenter,
-                mark["label"]
-            )
-
-            # Page reference near marker (e.g., "Pg 3")
-            target_page = mark.get("target_page")
-            if target_page is not None:
-                painter.setPen(QColor(160, 55, 55))
-                painter.setFont(QFont("Arial", 7))
-                side = mark.get("side", "right")
-                if side in ("left", "right"):
-                    # Horizontal page crossing: show page ref above A.
-                    txt_rect = QRectF(marker_page.x() - 21, marker_page.y() - 26, 42, 14)
-                    align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom
-                else:
-                    # Vertical page crossing: show page ref to the right of A.
-                    txt_rect = QRectF(marker_page.x() + 14, marker_page.y() - 7, 42, 14)
-                    align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-                painter.drawText(txt_rect, align, f"Pg {target_page}")
-
-            painter.restore()
-
-        painter = None   # opened on first page
-
-        for page_idx, tile in enumerate(tiles):
-            src_rect  = tile["rect"]         # scene-coordinate source
-            page_num  = tile["page_num"]
-            is_last   = (page_idx == len(tiles) - 1)
-            orient    = tile.get("orient", "L")
-
-            if painter is None:
-                # First page must set layout before opening painter.
-                printer.setPageLayout(_layout_for(orient))
-                painter = QPainter(printer)
-            else:
-                # Set next-page layout then advance to next page.
-                printer.setPageLayout(_layout_for(orient))
-                printer.newPage()
-
-            paper   = printer.paperRect(QPrinter.Unit.DevicePixel)
-            page_w  = paper.width()  - MARG_L - MARG_R
-            page_h  = paper.height() - MARG_T  - MARG_B
-            ox, oy  = MARG_L, MARG_T
-
-            # ── Border ───────────────────────────────────────────────────
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor(180, 180, 180), 0.8))
-            painter.drawRect(QRectF(ox, oy, page_w, page_h))
-
-            # ── Title strip ──────────────────────────────────────────────
-            painter.fillRect(QRectF(ox, oy, page_w, TITLE_H), QColor(240, 244, 250))
-            painter.setPen(Qt.GlobalColor.black)
-            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            if self.pdf_show_project_name:
-                title_text = m.get("subject") or "ERP PROJECT DRAWING"
-                painter.drawText(
-                    QRectF(ox + 4, oy, page_w * 0.70, TITLE_H),
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-                    | Qt.TextFlag.TextWordWrap,
-                    title_text
-                )
-            # Page number (right side of title)
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(
-                QRectF(ox + page_w * 0.70, oy, page_w * 0.30 - 4, TITLE_H),
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-                f"Page {page_num} / {total_pages}   [Scale 1:{self.pdf_scale}]"
-            )
-            # Title separator line
-            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
-            painter.drawLine(
-                QPointF(ox, oy + TITLE_H), QPointF(ox + page_w, oy + TITLE_H)
-            )
-
-            # ── Footer strip ─────────────────────────────────────────────
-            footer_y = oy + page_h - FOOTER_H
-            painter.fillRect(QRectF(ox, footer_y, page_w, FOOTER_H), QColor(240, 244, 250))
-            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
-            painter.drawLine(QPointF(ox, footer_y), QPointF(ox + page_w, footer_y))
-            painter.setPen(Qt.GlobalColor.black)
-            painter.setFont(QFont("Arial", 7))
-            date_str   = datetime.now().strftime("%d-%m-%Y")
-            lat_str    = m.get("lat", "")
-            long_str   = m.get("long", "")
-            footer_txt = (
-                f"{m.get('project_type','')}  |  "
-                f"{date_str}  |  "
-                f"Lat: {lat_str}   Long: {long_str}  |  "
-                f"ERP Estimate Generator v5.0"
-            )
-            painter.drawText(
-                QRectF(ox + 4, footer_y, page_w - 8, FOOTER_H),
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                footer_txt
-            )
-
-            # ── Drawing area ─────────────────────────────────────────────
-            draw_top  = oy + TITLE_H + 2
-            draw_h    = page_h - TITLE_H - FOOTER_H - 4
-            draw_rect = QRectF(
-                ox + PAGE_EDGE_GAP,
-                draw_top + PAGE_EDGE_GAP,
-                max(1.0, page_w - 2 * PAGE_EDGE_GAP),
-                max(1.0, draw_h - 2 * PAGE_EDGE_GAP),
-            )
-            page_marks = continuation_marks.get(page_num, [])
-
-            hidden_spans = []
-            for mark in page_marks:
-                span = mark.get("span")
-                if span is None or span in hidden_spans:
-                    continue
-                if span.isVisible():
-                    hidden_spans.append(span)
-                    span.setVisible(False)
-
-            render_rect = QRectF(draw_rect)
-
-            painter.save()
-            painter.setClipRect(draw_rect)
-            self.scene.render(
-                painter, render_rect, src_rect,
-                Qt.AspectRatioMode.IgnoreAspectRatio
-            )
-            painter.restore()
-
-            for span in hidden_spans:
-                span.setVisible(True)
-
-            # ── Legend: only on the last page ────────────────────────────
-            if is_last and self.pdf_show_legend:
-                self._draw_pdf_legend(painter, draw_rect)
-
-            for mark in page_marks:
-                _draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark)
-
-        if painter:
-            painter.end()
-
-        l_count = sum(1 for t in tiles if t.get("orient") == "L")
-        p_count = sum(1 for t in tiles if t.get("orient") == "P")
-        override_count = sum(1 for t in tiles if t.get("is_override"))
-        orient_summary = f"L:{l_count}  P:{p_count}"
-        if override_count:
-            orient_summary += f"  |  Overrides:{override_count}"
-
-        QMessageBox.information(
-            self, "PDF Exported",
-            f"Saved {total_pages} page(s) to:\n{filename}\n\n"
-            f"Scale: 1:{self.pdf_scale}  |  "
-            f"Orientation: {self.pdf_orientation_mode} ({orient_summary})"
-        )
-
-    def _draw_pdf_legend(self, painter, border):
-        legend_data = {
-            "New LT Pole":      {"s": "🔵", "q": 0},
-            "New HT Pole":      {"s": "🔴", "q": 0},
-            "DP Structure":     {"s": "🟩", "q": 0},
-            "TP Structure":     {"s": "🟩", "q": 0},
-            "4P Structure":     {"s": "🟩", "q": 0},
-            "DTR":              {"s": "🟠", "q": 0},
-            "Existing Pole":    {"s": "⚪", "q": 0},
-            "Extension":        {"s": "[E]", "q": 0},
-            "Consumer":         {"s": "🏠", "q": 0},
-            "Earthing":         {"s": "⏚",  "q": 0},
-            "Stay":             {"s": "S→",  "q": 0},
-            "CG (SP)":          {"s": "[CG]", "q": 0},
-            "CG (DP)":          {"s": "[CG]", "q": 0},
-            "New ACSR":         {"s": "---",  "l": 0},
-            "New AB Cable":     {"s": "~~~",  "l": 0},
-            "New PVC Cable":    {"s": "...",  "l": 0},
-            "Existing Span":    {"s": "———",  "l": 0},
-            "Service Drop":     {"s": "--s",  "l": 0},
-        }
-
-        for item in self.scene.items():
-            if isinstance(item, SmartPole):
-                legend_data["Earthing"]["q"] += item.earth_count
-                legend_data["Stay"]["q"]     += item.stay_count
-                if item.has_extension:
-                    legend_data["Extension"]["q"] += 1
-                if item.is_existing:
-                    legend_data["Existing Pole"]["q"] += 1
-                elif item.pole_type == "LT":
-                    legend_data["New LT Pole"]["q"] += 1
-                else:
-                    legend_data["New HT Pole"]["q"] += 1
-            elif isinstance(item, SmartStructure):
-                st_key = item.structure_type if item.structure_type == "DTR" else f"{item.structure_type} Structure"
-                if st_key in legend_data:
-                    legend_data[st_key]["q"] += 1
-                legend_data["Earthing"]["q"]      += item.earth_count
-                legend_data["Stay"]["q"]          += item.stay_count
-                if item.has_extension:
-                    legend_data["Extension"]["q"] += 1
-            elif isinstance(item, SmartConsumer):
-                legend_data["Consumer"]["q"] += 1
-            elif isinstance(item, SmartSpan):
-                if item.has_cg:
-                    is_dp = isinstance(item.p1, SmartStructure) or isinstance(item.p2, SmartStructure)
-                    legend_data["CG (DP)" if is_dp else "CG (SP)"]["q"] += 1
-                key = "Service Drop" if item.is_service_drop else (
-                    "Existing Span" if item.is_existing_span else
-                    f"New {item.conductor}"
-                )
-                if key in legend_data:
-                    if "l" in legend_data[key]:
-                        legend_data[key]["l"] += item.length
-                    else:
-                        legend_data[key]["q"] = legend_data[key].get("q", 0) + 1
-
-        used = []
-        for desc, d in legend_data.items():
-            q = d.get("q", 0)
-            l = d.get("l", 0)
-            if q > 0 or l > 0:
-                val = str(q) if "q" in d else f"{int(l)}m"
-                used.append({"desc": desc, "sym": d["s"], "val": val})
-
-        if not used:
-            return
-
-        # ── Layout constants ──────────────────────────────────────────────
-        # Two side-by-side mini-tables to halve the vertical footprint.
-        # Each half: sym(22) + desc(90) + qty(36) = 148px wide, plus sl(20)
-        cw  = {"sl": 18, "sym": 22, "desc": 90, "qty": 34}   # per-column widths
-        ckeys = list(cw.keys())
-        half_w  = sum(cw.values())          # width of one sub-table
-        gap     = 6                          # gap between the two sub-tables
-        total_w = half_w * 2 + gap
-
-        row_h  = 14
-        hdr_h  = 15
-        ll_h   = 16
-
-        # Split entries into two columns (left half / right half)
-        mid      = (len(used) + 1) // 2
-        left_col  = used[:mid]
-        right_col = used[mid:]
-        rows     = max(len(left_col), len(right_col))
-        total_h  = hdr_h + rows * row_h + ll_h
-
-        # Anchor bottom-right inside the page border
-        leg_left = border.right() - total_w - 5
-        leg_top  = border.bottom() - total_h - 5
-        leg_rect = QRectF(leg_left, leg_top, total_w, total_h)
-
-        painter.save()
-        painter.setOpacity(0.82)            # semi-transparent
-
-        # Background
-        painter.setBrush(QBrush(QColor(255, 255, 255, 210)))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(leg_rect)
-        painter.setOpacity(1.0)             # restore for text/lines
-
-        grid_pen   = QPen(QColor(170, 170, 170), 0.4)
-        border_pen = QPen(Qt.GlobalColor.black, 0.7)
-
-        def _sub_table(entries, left_x, number_offset):
-            """Draw one half-table at left_x, starting index at number_offset."""
-            cy = leg_top
-
-            # Header
-            painter.setBrush(QBrush(QColor(200, 200, 200, 200)))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(QRectF(left_x, cy, half_w, hdr_h))
-            painter.setPen(QPen(Qt.GlobalColor.black))
-            painter.setFont(QFont("Arial", 6, QFont.Weight.Bold))
-            cx = left_x
-            for k in ckeys:
-                lbl = {"sl": "#", "sym": "Sym", "desc": "Description", "qty": "Qty"}[k]
-                painter.drawText(QRectF(cx, cy, cw[k], hdr_h),
-                                 Qt.AlignmentFlag.AlignCenter, lbl)
-                cx += cw[k]
-            cy += hdr_h
-
-            # Header bottom line
-            painter.setPen(border_pen)
-            painter.drawLine(QPointF(left_x, cy), QPointF(left_x + half_w, cy))
-
-            # Column separators (full height)
-            painter.setPen(grid_pen)
-            sx = left_x
-            for k in ckeys[:-1]:
-                sx += cw[k]
-                painter.drawLine(QPointF(sx, leg_top), QPointF(sx, leg_top + total_h - ll_h))
-
-            # Data rows
-            painter.setFont(QFont("Arial", 6))
-            for i, entry in enumerate(entries):
-                bg = QColor(248, 248, 248, 200) if i % 2 == 0 else QColor(255, 255, 255, 180)
-                painter.setBrush(QBrush(bg))
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.drawRect(QRectF(left_x, cy, half_w, row_h))
-                painter.setPen(QPen(Qt.GlobalColor.black))
-                cx = left_x
-                painter.drawText(QRectF(cx, cy, cw["sl"], row_h),
-                                 Qt.AlignmentFlag.AlignCenter, str(i + 1 + number_offset))
-                cx += cw["sl"]
-                painter.drawText(QRectF(cx, cy, cw["sym"], row_h),
-                                 Qt.AlignmentFlag.AlignCenter, entry["sym"])
-                cx += cw["sym"]
-                painter.drawText(QRectF(cx + 2, cy, cw["desc"] - 2, row_h),
-                                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                                 entry["desc"])
-                cx += cw["desc"]
-                painter.drawText(QRectF(cx, cy, cw["qty"], row_h),
-                                 Qt.AlignmentFlag.AlignCenter, entry["val"])
-                cy += row_h
-                painter.setPen(grid_pen)
-                painter.drawLine(QPointF(left_x, cy), QPointF(left_x + half_w, cy))
-
-            # Outer border for this sub-table
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(border_pen)
-            painter.drawRect(QRectF(left_x, leg_top, half_w, total_h - ll_h))
-
-        _sub_table(left_col,  leg_left,            0)
-        _sub_table(right_col, leg_left + half_w + gap, len(left_col))
-
-        # ── Footer (coordinates) — full-width ────────────────────────────
-        cy = leg_top + total_h - ll_h
-        painter.setBrush(QBrush(QColor(220, 220, 220, 200)))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(QRectF(leg_left, cy, total_w, ll_h))
-        painter.setPen(QPen(Qt.GlobalColor.black))
-        painter.setFont(QFont("Arial", 6, QFont.Weight.Normal, True))
-        painter.drawText(
-            QRectF(leg_left, cy, total_w, ll_h),
-            Qt.AlignmentFlag.AlignCenter,
-            f"Lat: {self.project_meta.get('lat', '')}   Long: {self.project_meta.get('long', '')}"
-        )
-        # Final outer border
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(border_pen)
-        painter.drawRect(leg_rect)
-        painter.restore()
+        """Delegate to PDFExporter."""
+        PDFExporter(self).export()
 
     # =========================================================================
     #  SAVE / LOAD / AUTOSAVE
@@ -3651,8 +2702,9 @@ class EstimateApp(QMainWindow):
         if os.path.exists(logo_path):
             pix = QPixmap(logo_path).scaled(96, 96, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             dlg.setIconPixmap(pix)
-        dlg.setText("""
-        <h2>ERP Estimate Generator v5.0</h2>
+        dlg.setText(
+            f"""
+        <h2>{APP_DISPLAY_NAME} v{APP_VERSION}</h2>
         <p>Interactive electrical network estimation tool for WBSEDCL projects.</p>
         <ul>
             <li>Project type-based supervision rates</li>
@@ -3661,8 +2713,9 @@ class EstimateApp(QMainWindow):
             <li>Iron breakup sheet in Excel export</li>
             <li>PDF drawings with legend</li>
         </ul>
-        <p><b>Developed by: Pramod Verma</b></p>
-        """)
+        <p><b>Developed by: {APP_AUTHOR}</b></p>
+        """
+        )
         dlg.exec()
 
     def show_credits(self):
@@ -3683,11 +2736,16 @@ class EstimateApp(QMainWindow):
         if os.path.exists(help_path):
             with open(help_path, "r", encoding="utf-8") as f:
                 html = f.read()
+            html = (
+                html.replace("{{APP_DISPLAY_NAME}}", APP_DISPLAY_NAME)
+                    .replace("{{APP_VERSION}}", APP_VERSION)
+                    .replace("{{APP_AUTHOR}}", APP_AUTHOR)
+            )
         else:
             html = "<h2>Help file not found</h2><p>HELP.html is missing.</p>"
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("User Guide — ERP Estimate Generator")
+        dlg.setWindowTitle(f"User Guide — {APP_DISPLAY_NAME}")
         dlg.resize(820, 650)
         lay = QVBoxLayout(dlg)
         browser = QTextBrowser()

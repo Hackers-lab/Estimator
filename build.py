@@ -3,7 +3,7 @@ Build script for ERP Estimate Generator.
 Creates a distributable ZIP using PyInstaller (one-folder mode).
 
 Usage:  python build.py
-Output: dist/ERP_Estimate_v5.0.zip
+Output: dist/<APP_NAME>_v<APP_VERSION>.zip
 """
 
 import subprocess
@@ -12,10 +12,10 @@ import sys
 import os
 import zipfile
 
-APP_NAME = "ERP_Estimate"
-VERSION  = "5.0"
+from app_config import APP_NAME, APP_VERSION
+
 DIST_DIR = "dist"
-FOLDER   = f"{APP_NAME}_v{VERSION}"
+FOLDER   = f"{APP_NAME}_v{APP_VERSION}"
 
 # Data files to copy next to the exe
 DATA_FILES = ["rules.json", "logo.svg", "HELP.html"]

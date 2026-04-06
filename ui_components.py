@@ -1,7 +1,7 @@
 """
 ui_components.py
 ================
-Custom reusable Qt widgets for ERP Estimate Generator v5.0.
+Custom reusable Qt widgets for ERP Estimate Generator.
 
 Classes
 -------

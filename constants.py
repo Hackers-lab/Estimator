@@ -2,7 +2,7 @@
 constants.py
 ============
 Shared configuration, lookup tables, and constant definitions for the
-ERP Estimate Generator v5.0.
+ERP Estimate Generator.
 
 Consumers of this module
 ------------------------

@@ -1,7 +1,8 @@
+from __future__ import annotations
 """
 canvas_objects.py
 =================
-Defines the four interactive canvas objects for ERP Estimate Generator v5.0:
+Defines the four interactive canvas objects for ERP Estimate Generator:
 
     SmartPole      — LT or HT single pole (PCC / STP / H-BEAM)
     SmartStructure — Multi-pole HT structures (DP / TP / 4P / DTR sub-station)
@@ -21,13 +22,14 @@ Visual improvements over v4
 """
 
 import math
-from typing import TYPE_CHECKING
-from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsItemGroup
+from typing import TYPE_CHECKING, Any
+from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem
 from PyQt6.QtGui import (
     QPainterPath, QBrush, QColor, QPen, QFont, QPainter
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 
+import defaults
 from ui_components import DraggableLabel
 
 if TYPE_CHECKING:
@@ -64,13 +66,17 @@ def _earth_path(x_off: float = 0, y_off: float = 0, angle_deg: float = 90) -> QP
     return p
 
 
+_STAY_LENGTH: int = 18
+_ARROW_LEN: int = 6
+
+
 def _stay_path(angle_deg: float = 225) -> QPainterPath:
     """
     Draws a stay-wire symbol: a diagonal line from pole centre outward,
     with an arrowhead at the far end pointing in the stay direction.
     angle_deg — direction of stay wire (default: lower-left = 225°)
     """
-    length = 18
+    length = _STAY_LENGTH
     rad    = math.radians(angle_deg)
     ex     = math.cos(rad) * length
     ey     = math.sin(rad) * length
@@ -79,7 +85,7 @@ def _stay_path(angle_deg: float = 225) -> QPainterPath:
     p.moveTo(0, 0)
     p.lineTo(ex, ey)
     # Arrowhead — two wings going back from tip at ±140° from forward direction
-    arrow_len = 6
+    arrow_len = _ARROW_LEN
     for wing_offset in (+140, -140):
         wing_rad = math.radians(angle_deg + wing_offset)
         p.moveTo(ex, ey)
@@ -166,7 +172,7 @@ class _NodeMixin(_NodeBase):
     (SmartPole, SmartStructure, SmartConsumer).
     Call _init_node() from the subclass __init__ after super().__init__().
     """
-    def _init_node(self, x, y, refresh_signal, detail_view=True):
+    def _init_node(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
         self.setPos(x, y)
         self.setZValue(10)
         F = QGraphicsPathItem.GraphicsItemFlag
@@ -180,7 +186,7 @@ class _NodeMixin(_NodeBase):
         self.custom_note     = ""
         self.dynamic_props   = {}
 
-    def _on_position_changed(self):
+    def _on_position_changed(self) -> None:
         for span in self.connected_spans:
             span.update_position()
         if self.refresh_signal:
@@ -209,30 +215,37 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
     detail_view      : bool   (show stay/earth symbols)
     """
 
+    _RADIUS: int = 9
+    _LABEL_MARGIN_X: int = 10
+    _LABEL_MARGIN_Y: int = 8
+
     def __init__(
-        self, x, y, refresh_signal,
-        pole_type="LT", is_existing=False,
-        detail_view=True
-    ):
+        self, x: float, y: float, refresh_signal: Any,
+        pole_type: str = "LT", is_existing: bool = False,
+        detail_view: bool = True
+    ) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
 
+        _d   = defaults.current
+        _pfx = "lt_" if pole_type == "LT" else "ht_"
+
         self.pole_type          = pole_type
-        self.pole_type2         = "PCC"
+        self.pole_type2         = _d[_pfx + "pole_type2"] if not is_existing else "PCC"
         self.is_existing        = is_existing
         self.existing_subtype   = pole_type   # LT | HT | DP | TP | 4P | DTR
         self.existing_dtr_size  = "None"
-        self.height             = "8MTR" if pole_type == "LT" else "9MTR"
+        self.height             = _d[_pfx + "height"] if not is_existing else ("8MTR" if pole_type == "LT" else "9MTR")
         self.has_extension      = False
-        self.extension_height   = 3.0
+        self.extension_height   = _d["extension_height"]
         self.override_auto_stay = False
 
         if is_existing:
             self.earth_count = 0
             self.stay_count  = 0
         else:
-            self.earth_count = 1
-            self.stay_count  = 0
+            self.earth_count = _d[_pfx + "earth_count"]
+            self.stay_count  = _d[_pfx + "stay_count"]
 
         self._updating_visuals = False
 
@@ -339,8 +352,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         sx = 1 if vx >= 0 else -1
         sy = 1 if vy >= 0 else -1
 
-        margin_x = r + 10
-        margin_y = r + 8
+        margin_x = r + self._LABEL_MARGIN_X
+        margin_y = r + self._LABEL_MARGIN_Y
 
         x = margin_x if sx > 0 else -(lw + margin_x)
         y = margin_y if sy > 0 else -(lh + margin_y)
@@ -369,7 +382,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
-    def update_visuals(self):
+    def update_visuals(self) -> None:
         if self._updating_visuals:
             return
         self._updating_visuals = True
@@ -378,7 +391,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             path = QPainterPath()
 
             # Main pole symbol
-            r = 9
+            r = self._RADIUS
             if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
                 path.addPath(_existing_struct_path(self.existing_subtype))
             else:
@@ -481,19 +494,19 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             self._updating_visuals = False
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
-    def paint(self, painter, option, widget=None):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
         super().paint(painter, option, widget)
         if painter is None:
             return
         if self.has_extension:
-            r = 9
+            r = self._RADIUS
             painter.save()
             painter.setPen(QPen(Qt.GlobalColor.black, 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
             painter.drawText(QRectF(-4, -(r + 10), 8, 8),
                              Qt.AlignmentFlag.AlignCenter, "E")
             painter.restore()
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
             self._on_position_changed()
         return super().itemChange(change, value)
@@ -525,18 +538,22 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         "4P":  QColor("#16a085"),   # dark teal
         "DTR": QColor("#e67e22"),   # orange
     }
+    _RADIUS: int = 8
+    _GAP: int = 6
 
-    def __init__(self, x, y, refresh_signal, detail_view=True):
+    def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
 
+        _d = defaults.current
+
         self.structure_type   = "DP"
-        self.pole_type2       = "PCC"
-        self.height           = "9MTR"
+        self.pole_type2       = _d["struct_pole_type2"]
+        self.height           = _d["struct_height"]
         self.has_extension    = False
-        self.extension_height = 3.0
+        self.extension_height = _d["extension_height"]
         self.earth_count      = self._EARTH_DEFAULTS["DP"]
-        self.stay_count       = 4
+        self.stay_count       = _d["struct_stay_count"]
         self.dtr_size         = "None"
 
         self.label = DraggableLabel(self)
@@ -546,10 +563,10 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
-    def update_visuals(self):
+    def update_visuals(self) -> None:
         path = QPainterPath()
-        r    = 8   # circle radius
-        gap  = 6   # gap between circles
+        r    = self._RADIUS
+        gap  = self._GAP
 
         st = self.structure_type
 
@@ -658,19 +675,19 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.label.setPos(-(self.label.boundingRect().width() / 2), 26)
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
-    def paint(self, painter, option, widget=None):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
         super().paint(painter, option, widget)
         if painter is None:
             return
         if self.has_extension:
-            r = 8
+            r = self._RADIUS
             painter.save()
             painter.setPen(QPen(Qt.GlobalColor.black, 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
             painter.drawText(QRectF(-4, -(r * 2 + 14), 8, 8),
                              Qt.AlignmentFlag.AlignCenter, "E")
             painter.restore()
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
             self._on_position_changed()
         return super().itemChange(change, value)
@@ -694,7 +711,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
     agency_supply : bool  — True = agency supplied, False = WBSEDCL
     """
 
-    def __init__(self, x, y, refresh_signal, detail_view=True):
+    def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
 
@@ -721,7 +738,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
-    def update_visuals(self):
+    def update_visuals(self) -> None:
         phase_short = "1φ" if self.phase == "1 Phase" else "3φ"
         supply_tag  = " [A]" if self.agency_supply else ""
         txt = f"Consumer\n{phase_short}{supply_tag}"
@@ -737,7 +754,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
 
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
             self._on_position_changed()
         return super().itemChange(change, value)
@@ -783,8 +800,11 @@ class SmartSpan(QGraphicsPathItem):
         "PVC Cable":    QColor("#107C41"),   # dark green
         "Service Drop": QColor("#d35400"),   # orange
     }
+    _WAVY_AMPLITUDE: float = 4.0
+    _WAVY_FREQUENCY_DIV: int = 15
+    _MIN_WAVY_STEPS: int = 20
 
-    def __init__(self, pole1, pole2, detail_view=True):
+    def __init__(self, pole1: Any, pole2: Any, detail_view: bool = True) -> None:
         super().__init__()
         self.p1          = pole1
         self.p2          = pole2
@@ -805,22 +825,24 @@ class SmartSpan(QGraphicsPathItem):
         # ── Auto-detect voltage level ──────────────────────────────────────
         self.is_lt_span = self._detect_lt()
 
-        # ── Set defaults ───────────────────────────────────────────────────
+        # ── Set defaults ——————————————————————————————————————————
+        _d = defaults.current
         if self.is_service_drop:
             self.conductor      = "Service Drop"
-            self.conductor_size = "10 SQMM"
-            self.length         = 20
+            self.conductor_size = _d["sd_conductor_size"]
+            self.length         = _d["sd_length"]
             self.consider_cable = False
-            self.phase          = "3 Phase"
+            self.phase          = _d["sd_phase"]
             self.has_cg         = False
             self.aug_type       = "New"
             self.wire_count     = "3"
         else:
-            self.conductor      = "AB Cable" if self.is_lt_span else "ACSR"
-            self.conductor_size = "3CX50+1CX16+1CX35" if self.is_lt_span else "50SQMM"
-            self.length         = 40
+            _pfx = "lt_" if self.is_lt_span else "ht_"
+            self.conductor      = _d[_pfx + "conductor"]
+            self.conductor_size = _d[_pfx + "conductor_size"]
+            self.length         = _d[_pfx + "span_length"]
             self.aug_type       = "New"
-            self.wire_count     = "4" if self.is_lt_span else "3"
+            self.wire_count     = _d[_pfx + "wire_count"]
             self.has_cg         = False
             self.consider_cable = False
             self.phase          = "3 Phase"
@@ -853,7 +875,7 @@ class SmartSpan(QGraphicsPathItem):
 
     # ── Position update ───────────────────────────────────────────────────────
 
-    def update_position(self):
+    def update_position(self) -> None:
         """Redraws the span path and repositions the label."""
         self.is_lt_span = self._detect_lt()
 
@@ -890,8 +912,8 @@ class SmartSpan(QGraphicsPathItem):
             
             if isinstance(item, SmartStructure):
                 st = getattr(item, 'structure_type', None)
-                r   = 8
-                gap = 6
+                r   = SmartStructure._RADIUS
+                gap = SmartStructure._GAP
 
                 if st == "TP":
                     # 3 circles: top, bottom-left, bottom-right
@@ -944,11 +966,11 @@ class SmartSpan(QGraphicsPathItem):
 
         wavy_conductors = {"AB Cable", "PVC Cable", "Service Drop"}
         if self.conductor in wavy_conductors and px_len > 0:
-            steps     = max(20, int(px_len / 2))
+            steps     = max(self._MIN_WAVY_STEPS, int(px_len / 2))
             nx        = -dy / px_len
             ny        =  dx / px_len
-            frequency = px_len / 15
-            amplitude = 4
+            frequency = px_len / self._WAVY_FREQUENCY_DIV
+            amplitude = self._WAVY_AMPLITUDE
 
             for i in range(1, steps + 1):
                 t          = i / float(steps)
@@ -980,7 +1002,7 @@ class SmartSpan(QGraphicsPathItem):
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
-    def update_visuals(self):
+    def update_visuals(self) -> None:
         self.update_position()
 
         # ── Pen style ─────────────────────────────────────────────────────
@@ -1034,7 +1056,7 @@ class SmartSpan(QGraphicsPathItem):
 
     # ── Custom paint for CG symbol ────────────────────────────────────────────
 
-    def paint(self, painter: QPainter, option, widget=None):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
         # Draw the span line itself
         super().paint(painter, option, widget)
 
