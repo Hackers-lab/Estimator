@@ -1,0 +1,12 @@
+{
+    "version": "6.1",
+    "display_name": "ERP Estimate Generator",
+    "app_name": "ERP_Estimate",
+    "author": "Pramod Verma",
+    "expiry": "2026-04-30",
+    "release_date": "2026-04-07",
+    "changelog": {
+        "6.1": "Database Manager (add/edit/delete materials & labour), collapsible Placement Defaults dialog with scroll, existing-pole stay logic overhaul, IPC scoping to new AB cable spans, UH/MS-Flat conditional, stay angle tolerance configurable, stay direction bisects EX+NEW resultant",
+        "6.0": "Initial production release — SmartPole, SmartStructure, SmartSpan, SmartConsumer, dynamic JSON rule engine, Excel iron breakup, PDF drawings with legend"
+    }
+}

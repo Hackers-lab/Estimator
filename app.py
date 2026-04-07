@@ -2985,6 +2985,8 @@ class EstimateApp(QMainWindow):
             <li><b>Amit Karmakar</b> — DTR properties, Lat/Long fields</li>
             <li><b>Santanu Das</b> — Providing data, manuals, circulars for proper integration</li>
             <li><b>Sourabh Jaiswal</b> — Suggesting HT LT restrictions</li>
+            <li><b>Prakash</b> — CG symbol design</li>
+            <li><b>Arindra</b> — DP/DTR rotation feature</li>
         </ul>
         <p style='font-style:italic;'>Thanks to all who provided feedback!</p>
         """)

@@ -773,18 +773,22 @@ class DatabaseManagerDialog(QDialog):
         exp_btn = QPushButton("📤 Export to Excel")
         add_mat_btn = QPushButton("➕ Add Material")
         add_lab_btn = QPushButton("➕ Add Labour")
+        del_btn = QPushButton("🗑 Delete Selected")
         imp_btn.clicked.connect(self.import_from_excel)
         exp_btn.clicked.connect(self.export_to_excel)
         add_mat_btn.clicked.connect(lambda: self._open_add_dialog("Material"))
         add_lab_btn.clicked.connect(lambda: self._open_add_dialog("Labour"))
+        del_btn.clicked.connect(self._delete_selected)
         imp_btn.setStyleSheet("padding:6px; font-weight:bold;")
         exp_btn.setStyleSheet("padding:6px; font-weight:bold;")
         add_mat_btn.setStyleSheet("padding:6px; font-weight:bold;")
         add_lab_btn.setStyleSheet("padding:6px; font-weight:bold;")
+        del_btn.setStyleSheet("padding:6px; font-weight:bold;")
         btn_row.addWidget(imp_btn)
         btn_row.addWidget(exp_btn)
         btn_row.addWidget(add_mat_btn)
         btn_row.addWidget(add_lab_btn)
+        btn_row.addWidget(del_btn)
         btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -995,6 +999,56 @@ class DatabaseManagerDialog(QDialog):
             QMessageBox.warning(self, "Duplicate Code", "This code already exists in master DB.")
         except Exception as exc:
             QMessageBox.critical(self, "Error", str(exc))
+
+    def _delete_selected(self) -> None:
+        tbl = self._active_table()
+        row = tbl.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "No Selection", "Select one row to delete.")
+            return
+
+        code_item = tbl.item(row, 0)
+        name_item = tbl.item(row, 1)
+        if code_item is None:
+            QMessageBox.warning(self, "Invalid Selection", "Could not read selected row.")
+            return
+
+        is_material = (self.tabs.currentIndex() == 0)
+        table_name = "materials" if is_material else "labor"
+        code_col = "item_code" if is_material else "labor_code"
+        type_label = "Material" if is_material else "Labour"
+
+        code = code_item.text().strip()
+        name = name_item.text().strip() if name_item is not None else ""
+
+        yn = QMessageBox.question(
+            self,
+            f"Delete {type_label}?",
+            (
+                f"This will permanently delete the selected {type_label.lower()} from master DB.\n\n"
+                f"Code: {code}\n"
+                f"Name: {name}\n\n"
+                "This action cannot be undone. Continue?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if yn != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            conn = sqlite3.connect("erp_master.db")
+            cur = conn.cursor()
+            cur.execute(
+                f"DELETE FROM {table_name} WHERE {code_col}=?",
+                (code,),
+            )
+            conn.commit()
+            conn.close()
+            self._load()
+            self._refresh_parent_estimate()
+            QMessageBox.information(self, "Deleted", f"{type_label} deleted successfully.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Delete Failed", str(exc))
 
     def _row_matches_filter(self, tbl: QTableWidget, row: int, needle: str) -> bool:
         if not needle:
