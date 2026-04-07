@@ -1664,6 +1664,12 @@ class EstimateApp(QMainWindow):
         )
         self.editor_layout.addRow("Structure Type:", st_cb)
 
+        orient_cb = QComboBox()
+        orient_cb.addItems(["Horizontal", "Vertical"])
+        orient_cb.setCurrentText(getattr(item, "orientation", "Horizontal"))
+        self._bind_property_widget(item, "orientation", orient_cb)
+        self.editor_layout.addRow("Orientation:", orient_cb)
+
         # DTR size (only when DTR)
         if item.structure_type == "DTR":
             dtr_cb = QComboBox()
@@ -2583,6 +2589,7 @@ class EstimateApp(QMainWindow):
                         "structure_type":    item.structure_type,
                         "pole_type2":        item.pole_type2,
                         "height":            item.height,
+                        "orientation":       getattr(item, "orientation", "Horizontal"),
                         "has_extension":     item.has_extension,
                         "extension_height":  item.extension_height,
                         "earth_count":       item.earth_count,
@@ -2700,6 +2707,7 @@ class EstimateApp(QMainWindow):
                 struct.structure_type   = nd.get("structure_type", "DP")
                 struct.pole_type2       = nd.get("pole_type2", "PCC")
                 struct.height           = nd.get("height", "9MTR")
+                struct.orientation      = nd.get("orientation", "Horizontal")
                 struct.has_extension    = nd.get("has_extension", False)
                 struct.extension_height = nd.get("extension_height", 3.0)
                 struct.earth_count      = nd.get("earth_count", 2)

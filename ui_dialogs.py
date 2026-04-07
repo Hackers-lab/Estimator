@@ -500,6 +500,11 @@ class PlacementDefaultsDialog(QDialog):
         self.st_stay.setValue(d["struct_stay_count"])
         st_frm.addRow("Stay Sets:", self.st_stay)
 
+        self.st_orient = QComboBox()
+        self.st_orient.addItems(["Horizontal", "Vertical"])
+        self.st_orient.setCurrentText(d.get("struct_orientation", "Horizontal"))
+        st_frm.addRow("Orientation:", self.st_orient)
+
         self.st_kiosk = QCheckBox("DTR kiosk required by default")
         self.st_kiosk.setChecked(bool(d.get("dtr_kiosk_required", True)))
         st_frm.addRow(self.st_kiosk)
@@ -668,6 +673,7 @@ class PlacementDefaultsDialog(QDialog):
             "struct_pole_type2": self.st_type2.currentText(),
             "struct_height":     self.st_height.currentText(),
             "struct_stay_count": self.st_stay.value(),
+            "struct_orientation": self.st_orient.currentText(),
             "dtr_kiosk_required": self.st_kiosk.isChecked(),
             "extension_height":  self.ext_ht.value(),
             "node_min_gap":      self.node_min_gap.value(),

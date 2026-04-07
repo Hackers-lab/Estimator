@@ -25,7 +25,7 @@ import math
 from typing import TYPE_CHECKING, Any
 from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem
 from PyQt6.QtGui import (
-    QPainterPath, QBrush, QColor, QPen, QFont, QPainter
+    QPainterPath, QBrush, QColor, QPen, QFont, QPainter, QTransform
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 
@@ -582,6 +582,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.structure_type   = "DP"
         self.pole_type2       = _d["struct_pole_type2"]
         self.height           = _d["struct_height"]
+        self.orientation      = _d.get("struct_orientation", "Horizontal")
         self.has_extension    = False
         self.extension_height = _d["extension_height"]
         self.earth_count      = self._EARTH_DEFAULTS["DP"]
@@ -682,6 +683,9 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             stay_angles = [225, 315, 180, 0, 270, 90]
             for i in range(min(self.stay_count, 6)):
                 path.addPath(_stay_path(stay_angles[i % 6]))
+
+        if str(getattr(self, "orientation", "Horizontal")).lower().startswith("v"):
+            path = QTransform().rotate(90).map(path)
 
         self.setPath(path)
 

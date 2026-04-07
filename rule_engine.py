@@ -239,6 +239,7 @@ class DynamicRuleEngine:
             "structure_type":   item.structure_type,
             "pole_type2":       item.pole_type2,
             "height":           self._height_int(item.height),
+            "orientation":      getattr(item, "orientation", "Horizontal"),
             "has_extension":    item.has_extension,
             "extension_height": item.extension_height,
             "earth_count":      item.earth_count,

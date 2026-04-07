@@ -51,6 +51,7 @@ _FACTORY: dict = {
     "struct_pole_type2":  "PCC",
     "struct_height":      "9MTR",
     "struct_stay_count":  4,
+    "struct_orientation": "Horizontal",
     "dtr_kiosk_required": True,
 
     # LT Span
