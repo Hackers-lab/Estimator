@@ -388,8 +388,8 @@ class PDFExporter:
             "Consumer":      {"s": "🏠", "q": 0},
             "Earthing":      {"s": "⏚",  "q": 0},
             "Stay":          {"s": "S→", "q": 0},
-            "CG (SP)":       {"s": "[CG]","q": 0},
-            "CG (DP)":       {"s": "[CG]","q": 0},
+            "CG (SP)":       {"s": None,  "draw": "cg", "q": 0},
+            "CG (DP)":       {"s": None,  "draw": "cg", "q": 0},
             "New ACSR":      {"s": "---", "l": 0},
             "New AB Cable":  {"s": "~~~", "l": 0},
             "New PVC Cable": {"s": "...", "l": 0},
@@ -444,7 +444,7 @@ class PDFExporter:
             l = d.get("l", 0)
             if q > 0 or l > 0:
                 val = str(q) if "q" in d else f"{int(l)}m"
-                used.append({"desc": desc, "sym": d["s"], "val": val})
+                used.append({"desc": desc, "sym": d["s"], "draw": d.get("draw"), "val": val})
 
         if not used:
             return
@@ -514,8 +514,31 @@ class PDFExporter:
                 painter.drawText(QRectF(cx, cy, cw["sl"], row_h),
                                  Qt.AlignmentFlag.AlignCenter, str(i + 1 + number_offset))
                 cx += cw["sl"]
-                painter.drawText(QRectF(cx, cy, cw["sym"], row_h),
-                                 Qt.AlignmentFlag.AlignCenter, entry["sym"])
+                # Symbol — draw CG rail graphic or plain text
+                sym_rect = QRectF(cx, cy, cw["sym"], row_h)
+                if entry.get("draw") == "cg":
+                    painter.save()
+                    rail_cx = sym_rect.center().x()
+                    rail_cy = sym_rect.center().y()
+                    rail_hw = 8.0   # half-length of rail
+                    rail_sep = 2.5  # half-gap between the two rails
+                    ext = rail_sep + 1.5  # sleepers poke past rails
+                    painter.setPen(QPen(QColor("#27ae60"), 0.9))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    # Rail A
+                    painter.drawLine(QPointF(rail_cx - rail_hw, rail_cy - rail_sep),
+                                     QPointF(rail_cx + rail_hw, rail_cy - rail_sep))
+                    # Rail B
+                    painter.drawLine(QPointF(rail_cx - rail_hw, rail_cy + rail_sep),
+                                     QPointF(rail_cx + rail_hw, rail_cy + rail_sep))
+                    # Sleepers (3, skip ends)
+                    for si in range(1, 4):
+                        sx = rail_cx - rail_hw + rail_hw * 2 * si / 4
+                        painter.drawLine(QPointF(sx, rail_cy - ext),
+                                         QPointF(sx, rail_cy + ext))
+                    painter.restore()
+                else:
+                    painter.drawText(sym_rect, Qt.AlignmentFlag.AlignCenter, entry["sym"] or "")
                 cx += cw["sym"]
                 painter.drawText(QRectF(cx + 2, cy, cw["desc"] - 2, row_h),
                                  Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,

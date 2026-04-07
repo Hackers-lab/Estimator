@@ -142,23 +142,28 @@ def _existing_struct_path(st: str) -> QPainterPath:
     return p
 
 
-def _cg_path() -> QPainterPath:
+def _cg_rail_path(ux: float, uy: float, nx: float, ny: float,
+                  cg_half: float, rail_sep: float) -> QPainterPath:
     """
-    Draws the CG (Cattle Guard) bracket symbol: a small downward bracket
-    with two diagonal crosshatch lines, centred at (0,0).
-    Placed below the span midpoint.
+    Draws the CG (Cradle Guard) rail-line symbol centred at (0,0).
+    Two parallel rails run along (ux,uy) for cg_half on each side,
+    offset ±rail_sep in the perpendicular (nx,ny) direction.
+    Evenly-spaced sleepers connect the two rails.
     """
     p = QPainterPath()
-    # Bracket outline
-    p.moveTo(-7, 0)
-    p.lineTo(-7, 7)
-    p.lineTo( 7, 7)
-    p.lineTo( 7, 0)
-    # Crosshatch lines inside bracket
-    p.moveTo(-7, 0)
-    p.lineTo( 7, 7)
-    p.moveTo( 7, 0)
-    p.lineTo(-7, 7)
+    # Rail A (far side)
+    p.moveTo(-ux*cg_half + nx*rail_sep, -uy*cg_half + ny*rail_sep)
+    p.lineTo( ux*cg_half + nx*rail_sep,  uy*cg_half + ny*rail_sep)
+    # Rail B (near side)
+    p.moveTo(-ux*cg_half - nx*rail_sep, -uy*cg_half - ny*rail_sep)
+    p.lineTo( ux*cg_half - nx*rail_sep,  uy*cg_half - ny*rail_sep)
+    # Sleepers — skip the two end positions (open ends), extend 2px past rails
+    n_sleepers = max(3, int(cg_half * 2 / 12))
+    ext = rail_sep + 2.0
+    for i in range(1, n_sleepers):
+        t = -cg_half + cg_half * 2 * i / n_sleepers
+        p.moveTo(ux*t + nx*ext, uy*t + ny*ext)
+        p.lineTo(ux*t - nx*ext, uy*t - ny*ext)
     return p
 
 
@@ -1088,7 +1093,7 @@ class SmartSpan(QGraphicsPathItem):
         # Draw the span line itself
         super().paint(painter, option, widget)
 
-        # Draw CG bracket at midpoint if enabled
+        # Draw CG rail symbol at midpoint if enabled
         if not self.detail_view or not self.has_cg or self.is_existing_span:
             return
 
@@ -1099,24 +1104,31 @@ class SmartSpan(QGraphicsPathItem):
         if px_len == 0:
             return
 
-        # Midpoint in scene coords — convert to item (path) local coords
-        mid_sx = (x1 + x2) / 2
-        mid_sy = (y1 + y2) / 2
+        # Along-span unit vector
+        ux = dx / px_len
+        uy = dy / px_len
 
-        # Perpendicular direction pointing "down" relative to span
+        # Perpendicular unit vector — stable: down for horizontal, right for vertical
         nx = -dy / px_len
         ny =  dx / px_len
+        if abs(dx) >= abs(dy):   # horizontal-ish: ensure ny > 0 (downward)
+            if ny < 0:
+                nx, ny = -nx, -ny
+        else:                    # vertical-ish: ensure nx > 0 (rightward)
+            if nx < 0:
+                nx, ny = -nx, -ny
 
-        # Offset 10 px below midpoint in perpendicular direction
-        cg_sx = mid_sx + nx * 10
-        cg_sy = mid_sy + ny * 10
+        cg_half  = 0.35 * px_len   # half of 70% span length
+        offset   = 12              # px gap from span line to rail centre
+        rail_sep = 3.5             # px half-gap between the two rails
 
-        # Transform scene point to item-local coordinates for painting
-        # (SmartSpan path is in scene space, so this maps correctly)
+        # Centre of CG rail band (offset perpendicularly from span midpoint)
+        cx = (x1 + x2) / 2 + nx * offset
+        cy = (y1 + y2) / 2 + ny * offset
+
         painter.save()
-        painter.translate(cg_sx, cg_sy)
-        painter.setPen(QPen(QColor("#e74c3c"), 1.5))   # red bracket
+        painter.translate(cx, cy)
+        painter.setPen(QPen(QColor("#27ae60"), 1.2))   # green rail
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        cg = _cg_path()
-        painter.drawPath(cg)
+        painter.drawPath(_cg_rail_path(ux, uy, nx, ny, cg_half, rail_sep))
         painter.restore()

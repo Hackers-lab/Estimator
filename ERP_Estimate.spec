@@ -6,8 +6,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('icons', 'icons'),
+        ('rules.json', '.'),
+        ('defaults.json', '.'),
+        ('erp_master.db', '.'),
         ('seed_data.json', '.'),
+        ('logo.ico', '.'),
         ('logo.svg', '.'),
         ('HELP.html', '.'),
     ],
@@ -46,5 +49,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='ERP_Estimate',
+    name='ERP_EstimateV6.0',
 )
