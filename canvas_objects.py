@@ -918,8 +918,7 @@ class SmartSpan(QGraphicsPathItem):
         p1_pos = self.p1.pos()
         p2_pos = self.p2.pos()
 
-        def _get_line_rect_intersection(line, rect) -> QPointF:
-            intersection_point = QPointF()
+        def _get_line_rect_intersection(line, rect) -> QPointF | None:
             
             # Check for intersection with each of the 4 lines of the rectangle
             rect_lines = [
@@ -934,8 +933,8 @@ class SmartSpan(QGraphicsPathItem):
                 intersection_type, intersect_pt = line.intersects(rect_line)
                 if intersection_type == QLineF.IntersectionType.BoundedIntersection:
                     return intersect_pt
-            
-            return intersection_point
+
+            return None
 
         def get_connection_point(item, other_item_pos) -> QPointF:
             item_pos = item.pos()
@@ -982,11 +981,19 @@ class SmartSpan(QGraphicsPathItem):
                                key=lambda m: (m[0] - ox) ** 2 + (m[1] - oy) ** 2)
                     return item_pos + QPointF(best[0], best[1])
                 else:
-                    # For DP, DTR, fallback to bounding rect edge
-                    brect = item.boundingRect()
-                    brect.moveTopLeft(item.pos() - brect.center())
-                    intersection = _get_line_rect_intersection(line, brect)
-                    if not intersection.isNull():
+                    # For DP/DTR, use only core body bounds (exclude stay/earth symbols)
+                    if st == "DTR":
+                        cx = r + gap // 2 + 4
+                    else:  # DP
+                        cx = r + gap // 2
+                    core = QRectF(
+                        item_pos.x() - (cx + r),
+                        item_pos.y() - r,
+                        (cx + r) * 2,
+                        r * 2,
+                    )
+                    intersection = _get_line_rect_intersection(line, core)
+                    if intersection is not None:
                         return intersection
             
             return item_pos
