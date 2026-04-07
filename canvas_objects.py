@@ -406,10 +406,6 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             else:
                 path.addEllipse(-r, -r, r * 2, r * 2)
 
-            # Extension indicator — small square on top
-            if self.has_extension:
-                path.addRect(-4, -(r + 10), 8, 8)
-
             # ── Determine stay / earth angles ─────────────────────────────────
             if self.stay_angle_override is not None:
                 stay_angle = self.stay_angle_override % 360
@@ -509,11 +505,14 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             return
         if self.has_extension:
             r = self._RADIUS
+            badge = QRectF(-5, -(r + 14), 10, 10)
             painter.save()
-            painter.setPen(QPen(Qt.GlobalColor.black, 1))
+            painter.setPen(QPen(QColor("#1a5276"), 1))
+            painter.setBrush(QBrush(QColor("#d6eaf8")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setPen(QPen(QColor("#1a5276"), 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
-            painter.drawText(QRectF(-4, -(r + 10), 8, 8),
-                             Qt.AlignmentFlag.AlignCenter, "E")
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "E")
             painter.restore()
 
         # Distribution Box marker on-canvas for quick visual verification.
