@@ -1009,7 +1009,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "not is_existing_span and not is_service_drop and length > 60",
+    "condition": "is_existing_span == False and is_service_drop == False and length > 60 and has_cg == True",
     "type": "Labor",
     "item_code": "LAB-57",
     "item_name": "Lead Wire above 60 Mtrs (2 Wire)",

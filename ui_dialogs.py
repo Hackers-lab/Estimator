@@ -1196,9 +1196,11 @@ class RulesetManagerDialog(QDialog):
         self.active_obj_type     = "SmartPole"
         self.filter_logic        = "AND"
         self.active_chips        = set()
-        self.sim_visible         = False
-        self.sim_widgets         = {}
-        self._view_mode          = "grouped"   # "flat" | "grouped"
+        self.sim_visible           = False
+        self.sim_widgets           = {}
+        self._view_mode            = "grouped"   # "flat" | "grouped"
+        self._editor_mode          = "rule"      # "rule" | "group"
+        self._group_edit_indices   = []          # rule indices for current group edit
 
         self._build_ui()
         self.load_rules()
@@ -1262,6 +1264,12 @@ class RulesetManagerDialog(QDialog):
         self._tree.clear()
         self._tree_items = []   # (QTreeWidgetItem, obj_type, filter_dict)
 
+        # Overview dashboard node — always at the top of the tree
+        ov_item = QTreeWidgetItem(self._tree, ["\U0001f4ca  Overview"])
+        ov_item.setData(0, Qt.ItemDataRole.UserRole, ("__dashboard__", {}))
+        ov_item.setToolTip(0, "Rule count summary across all object types")
+        self._tree_items.append((ov_item, "__dashboard__", {}))
+
         def add_node(parent, label, obj_type, fdict, children):
             item = QTreeWidgetItem(
                 parent if parent else self._tree, [label]
@@ -1280,6 +1288,8 @@ class RulesetManagerDialog(QDialog):
 
     def _update_tree_counts(self):
         for item, obj_type, fdict in self._tree_items:
+            if obj_type == "__dashboard__":
+                continue
             base  = item.text(0).split("  ")[0]
             count = len(self._get_matching_rules(obj_type, fdict, set()))
             item.setText(0, f"{base}  ({count})" if count else base)
@@ -1298,6 +1308,13 @@ class RulesetManagerDialog(QDialog):
 
     def _on_tree_click(self, item, _col):
         obj_type, fdict = item.data(0, Qt.ItemDataRole.UserRole)
+        if obj_type == "__dashboard__":
+            self.active_chips.clear()
+            self.selected_rule_index = -1
+            self._chip_bar.setVisible(False)
+            self._clear_editor()
+            self._show_dashboard()
+            return
         self.active_obj_type    = obj_type
         self.active_tree_filter = fdict
         self.active_chips.clear()
@@ -1627,6 +1644,97 @@ class RulesetManagerDialog(QDialog):
 
         return card
 
+    # ── Condition tag pills ─────────────────────────────────────────────
+
+    @staticmethod
+    def _condition_to_pills(cond: str) -> list:
+        """Parse a condition string into [(label, bg_color, fg_color)] pills."""
+        if not cond or cond.strip() in ("True", ""):
+            return [("always", "#e8e8e8", "#555")]
+
+        _KEY_COLORS = {
+            "is_existing":        ("#e8f4ea", "#1a6b2a"),
+            "pole_type":          ("#ddeeff", "#185FA5"),
+            "pole_type2":         ("#e0f7f7", "#176b6b"),
+            "height":             ("#f3e8ff", "#6a1fb0"),
+            "structure_type":     ("#eee8ff", "#4a20a0"),
+            "conductor":          ("#ddeeff", "#0a3f80"),
+            "conductor_size":     ("#e8f0ff", "#3058a0"),
+            "is_lt_span":         ("#dff5ff", "#0a6080"),
+            "aug_type":           ("#fff0e0", "#7a4000"),
+            "phase":              ("#fce4ec", "#b71c4a"),
+            "is_service_drop":    ("#fff3e0", "#a04000"),
+            "dtr_size":           ("#e8f4ea", "#1a5c2a"),
+            "wire_count":         ("#e8f0e8", "#2a5a2a"),
+            "earth_count_gt":     ("#ffeef0", "#a01030"),
+            "stay_count_gt":      ("#ffeef0", "#a01030"),
+            "has_cg":             ("#fefce8", "#706000"),
+            "has_extension":      ("#fefce8", "#706000"),
+            "ab_cable_count_gt":  ("#e0f7f4", "#0a6b5a"),
+            "ab_needs_dead_end":  ("#e0f7f4", "#0a6b5a"),
+            "ab_needs_suspension":("#e0f7f4", "#0a6b5a"),
+        }
+        _default = ("#f0f0f0", "#444")
+        _LABEL_OVERRIDES = {
+            ("is_existing", "False"): "NEW",
+            ("is_existing", "True"):  "EXIST",
+        }
+
+        pills = []
+        clauses = re.split(r'\s+(?:and|or)\s+', cond, flags=re.IGNORECASE)
+        for clause in clauses:
+            clause = clause.strip()
+            if not clause:
+                continue
+            # not key
+            m = re.match(r'^not\s+(\w+)$', clause)
+            if m:
+                key = m.group(1)
+                label = _LABEL_OVERRIDES.get((key, "False"), f"\u00ac{key}")
+                bg, fg = _KEY_COLORS.get(key, _default)
+                pills.append((label, bg, fg))
+                continue
+            # bare key (truthy)
+            m = re.match(r'^(\w+)$', clause)
+            if m:
+                key = m.group(1)
+                label = _LABEL_OVERRIDES.get((key, "True"), key)
+                bg, fg = _KEY_COLORS.get(key, _default)
+                pills.append((label, bg, fg))
+                continue
+            # key op 'value' or key op value
+            m = re.match(
+                r"^(\w+)\s*(==|!=|>=|<=|>|<)\s*['\"]?(.+?)['\"]?$", clause
+            )
+            if m:
+                key  = m.group(1)
+                op   = m.group(2)
+                val  = m.group(3).strip().strip("'\"")
+                label = _LABEL_OVERRIDES.get((key, val))
+                if label is None:
+                    if op == "==":
+                        label = val
+                    elif op == "!=":
+                        label = f"\u2260{val}"
+                    elif op in (">", ">="):
+                        _sym = "\u2265" if op == ">=" else ">"
+                        label = f"{key}{_sym}{val}"
+                    elif op in ("<", "<="):
+                        _sym = "\u2264" if op == "<=" else "<"
+                        label = f"{key}{_sym}{val}"
+                    else:
+                        label = f"{key}{op}{val}"
+                bg, fg = _KEY_COLORS.get(key, _default)
+                pills.append((label, bg, fg))
+                continue
+            # fallback: truncated clause
+            pills.append((
+                clause[:14] + ("\u2026" if len(clause) > 14 else ""),
+                "#f0f0f0", "#444"
+            ))
+
+        return pills if pills else [("condition", "#f0f0f0", "#444")]
+
     # ── Grouped view ──────────────────────────────────────────────────────────
 
     def _render_grouped_cards(self, matched, sim_hits):
@@ -1675,12 +1783,21 @@ class RulesetManagerDialog(QDialog):
         toggle_lbl.setStyleSheet("font-size:10px; color:#888; min-width:12px;")
         hl.addWidget(toggle_lbl)
 
-        cond_lbl = QLabel(cond or "(no condition)")
-        cond_lbl.setStyleSheet(
-            "font-family:monospace; font-size:11px; color:#333; font-weight:bold;"
-        )
-        cond_lbl.setWordWrap(True)
-        hl.addWidget(cond_lbl, 1)
+        # Pill row (replaces raw condition label)
+        pills_w = QWidget()
+        pills_w.setToolTip(cond or "(no condition)")
+        pills_l = QHBoxLayout(pills_w)
+        pills_l.setContentsMargins(0, 0, 0, 0)
+        pills_l.setSpacing(3)
+        for p_label, p_bg, p_fg in self._condition_to_pills(cond):
+            pill = QLabel(p_label)
+            pill.setStyleSheet(
+                f"background:{p_bg}; color:{p_fg}; border-radius:3px; "
+                "padding:1px 6px; font-size:10px; font-weight:bold;"
+            )
+            pills_l.addWidget(pill)
+        pills_l.addStretch()
+        hl.addWidget(pills_w, 1)
 
         if mat_count:
             mb = QLabel(f"{mat_count}M")
@@ -1700,6 +1817,33 @@ class RulesetManagerDialog(QDialog):
                 "font-size:10px; font-weight:bold;"
             )
             hl.addWidget(lb)
+
+        rule_indices = [i for i, _ in items]
+
+        add_btn = QPushButton("+ Add")
+        add_btn.setFixedHeight(22)
+        add_btn.setStyleSheet(
+            "background:#185FA5; color:white; border:none; "
+            "border-radius:3px; font-size:10px; padding:0px 6px;"
+        )
+        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_btn.clicked.connect(
+            lambda _checked=False, c=cond: self._add_to_group_rule(c)
+        )
+        hl.addWidget(add_btn)
+
+        edit_btn = QPushButton("\u270f Edit")
+        edit_btn.setFixedHeight(22)
+        edit_btn.setStyleSheet(
+            "background:#f0f4f8; color:#185FA5; border:1px solid #aac; "
+            "border-radius:3px; font-size:10px; padding:0px 6px;"
+        )
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.clicked.connect(
+            lambda _checked=False, c=cond, idx=rule_indices:
+                self._build_group_editor(c, idx)
+        )
+        hl.addWidget(edit_btn)
 
         outer_l.addWidget(header)
 
@@ -1768,6 +1912,93 @@ class RulesetManagerDialog(QDialog):
         form_lbl.setStyleSheet("font-size:10px; color:#bbb;")
         lay.addWidget(form_lbl)
 
+        return card
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+    def _show_dashboard(self):
+        """Render object-type summary cards in the centre panel."""
+        while self._card_layout.count() > 1:
+            itm = self._card_layout.takeAt(0)
+            if itm is None:
+                continue
+            w = itm.widget()
+            if w is not None:
+                w.deleteLater()
+
+        self._centre_title.setText("Overview  \u2014  All Object Types")
+
+        _OBJ_STYLES = {
+            "SmartPole":      ("\U0001f538", "#185FA5", "#ddeeff"),
+            "SmartStructure": ("\U0001f537", "#6a1fb0", "#f3e8ff"),
+            "SmartSpan":      ("\U0001f539", "#1a6b2a", "#e8f4ea"),
+            "SmartConsumer":  ("\U0001f536", "#a04000", "#fff3e0"),
+        }
+        top_types = [e[1] for e in TREE_DEF]
+        for obj_type in top_types:
+            obj_rules = [(i, r) for i, r in enumerate(self.rules)
+                         if r.get("object") == obj_type]
+            n_conds = len(set(r.get("condition", "") for _, r in obj_rules))
+            mat_n   = sum(1 for _, r in obj_rules if r.get("type") == "Material")
+            lab_n   = sum(1 for _, r in obj_rules if r.get("type") == "Labor")
+            icon, fg, bg = _OBJ_STYLES.get(obj_type, ("\u25aa", "#555", "#f0f0f0"))
+            card = self._make_dashboard_card(
+                obj_type, n_conds, mat_n, lab_n, icon, fg, bg
+            )
+            self._card_layout.insertWidget(self._card_layout.count() - 1, card)
+
+    def _make_dashboard_card(self, obj_type, n_conds, mat_n, lab_n, icon, fg, bg):
+        card = ClickableCard(lambda ot=obj_type: self._select_tree_root(ot))
+        card.setStyleSheet(
+            f"background:{bg}; border:1px solid {fg}55; "
+            "border-radius:10px; margin:6px 8px;"
+        )
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(18, 14, 18, 14)
+        lay.setSpacing(8)
+
+        title_row = QHBoxLayout()
+        icon_lbl = QLabel(icon)
+        icon_lbl.setStyleSheet("font-size:24px;")
+        name_lbl = QLabel(obj_type.replace("Smart", "Smart "))
+        name_lbl.setStyleSheet(
+            f"font-size:15px; font-weight:bold; color:{fg};"
+        )
+        go_lbl = QLabel("Click to explore \u2192")
+        go_lbl.setStyleSheet("font-size:11px; color:#aaa;")
+        title_row.addWidget(icon_lbl)
+        title_row.addWidget(name_lbl)
+        title_row.addStretch()
+        title_row.addWidget(go_lbl)
+        lay.addLayout(title_row)
+
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(10)
+        for label, val, s_bg, s_fg in [
+            ("Conditions",  str(n_conds),       "#f0f0f0", "#555"),
+            ("Material",    str(mat_n),          "#ddeeff", "#185FA5"),
+            ("Labour",      str(lab_n),          "#fff3e0", "#854F0B"),
+            ("Total rules", str(mat_n + lab_n),  "#f0f0ff", "#444"),
+        ]:
+            stat_w = QWidget()
+            stat_w.setStyleSheet(f"background:{s_bg}; border-radius:6px;")
+            sl = QVBoxLayout(stat_w)
+            sl.setContentsMargins(12, 6, 12, 6)
+            sl.setSpacing(1)
+            n_lbl = QLabel(val)
+            n_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            n_lbl.setStyleSheet(
+                f"font-size:20px; font-weight:bold; color:{s_fg};"
+            )
+            t_lbl = QLabel(label)
+            t_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            t_lbl.setStyleSheet(f"font-size:10px; color:{s_fg};")
+            sl.addWidget(n_lbl)
+            sl.addWidget(t_lbl)
+            stats_row.addWidget(stat_w)
+        stats_row.addStretch()
+        lay.addLayout(stats_row)
         return card
 
     # ── Card click ────────────────────────────────────────────────────────────
@@ -2062,14 +2293,99 @@ class RulesetManagerDialog(QDialog):
         self._editor_body_l.addStretch()
         self._editor_hdr.setText("Select a rule to edit")
         self._save_btn.setEnabled(False)
+        self._save_btn.setText("\U0001f4be Save rule")
         self._del_btn.setEnabled(False)
         self.condition_widgets    = []
         self.selected_result_item = None
+        self._editor_mode         = "rule"
+
+    def _build_group_editor(self, cond: str, rule_indices: list):
+        """Right-panel editor for updating the shared condition on all group rules."""
+        self._group_edit_indices = rule_indices
+        self._editor_mode        = "group"
+        self._clear_layout(self._editor_body_l)
+        self.condition_widgets    = []
+        self.selected_result_item = None
+        self.selected_rule_index  = -1
+
+        self._editor_hdr.setText(f"Group condition  ({len(rule_indices)} rules)")
+        self._save_btn.setText("\U0001f4be Save group condition")
+        self._save_btn.setEnabled(True)
+        self._del_btn.setEnabled(False)
+
+        self._editor_body_l.addWidget(self._sec_lbl("Shared Condition"))
+
+        warn = QLabel(
+            f"\u26a0  This will overwrite the condition on all "
+            f"{len(rule_indices)} rule(s) in this group."
+        )
+        warn.setWordWrap(True)
+        warn.setStyleSheet(
+            "font-size:11px; color:#a15c00; background:#fff8e1; "
+            "border-radius:4px; padding:6px 8px;"
+        )
+        self._editor_body_l.addWidget(warn)
+
+        self._raw_cond_input = QLineEdit(cond)
+        self._raw_cond_input.setStyleSheet(
+            "font-family:monospace; font-size:12px;"
+        )
+        self._editor_body_l.addWidget(self._raw_cond_input)
+
+        self._editor_body_l.addWidget(self._sec_lbl("Rules in this group"))
+        for idx in rule_indices:
+            rule   = self.rules[idx]
+            r_type = rule.get("type", "Material")
+            lbl    = QLabel(
+                f"[{'M' if r_type == 'Material' else 'L'}]  "
+                f"{rule.get('item_name', 'Unnamed')}  "
+                f"\u2014  {rule.get('item_code', '')}"
+            )
+            lbl.setStyleSheet(
+                "font-size:11px; color:#444; padding:2px 0px;"
+            )
+            self._editor_body_l.addWidget(lbl)
+
+        self._editor_body_l.addStretch()
+
+    def _save_group_condition(self):
+        """Apply the edited condition to every rule in the current group."""
+        new_cond = self._raw_cond_input.text().strip()
+        for idx in self._group_edit_indices:
+            self.rules[idx]["condition"] = new_cond
+        self.save_rules()
+        self._update_tree_counts()
+        self._refresh_cards()
+        n = len(self._group_edit_indices)
+        QMessageBox.information(
+            self, "Saved", f"Condition updated on {n} rule(s)."
+        )
+
+    def _add_to_group_rule(self, cond: str):
+        """Create a new rule pre-seeded with the given group condition."""
+        new_rule = {
+            "object":    self.active_obj_type,
+            "item_name": "New item \u2014 edit me",
+            "condition": cond,
+            "type":      "Material",
+            "item_code": "N/A",
+            "formula":   "1",
+        }
+        self.rules.append(new_rule)
+        self.save_rules()
+        self.selected_rule_index = len(self.rules) - 1
+        self._editor_mode        = "rule"
+        self._save_btn.setText("\U0001f4be Save rule")
+        self._update_tree_counts()
+        self._refresh_cards()
+        self._build_editor(new_rule)
 
     def _build_editor(self, rule: dict):
         self._clear_layout(self._editor_body_l)
         self.condition_widgets    = []
         self.selected_result_item = None
+        self._editor_mode         = "rule"
+        self._save_btn.setText("\U0001f4be Save rule")
 
         self._editor_hdr.setText(f"Editing: {rule.get('item_name','')}")
         self._save_btn.setEnabled(True)
@@ -2540,6 +2856,9 @@ class RulesetManagerDialog(QDialog):
                 self._type_combo.setCurrentText(item["type"])
 
     def save_rule_changes(self):
+        if self._editor_mode == "group":
+            self._save_group_condition()
+            return
         if self.selected_rule_index == -1:
             return
         rule = self.rules[self.selected_rule_index]
