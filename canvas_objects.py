@@ -281,10 +281,19 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         of all span unit-vectors (toward the net tension source).
         Default 225° when no spans are connected.
         """
-        active_spans = [
-            s for s in self.connected_spans
-            if not s.is_service_drop and not s.is_existing_span
-        ]
+        # New poles: follow NEW-work strain only (exclude existing spans).
+        # Existing poles: use both existing + new non-service spans so the stay
+        # aligns to the middle/resultant of EX+NEW pull directions.
+        if self.is_existing:
+            active_spans = [
+                s for s in self.connected_spans
+                if not s.is_service_drop
+            ]
+        else:
+            active_spans = [
+                s for s in self.connected_spans
+                if not s.is_service_drop and not s.is_existing_span
+            ]
         if not active_spans:
             return 225.0
 
@@ -503,6 +512,23 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         super().paint(painter, option, widget)
         if painter is None:
             return
+
+        # Existing poles use dashed grey pen for body; redraw stay in dark stroke
+        # so it remains as visible as new stays.
+        if self.is_existing and self.detail_view and self.stay_count > 0:
+            if self.stay_angle_override is not None:
+                stay_angle = self.stay_angle_override % 360
+            else:
+                stay_angle = self._calc_stay_angle()
+            painter.save()
+            painter.setPen(QPen(Qt.GlobalColor.black, 1.2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            spread = [0, -25, 25, -50]
+            for i in range(min(self.stay_count, 4)):
+                ang = (stay_angle + spread[i]) % 360
+                painter.drawPath(_stay_path(ang))
+            painter.restore()
+
         if self.has_extension:
             r = self._RADIUS
             badge = QRectF(-5, -(r + 22), 10, 10)

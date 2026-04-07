@@ -1217,7 +1217,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and not use_uh",
     "type": "Material",
     "item_code": "0103011511",
     "item_name": "M.S Flat 65X6 mm",
@@ -1330,6 +1330,22 @@
   {
     "object": "SmartPole",
     "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
+    "type": "Labor",
+    "item_code": "LAB-71",
+    "item_name": "Fixing of IPC Connector LT ABC",
+    "formula": "4"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing and ab_new_cable_count > 0",
+    "type": "Material",
+    "item_code": "0504027141",
+    "item_name": "IPC for ABC to ABC TEE Joint",
+    "formula": "4"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing and ab_new_cable_count > 0",
     "type": "Labor",
     "item_code": "LAB-71",
     "item_name": "Fixing of IPC Connector LT ABC",

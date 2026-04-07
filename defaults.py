@@ -46,6 +46,7 @@ _FACTORY: dict = {
 
     # Placement rule
     "node_min_gap":       36,
+    "existing_stay_angle_tolerance_deg": 20,
 
     # Structure
     "struct_pole_type2":  "PCC",

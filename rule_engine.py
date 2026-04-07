@@ -189,6 +189,10 @@ class DynamicRuleEngine:
             if s.conductor == "AB Cable"
             and not getattr(s, "is_service_drop", False)
         ]
+        ab_new_spans = [
+            s for s in ab_spans
+            if not getattr(s, "is_existing_span", False)
+        ]
         ab_cable_count = len(ab_spans)
         if ab_cable_count == 0:
             ab_needs_dead_end   = False
@@ -217,6 +221,7 @@ class DynamicRuleEngine:
             ab_needs_dead_end   = max_dev > 65
             ab_needs_suspension = not ab_needs_dead_end
         ctx["ab_cable_count"]      = ab_cable_count
+        ctx["ab_new_cable_count"]  = len(ab_new_spans)
         ctx["ab_needs_dead_end"]   = ab_needs_dead_end
         ctx["ab_needs_suspension"] = ab_needs_suspension
         ctx["dist_box_required"]   = getattr(item, "dist_box_required", True)

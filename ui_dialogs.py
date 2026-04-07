@@ -531,6 +531,12 @@ class PlacementDefaultsDialog(QDialog):
         self.node_min_gap.setSuffix(" units")
         self.node_min_gap.setValue(int(d.get("node_min_gap", 36)))
         pr_frm.addRow("Min node spacing:", self.node_min_gap)
+
+        self.ex_stay_tol = QSpinBox()
+        self.ex_stay_tol.setRange(0, 90)
+        self.ex_stay_tol.setSuffix(" deg")
+        self.ex_stay_tol.setValue(int(d.get("existing_stay_angle_tolerance_deg", 20)))
+        pr_frm.addRow("Existing stay angle tol:", self.ex_stay_tol)
         lay.addWidget(pr_grp)
 
         lay.addStretch()
@@ -677,6 +683,7 @@ class PlacementDefaultsDialog(QDialog):
             "dtr_kiosk_required": self.st_kiosk.isChecked(),
             "extension_height":  self.ext_ht.value(),
             "node_min_gap":      self.node_min_gap.value(),
+            "existing_stay_angle_tolerance_deg": self.ex_stay_tol.value(),
             "lt_conductor":      self.lt_cond.currentText(),
             "lt_conductor_size": self.lt_size.currentText(),
             "lt_span_length":    self.lt_len.value(),

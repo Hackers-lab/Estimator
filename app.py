@@ -2289,6 +2289,61 @@ class EstimateApp(QMainWindow):
             if pole.pole_type == "DTR":
                 continue
 
+            # Existing pole policy:
+            # Only evaluate stay when at least one NEW non-service span exists.
+            # Then compare each existing-span angle with each new-span angle.
+            # If angle is outside (180 +/- tolerance), stay is required.
+            if pole.is_existing:
+                existing_spans = [
+                    s for s in pole.connected_spans
+                    if not s.is_service_drop and s.is_existing_span
+                ]
+                new_spans = [
+                    s for s in pole.connected_spans
+                    if not s.is_service_drop and not s.is_existing_span
+                ]
+
+                should_stay = False
+
+                if new_spans and existing_spans:
+                    tol = float(defaults.current.get("existing_stay_angle_tolerance_deg", 20.0))
+                    lo = 180.0 - tol
+                    hi = 180.0 + tol
+
+                    def _span_angle_deg(span: SmartSpan) -> float | None:
+                        other = span.p1 if span.p2 == pole else span.p2
+                        dx = other.x() - pole.x()
+                        dy = other.y() - pole.y()
+                        if math.hypot(dx, dy) <= 0:
+                            return None
+                        return math.degrees(math.atan2(dy, dx)) % 360.0
+
+                    ex_angles = [a for a in (_span_angle_deg(s) for s in existing_spans) if a is not None]
+                    new_angles = [a for a in (_span_angle_deg(s) for s in new_spans) if a is not None]
+
+                    for exa in ex_angles:
+                        for nwa in new_angles:
+                            pair_angle = (nwa - exa) % 360.0
+                            # Stay required when angle < 160 or > 200 for default tol=20.
+                            if pair_angle < lo or pair_angle > hi:
+                                should_stay = True
+                                break
+                        if should_stay:
+                            break
+
+                target = 1 if should_stay else 0
+                needs_visual_refresh = (pole.stay_count != target)
+                if needs_visual_refresh:
+                    pole.stay_count = target
+                # Keep existing poles aligned to auto strain direction unless
+                # stay count is explicitly locked in manual mode.
+                if pole.stay_angle_override is not None:
+                    pole.stay_angle_override = None
+                    needs_visual_refresh = True
+                if needs_visual_refresh or pole.connected_spans:
+                    pole.update_visuals()
+                continue
+
             active_spans = [
                 s for s in pole.connected_spans
                 if not s.is_service_drop and not s.is_existing_span
