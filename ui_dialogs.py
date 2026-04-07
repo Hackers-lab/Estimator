@@ -390,8 +390,20 @@ class PlacementDefaultsDialog(QDialog):
         root.setContentsMargins(14, 14, 14, 14)
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_poles_tab(),  "⚡ Poles & Structures")
-        tabs.addTab(self._build_spans_tab(),  "📏 Spans & Service Drop")
+
+        poles_page = self._build_poles_tab()
+        poles_scroll = QScrollArea()
+        poles_scroll.setWidgetResizable(True)
+        poles_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        poles_scroll.setWidget(poles_page)
+        tabs.addTab(poles_scroll, "⚡ Poles & Structures")
+
+        spans_page = self._build_spans_tab()
+        spans_scroll = QScrollArea()
+        spans_scroll.setWidgetResizable(True)
+        spans_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        spans_scroll.setWidget(spans_page)
+        tabs.addTab(spans_scroll, "📏 Spans & Service Drop")
         root.addWidget(tabs)
 
         # ── Buttons ───────────────────────────────────────────────────────
@@ -409,6 +421,32 @@ class PlacementDefaultsDialog(QDialog):
         btns.rejected.connect(self.reject)
         btn_row.addWidget(btns)
         root.addLayout(btn_row)
+
+    def _wrap_collapsible(self, title: str, content: QWidget, expanded: bool = False) -> QWidget:
+        """Return a simple collapsible block with a header button."""
+        block = QWidget()
+        lay = QVBoxLayout(block)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+
+        btn = QPushButton()
+        btn.setCheckable(True)
+        btn.setChecked(expanded)
+        btn.setStyleSheet(
+            "text-align:left; padding:6px 8px; font-weight:600;"
+            "background:#f3f4f6; border:1px solid #d8dbe0; border-radius:6px;"
+        )
+
+        def _sync(checked: bool) -> None:
+            btn.setText(("▼ " if checked else "▶ ") + title)
+            content.setVisible(checked)
+
+        btn.toggled.connect(_sync)
+        _sync(expanded)
+
+        lay.addWidget(btn)
+        lay.addWidget(content)
+        return block
 
     # ── Tab builders ──────────────────────────────────────────────────────
 
@@ -449,7 +487,7 @@ class PlacementDefaultsDialog(QDialog):
         self.lt_dist_box.setChecked(bool(d.get("lt_dist_box_required", True)))
         lt_frm.addRow(self.lt_dist_box)
 
-        lay.addWidget(lt_grp)
+        lay.addWidget(self._wrap_collapsible("LT Pole", lt_grp, expanded=True))
 
         # ── HT Pole ───────────────────────────────────────────────────────
         ht_grp = QGroupBox("HT Pole")
@@ -477,7 +515,7 @@ class PlacementDefaultsDialog(QDialog):
         self.ht_stay.setValue(d["ht_stay_count"])
         ht_frm.addRow("Stay Sets:", self.ht_stay)
 
-        lay.addWidget(ht_grp)
+        lay.addWidget(self._wrap_collapsible("HT Pole", ht_grp, expanded=False))
 
         # ── Structure ─────────────────────────────────────────────────────
         st_grp = QGroupBox("Structure (DP / TP / 4P / DTR)")
@@ -509,7 +547,7 @@ class PlacementDefaultsDialog(QDialog):
         self.st_kiosk.setChecked(bool(d.get("dtr_kiosk_required", True)))
         st_frm.addRow(self.st_kiosk)
 
-        lay.addWidget(st_grp)
+        lay.addWidget(self._wrap_collapsible("Structure (DP / TP / 4P / DTR)", st_grp, expanded=False))
 
         # ── Shared ────────────────────────────────────────────────────────
         ext_grp = QGroupBox("Extension")
@@ -520,7 +558,7 @@ class PlacementDefaultsDialog(QDialog):
         self.ext_ht.setSuffix(" m")
         self.ext_ht.setValue(d["extension_height"])
         ext_frm.addRow("Default Ext. Height:", self.ext_ht)
-        lay.addWidget(ext_grp)
+        lay.addWidget(self._wrap_collapsible("Extension", ext_grp, expanded=False))
 
         # ── Placement rules ──────────────────────────────────────────────
         pr_grp = QGroupBox("Placement Rules")
@@ -537,7 +575,7 @@ class PlacementDefaultsDialog(QDialog):
         self.ex_stay_tol.setSuffix(" deg")
         self.ex_stay_tol.setValue(int(d.get("existing_stay_angle_tolerance_deg", 20)))
         pr_frm.addRow("Existing stay angle tol:", self.ex_stay_tol)
-        lay.addWidget(pr_grp)
+        lay.addWidget(self._wrap_collapsible("Placement Rules", pr_grp, expanded=False))
 
         lay.addStretch()
         return w
@@ -577,7 +615,7 @@ class PlacementDefaultsDialog(QDialog):
         self.lt_wires.setCurrentText(str(d["lt_wire_count"]))
         lt_frm.addRow("Wire Count:", self.lt_wires)
 
-        lay.addWidget(lt_grp)
+        lay.addWidget(self._wrap_collapsible("LT Span", lt_grp, expanded=True))
 
         # ── HT Span ───────────────────────────────────────────────────────
         ht_grp = QGroupBox("HT Span")
@@ -611,7 +649,7 @@ class PlacementDefaultsDialog(QDialog):
         self.ht_cg.setChecked(bool(d.get("ht_cg_required", True)))
         ht_frm.addRow(self.ht_cg)
 
-        lay.addWidget(ht_grp)
+        lay.addWidget(self._wrap_collapsible("HT Span", ht_grp, expanded=False))
 
         # ── Service Drop ──────────────────────────────────────────────────
         sd_grp = QGroupBox("Service Drop")
@@ -633,7 +671,7 @@ class PlacementDefaultsDialog(QDialog):
         self.sd_phase.setCurrentText(d["sd_phase"])
         sd_frm.addRow("Phase:", self.sd_phase)
 
-        lay.addWidget(sd_grp)
+        lay.addWidget(self._wrap_collapsible("Service Drop", sd_grp, expanded=False))
 
         lay.addStretch()
         return w
