@@ -525,7 +525,7 @@
     "type": "Material",
     "item_code": "0508030541",
     "item_name": "11 KV Polymer Composite Disc Insulator 45KN",
-    "formula": "3"
+    "formula": "6"
   },
   {
     "object": "SmartStructure",
@@ -533,7 +533,7 @@
     "type": "Material",
     "item_code": "0504010132",
     "item_name": "Composite Hardware Fittings for ACSR Weasel/Rabbit (30/50SQMM)",
-    "formula": "3"
+    "formula": "6"
   },
   {
     "object": "SmartStructure",
@@ -541,7 +541,7 @@
     "type": "Labor",
     "item_code": "LAB-46",
     "item_name": "Fixing of 11KV Disc Insulator with Strain Hardware",
-    "formula": "3"
+    "formula": "6"
   },
   {
     "object": "SmartStructure",
