@@ -141,6 +141,7 @@ class DynamicRuleEngine:
             "pole_type":        eff_pole_type,
             "pole_type2":       item.pole_type2,
             "is_existing":      item.is_existing,
+            "is_new":           not item.is_existing,   # positive alias
             "existing_subtype": getattr(item, "existing_subtype", item.pole_type),
             "existing_dtr_size": getattr(item, "existing_dtr_size", "None"),
             "height":           self._height_int(item.height),
@@ -276,8 +277,11 @@ class DynamicRuleEngine:
             "wire_size":        item.conductor_size,
             "cable_size":       item.conductor_size,
             "is_service_drop":  item.is_service_drop,
+            "is_distribution_span": not item.is_service_drop,   # positive alias
             "is_existing_span": item.is_existing_span,
+            "is_new_span":      not item.is_existing_span,       # positive alias
             "is_lt_span":       item.is_lt_span,
+            "is_ht_span":       not item.is_lt_span,             # positive alias
             "wire_count":       wire_count_int,
             "length":           item.length,
             "aug_type":         item.aug_type,

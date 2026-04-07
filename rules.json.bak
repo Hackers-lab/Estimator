@@ -1,7 +1,7 @@
 [
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 8",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'PCC' and height == 8",
     "type": "Material",
     "item_code": "0110030141",
     "item_name": "P C C POLE:8 Mtrs.Long",
@@ -9,7 +9,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 8",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'PCC' and height == 8",
     "type": "Labor",
     "item_code": "LAB-03",
     "item_name": "Erection of 8MTR PCC Pole (LT) Without Painted",
@@ -17,7 +17,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 9",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'PCC' and height == 9",
     "type": "Material",
     "item_code": "0110030241",
     "item_name": "P C C POLE:9 Mtrs.Long",
@@ -25,7 +25,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 9",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'PCC' and height == 9",
     "type": "Labor",
     "item_code": "LAB-04",
     "item_name": "Erection of 9MTR PCC Pole (LT) Without Painted",
@@ -33,7 +33,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 9",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'STP' and height == 9",
     "type": "Material",
     "item_code": "0110010341",
     "item_name": "STEEL TUBULAR POLE 9 M LONG (WITH CAP)",
@@ -41,7 +41,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 9",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'STP' and height == 9",
     "type": "Labor",
     "item_code": "LAB-07",
     "item_name": "Erection of 9MTR STP Pole Single Pole HT",
@@ -49,7 +49,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 11",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'STP' and height == 11",
     "type": "Material",
     "item_code": "0110010741",
     "item_name": "STEEL TUBULAR POLE 11 M LONG (WITH CAP)",
@@ -57,7 +57,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 11",
+    "condition": "not is_existing and pole_type == 'LT' and pole_type2 == 'STP' and height == 11",
     "type": "Labor",
     "item_code": "LAB-08",
     "item_name": "Erection of 11MTR STP Pole Single Pole HT",
@@ -65,7 +65,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 8",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'PCC' and height == 8",
     "type": "Material",
     "item_code": "0110030141",
     "item_name": "P C C POLE:8 Mtrs.Long",
@@ -73,7 +73,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 8",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'PCC' and height == 8",
     "type": "Labor",
     "item_code": "LAB-05",
     "item_name": "Erection of 8MTR PCC Pole (HT) Without Painted",
@@ -81,7 +81,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 9",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'PCC' and height == 9",
     "type": "Material",
     "item_code": "0110030241",
     "item_name": "P C C POLE:9 Mtrs.Long",
@@ -89,7 +89,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 9",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'PCC' and height == 9",
     "type": "Labor",
     "item_code": "LAB-06",
     "item_name": "Erection of 9MTR PCC Pole (HT) Without Painted",
@@ -97,7 +97,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 9",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'STP' and height == 9",
     "type": "Material",
     "item_code": "0110010341",
     "item_name": "STEEL TUBULAR POLE 9 M LONG (WITH CAP)",
@@ -105,7 +105,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 9",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'STP' and height == 9",
     "type": "Labor",
     "item_code": "LAB-07",
     "item_name": "Erection of 9MTR STP Pole Single Pole HT",
@@ -113,7 +113,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 11",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'STP' and height == 11",
     "type": "Material",
     "item_code": "0110010741",
     "item_name": "STEEL TUBULAR POLE 11 M LONG (WITH CAP)",
@@ -121,7 +121,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 11",
+    "condition": "not is_existing and pole_type == 'HT' and pole_type2 == 'STP' and height == 11",
     "type": "Labor",
     "item_code": "LAB-08",
     "item_name": "Erection of 11MTR STP Pole Single Pole HT",
@@ -129,7 +129,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True",
+    "condition": "not is_existing",
     "type": "Labor",
     "item_code": "LAB-59",
     "item_name": "Pole GIS Survey",
@@ -137,7 +137,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT'",
+    "condition": "not is_existing and pole_type == 'HT'",
     "type": "Material",
     "item_code": "0910010241",
     "item_name": "Caution Board 11KV",
@@ -145,7 +145,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT'",
+    "condition": "not is_existing and pole_type == 'HT'",
     "type": "Labor",
     "item_code": "LAB-60",
     "item_name": "Fixing of Caution Board",
@@ -153,7 +153,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and has_extension",
+    "condition": "not is_existing and pole_type == 'HT' and has_extension",
     "type": "Material",
     "item_code": "0102010611",
     "item_name": "M.S Channel 75X40 mm",
@@ -161,7 +161,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and has_extension",
+    "condition": "not is_existing and pole_type == 'HT' and has_extension",
     "type": "Material",
     "item_code": "0103011511",
     "item_name": "M.S Flat 65X6 mm",
@@ -169,7 +169,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and has_extension",
+    "condition": "not is_existing and pole_type == 'HT' and has_extension",
     "type": "Labor",
     "item_code": "LAB-22",
     "item_name": "Extension of PCC Pole upto 3MTR Without Painted HT",
@@ -177,7 +177,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and has_extension",
+    "condition": "not is_existing and pole_type == 'LT' and has_extension",
     "type": "Material",
     "item_code": "0101011311",
     "item_name": "M.S Angle 65X65X6mm",
@@ -297,7 +297,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh == False",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and not use_uh",
     "type": "Material",
     "item_code": "0101011311",
     "item_name": "M.S Angle 65X65X6mm",
@@ -305,7 +305,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh == False",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and not use_uh",
     "type": "Material",
     "item_code": "0103011511",
     "item_name": "M.S Flat 65X6 mm",
@@ -313,7 +313,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh == False",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and not use_uh",
     "type": "Labor",
     "item_code": "LAB-51",
     "item_name": "Fixing of LT Bracket Without Painted",
@@ -321,7 +321,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
     "type": "Material",
     "item_code": "195021741",
     "item_name": "UH-LT BKT 4 WAY",
@@ -329,7 +329,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
     "type": "Material",
     "item_code": "597011541",
     "item_name": "UH-CLAMP FOR 8 MTR PCC POLE",
@@ -337,7 +337,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
     "type": "Material",
     "item_code": "597011741",
     "item_name": "UH-Diron Clump",
@@ -345,7 +345,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
+    "condition": "not is_existing and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
     "type": "Labor",
     "item_code": "LAB-51",
     "item_name": "Fixing of LT Bracket Without Painted",
@@ -353,7 +353,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and ab_cable_count > 0 and use_uh",
+    "condition": "not is_existing and pole_type == 'LT' and ab_cable_count > 0 and use_uh",
     "type": "Material",
     "item_code": "597011541",
     "item_name": "UH-CLAMP FOR 8 MTR PCC POLE",
@@ -1017,7 +1017,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and has_cg",
+    "condition": "not is_existing_span and not is_service_drop and has_cg",
     "type": "Material",
     "item_code": "0503010811",
     "item_name": "G.I. Wire 5 MM (6 SWG)",
@@ -1025,7 +1025,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and has_cg",
+    "condition": "not is_existing_span and not is_service_drop and has_cg",
     "type": "Material",
     "item_code": "0503010711",
     "item_name": "G.I. Wire 4 MM (8 SWG)",
@@ -1033,7 +1033,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and has_cg",
+    "condition": "not is_existing_span and not is_service_drop and has_cg",
     "type": "Labor",
     "item_code": "LAB-58",
     "item_name": "Fixing Cross Lacing Wire",
@@ -1041,7 +1041,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '10 SQMM'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'PVC Cable' and cable_size == '10 SQMM'",
     "type": "Material",
     "item_code": "0501017421",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
@@ -1049,7 +1049,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '16 SQMM'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'PVC Cable' and cable_size == '16 SQMM'",
     "type": "Material",
     "item_code": "0501017721",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CX16SQMM",
@@ -1057,7 +1057,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '25 SQMM'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'PVC Cable' and cable_size == '25 SQMM'",
     "type": "Material",
     "item_code": "0501017821",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
@@ -1065,7 +1065,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'PVC Cable'",
     "type": "Labor",
     "item_code": "LAB-64",
     "item_name": "Laying & Dressing 1.1KV PVC/XLPE 4x10/16/25 SQMM Cable",
@@ -1073,7 +1073,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'PVC Cable'",
     "type": "Labor",
     "item_code": "LAB-02",
     "item_name": "Survey for L.T.O.H Line",
@@ -1081,7 +1081,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0502010921",
     "item_name": "ACSR Conductor 50SQMM (Rabbit)",
@@ -1089,7 +1089,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
     "type": "Labor",
     "item_code": "LAB-30",
     "item_name": "Stringing & Sagging ACSR 50SQMM 3 Wire",
@@ -1097,7 +1097,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
     "type": "Labor",
     "item_code": "LAB-31",
     "item_name": "Stringing & Sagging ACSR 50SQMM 4 Wire",
@@ -1105,7 +1105,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0502010621",
     "item_name": "ACSR Conductor 30SQMM (Weasel)",
@@ -1113,7 +1113,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
     "type": "Labor",
     "item_code": "LAB-33",
     "item_name": "Stringing & Sagging ACSR 30SQMM 3 Wire",
@@ -1121,7 +1121,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
     "type": "Labor",
     "item_code": "LAB-34",
     "item_name": "Stringing & Sagging ACSR 30SQMM 4 Wire",
@@ -1129,7 +1129,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_ht_span == True",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and not is_lt_span",
     "type": "Labor",
     "item_code": "LAB-01",
     "item_name": "Survey for H.T.O.H Line",
@@ -1137,7 +1137,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span",
     "type": "Labor",
     "item_code": "LAB-02",
     "item_name": "Survey for L.T.O.H Line",
@@ -1145,7 +1145,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count != 2",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span and wire_count != 2",
     "type": "Material",
     "item_code": "0504070441",
     "item_name": "LT Spacer 3 Phase 4 Wire",
@@ -1153,7 +1153,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count == 2",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span and wire_count == 2",
     "type": "Material",
     "item_code": "0504070341",
     "item_name": "LT Spacer 1 PHASE 2 WIRE",
@@ -1161,7 +1161,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count != 2",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span and wire_count != 2",
     "type": "Labor",
     "item_code": "LAB-48",
     "item_name": "Fixing of LT Spacer",
@@ -1169,7 +1169,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count == 2",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span and wire_count == 2",
     "type": "Labor",
     "item_code": "LAB-72",
     "item_name": "Fixing of LT Spacer 1ph Unit",
@@ -1177,7 +1177,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span",
     "type": "Material",
     "item_code": "0508040441",
     "item_name": "Porcelain Shackle Insulator",
@@ -1185,7 +1185,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'ACSR' and is_lt_span",
     "type": "Labor",
     "item_code": "LAB-47",
     "item_name": "Fixing of LT Shackle Insulator with N/B",
@@ -1193,7 +1193,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX50+1CX16+1CX35' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and conductor_size == '3CX50+1CX16+1CX35' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0501030421",
     "item_name": "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
@@ -1201,7 +1201,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Labor",
     "item_code": "LAB-37",
     "item_name": "Stringing & Sagging LT AB Cable 3CX50+1CX16+1CX35",
@@ -1209,7 +1209,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable'",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable'",
     "type": "Labor",
     "item_code": "LAB-02",
     "item_name": "Survey for L.T.O.H Line",
@@ -1217,7 +1217,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and use_uh == False",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and not use_uh",
     "type": "Material",
     "item_code": "0103011511",
     "item_name": "M.S Flat 65X6 mm",
@@ -1241,7 +1241,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and phase == '3 Phase'",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable and phase == '3 Phase'",
     "type": "Labor",
     "item_code": "LAB-69",
     "item_name": "Fixing of 3Ph Service Connection with Cable",
@@ -1249,7 +1249,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and phase == '1 Phase'",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable and phase == '1 Phase'",
     "type": "Labor",
     "item_code": "LAB-70",
     "item_name": "Fixing of 1Ph Service Connection with Cable",
@@ -1257,7 +1257,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '10 SQMM'",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable and cable_size == '10 SQMM'",
     "type": "Material",
     "item_code": "0501017421",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
@@ -1265,7 +1265,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '16 SQMM'",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable and cable_size == '16 SQMM'",
     "type": "Material",
     "item_code": "0501017721",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CX16SQMM",
@@ -1273,7 +1273,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '25 SQMM'",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable and cable_size == '25 SQMM'",
     "type": "Material",
     "item_code": "0501017821",
     "item_name": "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
@@ -1281,7 +1281,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable",
+    "condition": "project_type != 'NSC' and not agency_supply and consider_cable",
     "type": "Labor",
     "item_code": "LAB-64",
     "item_name": "Laying & Dressing 1.1KV PVC/XLPE 4x10/16/25 SQMM Cable",
@@ -1289,7 +1289,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable == False and phase == '3 Phase'",
+    "condition": "project_type != 'NSC' and not agency_supply and not consider_cable and phase == '3 Phase'",
     "type": "Labor",
     "item_code": "LAB-67",
     "item_name": "Fixing of 3Ph Service Connection (without cable)",
@@ -1297,7 +1297,7 @@
   },
   {
     "object": "SmartConsumer",
-    "condition": "project_type != 'NSC' and agency_supply == False and consider_cable == False and phase == '1 Phase'",
+    "condition": "project_type != 'NSC' and not agency_supply and not consider_cable and phase == '1 Phase'",
     "type": "Labor",
     "item_code": "LAB-68",
     "item_name": "Fixing of 1Ph Service Connection (without cable)",
@@ -1305,7 +1305,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0 and dist_box_required",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Material",
     "item_code": "0504060941",
     "item_name": "LT Distribution Box 3Ph with Steel Strap & Buckle ABC",
@@ -1313,7 +1313,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0 and dist_box_required",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Labor",
     "item_code": "LAB-63",
     "item_name": "Erection of Distribution Box LT ABC",
@@ -1321,7 +1321,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0 and dist_box_required",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Material",
     "item_code": "0504027141",
     "item_name": "IPC for ABC to ABC TEE Joint",
@@ -1329,7 +1329,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0 and dist_box_required",
+    "condition": "not is_existing and ab_cable_count > 0 and dist_box_required",
     "type": "Labor",
     "item_code": "LAB-71",
     "item_name": "Fixing of IPC Connector LT ABC",
@@ -1353,7 +1353,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_dead_end",
+    "condition": "not is_existing and ab_needs_dead_end",
     "type": "Material",
     "item_code": "0505034141",
     "item_name": "Dead End Clamp LT ABC (3X70+1X16+1X50SQMM)",
@@ -1361,7 +1361,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_dead_end",
+    "condition": "not is_existing and ab_needs_dead_end",
     "type": "Labor",
     "item_code": "LAB-61",
     "item_name": "Erection of Anchor/Dead End Clamp LT ABC",
@@ -1369,7 +1369,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_suspension",
+    "condition": "not is_existing and ab_needs_suspension",
     "type": "Material",
     "item_code": "0505030641",
     "item_name": "Suspension Clamp with Bracket 35SQMM Messenger",
@@ -1377,7 +1377,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_suspension",
+    "condition": "not is_existing and ab_needs_suspension",
     "type": "Labor",
     "item_code": "LAB-62",
     "item_name": "Erection of Suspension Clamp LT ABC",
@@ -1385,7 +1385,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0",
+    "condition": "not is_existing and ab_cable_count > 0",
     "type": "Material",
     "item_code": "0505030841",
     "item_name": "Eye Hook for Anchor/Suspension Clamp",
@@ -1393,7 +1393,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and ht_spans_count == 1",
+    "condition": "not is_existing and pole_type == 'HT' and ht_spans_count == 1",
     "type": "Material",
     "item_code": "0508030541",
     "item_name": "11 KV Polymer Composite Disc Insulator 45KN",
@@ -1401,7 +1401,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and ht_spans_count == 1",
+    "condition": "not is_existing and pole_type == 'HT' and ht_spans_count == 1",
     "type": "Material",
     "item_code": "0504010132",
     "item_name": "Composite Hardware Fittings for ACSR Weasel/Rabbit (30/50SQMM)",
@@ -1409,7 +1409,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and ht_spans_count == 1",
+    "condition": "not is_existing and pole_type == 'HT' and ht_spans_count == 1",
     "type": "Labor",
     "item_code": "LAB-46",
     "item_name": "Fixing of 11KV Disc Insulator with Strain Hardware",
@@ -1417,7 +1417,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and ht_spans_count >= 2",
+    "condition": "not is_existing and pole_type == 'HT' and ht_spans_count >= 2",
     "type": "Material",
     "item_code": "0508011141",
     "item_name": "11 KV Polymer Composite Pin Insulator 5KN 320MM CD",
@@ -1425,7 +1425,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'HT' and ht_spans_count >= 2",
+    "condition": "not is_existing and pole_type == 'HT' and ht_spans_count >= 2",
     "type": "Labor",
     "item_code": "LAB-45",
     "item_name": "Fixing of 11KV Pin Insulator",
@@ -1481,7 +1481,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and has_extension",
+    "condition": "not is_existing and pole_type == 'LT' and has_extension",
     "type": "Labor",
     "item_code": "LAB-73",
     "item_name": "Extension of PCC Pole upto 3MTR Without Painted LT",
@@ -1546,7 +1546,7 @@
   {
     "object": "SmartSpan",
     "item_name": "LT AB CABLE 1.1KV 3CX70+1CX16+1CX50SQMM",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "not is_existing_span and not is_service_drop and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0501030521",
     "formula": "length / 1000"

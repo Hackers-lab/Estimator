@@ -1653,31 +1653,78 @@ class RulesetManagerDialog(QDialog):
             return [("always", "#e8e8e8", "#555")]
 
         _KEY_COLORS = {
-            "is_existing":        ("#e8f4ea", "#1a6b2a"),
-            "pole_type":          ("#ddeeff", "#185FA5"),
-            "pole_type2":         ("#e0f7f7", "#176b6b"),
-            "height":             ("#f3e8ff", "#6a1fb0"),
-            "structure_type":     ("#eee8ff", "#4a20a0"),
-            "conductor":          ("#ddeeff", "#0a3f80"),
-            "conductor_size":     ("#e8f0ff", "#3058a0"),
-            "is_lt_span":         ("#dff5ff", "#0a6080"),
-            "aug_type":           ("#fff0e0", "#7a4000"),
-            "phase":              ("#fce4ec", "#b71c4a"),
-            "is_service_drop":    ("#fff3e0", "#a04000"),
-            "dtr_size":           ("#e8f4ea", "#1a5c2a"),
-            "wire_count":         ("#e8f0e8", "#2a5a2a"),
-            "earth_count_gt":     ("#ffeef0", "#a01030"),
-            "stay_count_gt":      ("#ffeef0", "#a01030"),
-            "has_cg":             ("#fefce8", "#706000"),
-            "has_extension":      ("#fefce8", "#706000"),
-            "ab_cable_count_gt":  ("#e0f7f4", "#0a6b5a"),
-            "ab_needs_dead_end":  ("#e0f7f4", "#0a6b5a"),
-            "ab_needs_suspension":("#e0f7f4", "#0a6b5a"),
+            # ── pole/structure status ─────────────────────────────────────
+            "is_existing":           ("#fdecea", "#b71c1c"),
+            "is_new":                ("#e8f5e9", "#1b5e20"),
+            # ── span status ───────────────────────────────────────────────
+            "is_existing_span":      ("#fdecea", "#b71c1c"),
+            "is_new_span":           ("#e8f5e9", "#1b5e20"),
+            "is_distribution_span":  ("#ddeeff", "#185FA5"),
+            "is_service_drop":       ("#fff3e0", "#a04000"),
+            "is_lt_span":            ("#dff5ff", "#0a6080"),
+            "is_ht_span":            ("#f3e8ff", "#6a1fb0"),
+            # ── pole identity ─────────────────────────────────────────────
+            "pole_type":             ("#ddeeff", "#185FA5"),
+            "pole_type2":            ("#e0f7f7", "#176b6b"),
+            "height":                ("#f3e8ff", "#6a1fb0"),
+            "structure_type":        ("#eee8ff", "#4a20a0"),
+            # ── span identity ─────────────────────────────────────────────
+            "conductor":             ("#ddeeff", "#0a3f80"),
+            "conductor_size":        ("#e8f0ff", "#3058a0"),
+            "aug_type":              ("#fff0e0", "#7a4000"),
+            "wire_count":            ("#e8f0e8", "#2a5a2a"),
+            "phase":                 ("#fce4ec", "#b71c4a"),
+            # ── hardware ──────────────────────────────────────────────────
+            "dtr_size":              ("#e8f4ea", "#1a5c2a"),
+            "earth_count_gt":        ("#ffeef0", "#a01030"),
+            "stay_count_gt":         ("#ffeef0", "#a01030"),
+            "has_cg":                ("#fefce8", "#706000"),
+            "has_extension":         ("#fefce8", "#706000"),
+            "ab_cable_count_gt":     ("#e0f7f4", "#0a6b5a"),
+            "ab_needs_dead_end":     ("#e0f7f4", "#0a6b5a"),
+            "ab_needs_suspension":   ("#e0f7f4", "#0a6b5a"),
+            # ── supply / project ──────────────────────────────────────────
+            "use_uh":                ("#fffde7", "#706000"),
+            "agency_supply":         ("#f3e5f5", "#6a1b9a"),
+            "consider_cable":        ("#e8f4ea", "#1a5c2a"),
+            "project_type":          ("#e8eaf6", "#3949ab"),
         }
         _default = ("#f0f0f0", "#444")
+        # (key, str_value) -> human label
         _LABEL_OVERRIDES = {
-            ("is_existing", "False"): "NEW",
-            ("is_existing", "True"):  "EXIST",
+            # ── pole / structure status ───────────────────────────────────
+            ("is_existing",          "True"):  "EX. POLE",
+            ("is_existing",          "False"): "NEW POLE",
+            ("is_new",               "True"):  "NEW POLE",
+            ("is_new",               "False"): "EX. POLE",
+            # ── span status ───────────────────────────────────────────────
+            ("is_existing_span",     "True"):  "EX. SPAN",
+            ("is_existing_span",     "False"): "NEW SPAN",
+            ("is_new_span",          "True"):  "NEW SPAN",
+            ("is_new_span",          "False"): "EX. SPAN",
+            ("is_distribution_span", "True"):  "DIST. SPAN",
+            ("is_distribution_span", "False"): "SVC DROP",
+            ("is_service_drop",      "True"):  "SVC DROP",
+            ("is_service_drop",      "False"): "DIST. SPAN",
+            ("is_lt_span",           "True"):  "LT SPAN",
+            ("is_lt_span",           "False"): "HT SPAN",
+            ("is_ht_span",           "True"):  "HT SPAN",
+            ("is_ht_span",           "False"): "LT SPAN",
+            # ── hardware booleans ─────────────────────────────────────────
+            ("has_cg",               "True"):  "WITH CG",
+            ("has_cg",               "False"): "NO CG",
+            ("has_extension",        "True"):  "WITH EXT.",
+            ("has_extension",        "False"): "NO EXT.",
+            ("ab_needs_dead_end",    "True"):  "DEAD END",
+            ("ab_needs_suspension",  "True"):  "SUSPENSION",
+            ("dist_box_required",    "True"):  "DIST BOX",
+            # ── supply ───────────────────────────────────────────────────
+            ("use_uh",               "True"):  "UH MATS",
+            ("use_uh",               "False"): "RAW MATS",
+            ("agency_supply",        "True"):  "AGENCY SUPPLY",
+            ("agency_supply",        "False"): "SELF SUPPLY",
+            ("consider_cable",       "True"):  "WITH CABLE",
+            ("consider_cable",       "False"): "NO CABLE",
         }
 
         pills = []
