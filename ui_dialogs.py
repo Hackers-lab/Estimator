@@ -1198,6 +1198,7 @@ class RulesetManagerDialog(QDialog):
         self.active_chips        = set()
         self.sim_visible         = False
         self.sim_widgets         = {}
+        self._view_mode          = "grouped"   # "flat" | "grouped"
 
         self._build_ui()
         self.load_rules()
@@ -1349,6 +1350,17 @@ class RulesetManagerDialog(QDialog):
         )
         self._logic_btn.clicked.connect(self._toggle_logic)
 
+        self._view_btn = QPushButton("☰ Flat")
+        self._view_btn.setCheckable(True)
+        self._view_btn.setChecked(True)
+        self._view_btn.setFixedWidth(74)
+        self._view_btn.setStyleSheet(
+            "QPushButton{padding:4px; border:1px solid #ccc;"
+            "border-radius:4px; font-size:11px;}"
+            "QPushButton:checked{background:#5DCAA5; color:white; border-color:#3aab85;}"
+        )
+        self._view_btn.clicked.connect(self._toggle_view_mode)
+
         new_btn = QPushButton("+ New rule")
         new_btn.setStyleSheet(
             "background:#185FA5; color:white; border:none; "
@@ -1360,6 +1372,7 @@ class RulesetManagerDialog(QDialog):
         tl.addStretch()
         tl.addWidget(self._card_search)
         tl.addWidget(self._type_filter)
+        tl.addWidget(self._view_btn)
         tl.addWidget(self._logic_btn)
         tl.addWidget(new_btn)
         lay.addWidget(topbar)
@@ -1395,6 +1408,11 @@ class RulesetManagerDialog(QDialog):
     def _toggle_logic(self):
         self.filter_logic = "AND" if self._logic_btn.isChecked() else "OR"
         self._logic_btn.setText(self.filter_logic)
+        self._refresh_cards()
+
+    def _toggle_view_mode(self):
+        self._view_mode = "grouped" if self._view_btn.isChecked() else "flat"
+        self._view_btn.setText("☰ Flat" if self._view_mode == "grouped" else "⊞ Group")
         self._refresh_cards()
 
     def _rebuild_chips(self):
@@ -1551,11 +1569,14 @@ class RulesetManagerDialog(QDialog):
         matched   = self._visible_indices()
         sim_hits  = self._sim_hits() if self.sim_visible else set()
 
-        for orig_idx, rule in matched:
-            card = self._make_card(orig_idx, rule, orig_idx in sim_hits)
-            self._card_layout.insertWidget(
-                self._card_layout.count() - 1, card
-            )
+        if self._view_mode == "grouped":
+            self._render_grouped_cards(matched, sim_hits)
+        else:
+            for orig_idx, rule in matched:
+                card = self._make_card(orig_idx, rule, orig_idx in sim_hits)
+                self._card_layout.insertWidget(
+                    self._card_layout.count() - 1, card
+                )
 
         self._update_centre_title()
         self._update_tree_counts()
@@ -1605,6 +1626,151 @@ class RulesetManagerDialog(QDialog):
         lay.addWidget(body, 1)
 
         return card
+
+    # ── Grouped view ──────────────────────────────────────────────────────────
+
+    def _render_grouped_cards(self, matched, sim_hits):
+        """Render rules grouped by identical condition string."""
+        from collections import OrderedDict
+        groups = OrderedDict()
+        for orig_idx, rule in matched:
+            key = rule.get("condition", "") or ""
+            groups.setdefault(key, []).append((orig_idx, rule))
+
+        for cond, items in groups.items():
+            mat_count = sum(1 for _, r in items if r.get("type") == "Material")
+            lab_count = sum(1 for _, r in items if r.get("type") == "Labor")
+            grp_hit   = any(i in sim_hits for i, _ in items)
+            grp_sel   = any(i == self.selected_rule_index for i, _ in items)
+            group_w   = self._make_group_widget(
+                cond, mat_count, lab_count, items, sim_hits, grp_hit, grp_sel
+            )
+            self._card_layout.insertWidget(self._card_layout.count() - 1, group_w)
+
+    def _make_group_widget(self, cond, mat_count, lab_count, items,
+                           sim_hits, grp_hit, grp_sel):
+        """Build a collapsible group card for rules sharing the same condition."""
+        outer = QWidget()
+        bc_outer = "#378ADD" if grp_sel else ("#3aab85" if grp_hit else "#ccc")
+        outer.setStyleSheet(
+            f"background:white; border:1px solid {bc_outer}; "
+            "border-radius:6px; margin-bottom:4px;"
+        )
+        outer_l = QVBoxLayout(outer)
+        outer_l.setContentsMargins(0, 0, 0, 0)
+        outer_l.setSpacing(0)
+
+        # Header
+        hdr_bg = "#eaf8f4" if grp_hit else ("#eef4fb" if grp_sel else "#f0f4f8")
+        header = QWidget()
+        header.setStyleSheet(
+            f"background:{hdr_bg}; border-radius:5px 5px 0px 0px;"
+        )
+        header.setCursor(Qt.CursorShape.PointingHandCursor)
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(10, 7, 10, 7)
+        hl.setSpacing(6)
+
+        toggle_lbl = QLabel("▼")
+        toggle_lbl.setStyleSheet("font-size:10px; color:#888; min-width:12px;")
+        hl.addWidget(toggle_lbl)
+
+        cond_lbl = QLabel(cond or "(no condition)")
+        cond_lbl.setStyleSheet(
+            "font-family:monospace; font-size:11px; color:#333; font-weight:bold;"
+        )
+        cond_lbl.setWordWrap(True)
+        hl.addWidget(cond_lbl, 1)
+
+        if mat_count:
+            mb = QLabel(f"{mat_count}M")
+            mb.setFixedSize(26, 18)
+            mb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            mb.setStyleSheet(
+                "background:#ddeeff; color:#185FA5; border-radius:3px; "
+                "font-size:10px; font-weight:bold;"
+            )
+            hl.addWidget(mb)
+        if lab_count:
+            lb = QLabel(f"{lab_count}L")
+            lb.setFixedSize(26, 18)
+            lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lb.setStyleSheet(
+                "background:#fff3e0; color:#854F0B; border-radius:3px; "
+                "font-size:10px; font-weight:bold;"
+            )
+            hl.addWidget(lb)
+
+        outer_l.addWidget(header)
+
+        # Child rows container
+        children_w = QWidget()
+        children_w.setStyleSheet(
+            "background:transparent; border-top:0.5px solid #e0e0e0;"
+        )
+        cl = QVBoxLayout(children_w)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+
+        for orig_idx, rule in items:
+            child = self._make_child_row(orig_idx, rule, orig_idx in sim_hits)
+            cl.addWidget(child)
+
+        outer_l.addWidget(children_w)
+
+        # Collapse toggle
+        def _toggle():
+            vis = not children_w.isVisible()
+            children_w.setVisible(vis)
+            toggle_lbl.setText("▼" if vis else "▶")
+
+        header.mousePressEvent = lambda _e: _toggle()
+        return outer
+
+    def _make_child_row(self, rule_index, rule, sim_hit=False):
+        """Build one item row inside a condition group."""
+        card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
+        selected = rule_index == self.selected_rule_index
+
+        bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#e8e8e8")
+        bg = "#eaf8f4" if sim_hit else ("#eef4fb" if selected else "#fafafa")
+        card.setStyleSheet(
+            f"background:{bg}; border-left:2px solid {bc}; "
+            "border-radius:0px;"
+        )
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        lay = QHBoxLayout(card)
+        lay.setContentsMargins(30, 5, 10, 5)
+        lay.setSpacing(8)
+
+        r_type = rule.get("type", "Material")
+        badge  = QLabel("M" if r_type == "Material" else "L")
+        badge.setFixedSize(22, 22)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setStyleSheet(
+            "border-radius:4px; font-size:10px; font-weight:bold; " + (
+                "background:#ddeeff; color:#185FA5;" if r_type == "Material"
+                else "background:#fff3e0; color:#854F0B;"
+            )
+        )
+        lay.addWidget(badge)
+
+        name_lbl = QLabel(rule.get("item_name", "Unnamed"))
+        name_lbl.setStyleSheet("font-size:12px;")
+        lay.addWidget(name_lbl, 1)
+
+        code_lbl = QLabel(rule.get("item_code", ""))
+        code_lbl.setStyleSheet("font-size:10px; color:#999;")
+        lay.addWidget(code_lbl)
+
+        form_lbl = QLabel(f"\u00d7{rule.get('formula', '1')}")
+        form_lbl.setStyleSheet("font-size:10px; color:#bbb;")
+        lay.addWidget(form_lbl)
+
+        return card
+
+    # ── Card click ────────────────────────────────────────────────────────────
 
     def _on_card(self, rule_index):
         self.selected_rule_index = rule_index
