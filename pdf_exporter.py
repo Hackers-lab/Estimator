@@ -520,10 +520,10 @@ class PDFExporter:
                     painter.save()
                     rail_cx = sym_rect.center().x()
                     rail_cy = sym_rect.center().y()
-                    rail_hw = 8.0   # half-length of rail
-                    rail_sep = 2.5  # half-gap between the two rails
-                    ext = rail_sep + 1.5  # sleepers poke past rails
-                    painter.setPen(QPen(QColor("#27ae60"), 0.9))
+                    rail_hw = 6.8   # half-length of rail (subtle)
+                    rail_sep = 2.0  # half-gap between the two rails
+                    ext = rail_sep + 1.2  # sleepers poke slightly past rails
+                    painter.setPen(QPen(QColor("#9ec5e8"), 0.8))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     # Rail A
                     painter.drawLine(QPointF(rail_cx - rail_hw, rail_cy - rail_sep),

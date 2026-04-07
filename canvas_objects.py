@@ -157,9 +157,9 @@ def _cg_rail_path(ux: float, uy: float, nx: float, ny: float,
     # Rail B (near side)
     p.moveTo(-ux*cg_half - nx*rail_sep, -uy*cg_half - ny*rail_sep)
     p.lineTo( ux*cg_half - nx*rail_sep,  uy*cg_half - ny*rail_sep)
-    # Sleepers — skip the two end positions (open ends), extend 2px past rails
-    n_sleepers = max(3, int(cg_half * 2 / 12))
-    ext = rail_sep + 2.0
+    # Sleepers — skip end positions (open ends), moderately dense
+    n_sleepers = max(3, int(cg_half * 2 / 14))
+    ext = rail_sep + 1.4
     for i in range(1, n_sleepers):
         t = -cg_half + cg_half * 2 * i / n_sleepers
         p.moveTo(ux*t + nx*ext, uy*t + ny*ext)
@@ -265,7 +265,6 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
         # Label — child of this item so it moves with the pole
         self.label = DraggableLabel(self)
-        self.label.setTextWidth(90)
 
         self.update_visuals()
 
@@ -591,7 +590,6 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))
 
         self.label = DraggableLabel(self)
-        self.label.setTextWidth(100)
 
         self.update_visuals()
 
@@ -769,8 +767,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self.setPen(QPen(Qt.GlobalColor.black, 1))
 
         self.label = DraggableLabel(self)
-        self.label.setTextWidth(70)
-        self.label.setPos(-35, 20)
+        self.label.setPos(0, 20)
 
         self.update_visuals()
 
@@ -783,6 +780,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"
         self.label.setPlainText(txt)
+        self.label.setPos(-(self.label.boundingRect().width() / 2), 20)
 
         # Colour hint for agency vs WBSEDCL
         if self.agency_supply:
@@ -889,7 +887,6 @@ class SmartSpan(QGraphicsPathItem):
         # Label is a standalone item (not a child) so it can be
         # added separately to the scene and remain independent.
         self.label = DraggableLabel()
-        self.label.setTextWidth(90)
 
         self.update_position()
         self.update_visuals()
@@ -1028,22 +1025,29 @@ class SmartSpan(QGraphicsPathItem):
             mid_x  = (x1 + x2) / 2
             mid_y  = (y1 + y2) / 2
             lw     = self.label.boundingRect().width()
+            lh     = self.label.boundingRect().height()
 
-            # Keep horizontal span labels above the line for cleaner drawings.
             if not getattr(self.label, "user_moved", False):
-                if abs(dx) >= abs(dy):
-                    self.label.set_auto_pos(mid_x - lw / 2, mid_y - 24)
+                # ACSR: horizontal label above span, vertical label left of span.
+                if self.conductor == "ACSR":
+                    if abs(dx) >= abs(dy):
+                        y_top = min(y1, y2) - lh - 8
+                        self.label.set_auto_pos(mid_x - lw / 2, y_top)
+                    else:
+                        x_left = min(x1, x2) - lw - 10
+                        self.label.set_auto_pos(x_left, mid_y - lh / 2)
                 else:
-                    self.label.set_auto_pos(
-                        mid_x + nx_n * 16 - lw / 2,
-                        mid_y + ny_n * 16 - 10
-                    )
+                    if abs(dx) >= abs(dy):
+                        self.label.set_auto_pos(mid_x - lw / 2, mid_y - 24)
+                    else:
+                        self.label.set_auto_pos(
+                            mid_x + nx_n * 16 - lw / 2,
+                            mid_y + ny_n * 16 - 10
+                        )
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:
-        self.update_position()
-
         # ── Pen style ─────────────────────────────────────────────────────
         color = self._PEN_COLORS.get(self.conductor, QColor("#222222"))
         pen   = QPen(color, 1.8)
@@ -1086,6 +1090,7 @@ class SmartSpan(QGraphicsPathItem):
             txt += f"\n📝 {self.custom_note}"
 
         self.label.setPlainText(txt)
+        self.update_position()
 
         # Ensure label is in scene
         if not self.label.scene():
@@ -1124,9 +1129,9 @@ class SmartSpan(QGraphicsPathItem):
             if nx < 0:
                 nx, ny = -nx, -ny
 
-        cg_half  = 0.35 * px_len   # half of 70% span length
-        offset   = 12              # px gap from span line to rail centre
-        rail_sep = 3.5             # px half-gap between the two rails
+        cg_half  = 0.30 * px_len   # half of 60% span length
+        offset   = 9               # px gap from span line to rail centre
+        rail_sep = 2.6             # px half-gap between the two rails
 
         # Centre of CG rail band (offset perpendicularly from span midpoint)
         cx = (x1 + x2) / 2 + nx * offset
@@ -1134,7 +1139,7 @@ class SmartSpan(QGraphicsPathItem):
 
         painter.save()
         painter.translate(cx, cy)
-        painter.setPen(QPen(QColor("#27ae60"), 1.2))   # green rail
+        painter.setPen(QPen(QColor("#9ec5e8"), 1.0))   # light blue rail
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(_cg_rail_path(ux, uy, nx, ny, cg_half, rail_sep))
         painter.restore()

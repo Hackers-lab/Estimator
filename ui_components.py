@@ -666,9 +666,11 @@ class DraggableLabel(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         doc = self.document()
         assert doc is not None
+        doc.setDocumentMargin(0)
         doc.setDefaultTextOption(
             QTextOption(Qt.AlignmentFlag.AlignCenter)
         )
+        self.setTextWidth(-1)
         self.setZValue(20)
         self.setFont(self._FONT)
 
