@@ -765,15 +765,26 @@ class DatabaseManagerDialog(QDialog):
 
         lay = QVBoxLayout(self)
 
+        self._loading_table = False
+        self._suppress_item_changed = False
+
         btn_row = QHBoxLayout()
         imp_btn = QPushButton("📥 Import from Excel")
         exp_btn = QPushButton("📤 Export to Excel")
+        add_mat_btn = QPushButton("➕ Add Material")
+        add_lab_btn = QPushButton("➕ Add Labour")
         imp_btn.clicked.connect(self.import_from_excel)
         exp_btn.clicked.connect(self.export_to_excel)
+        add_mat_btn.clicked.connect(lambda: self._open_add_dialog("Material"))
+        add_lab_btn.clicked.connect(lambda: self._open_add_dialog("Labour"))
         imp_btn.setStyleSheet("padding:6px; font-weight:bold;")
         exp_btn.setStyleSheet("padding:6px; font-weight:bold;")
+        add_mat_btn.setStyleSheet("padding:6px; font-weight:bold;")
+        add_lab_btn.setStyleSheet("padding:6px; font-weight:bold;")
         btn_row.addWidget(imp_btn)
         btn_row.addWidget(exp_btn)
+        btn_row.addWidget(add_mat_btn)
+        btn_row.addWidget(add_lab_btn)
         btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -798,6 +809,12 @@ class DatabaseManagerDialog(QDialog):
         self.tabs.addTab(self.mat_table,    "Materials")
         self.tabs.addTab(self.labour_table, "Labour")
         self.tabs.currentChanged.connect(lambda _i: self._apply_db_filter())
+        self.mat_table.itemChanged.connect(
+            lambda item: self._handle_rate_edit(item, "materials")
+        )
+        self.labour_table.itemChanged.connect(
+            lambda item: self._handle_rate_edit(item, "labor")
+        )
         lay.addWidget(self.tabs)
 
         self._load()
@@ -805,19 +822,179 @@ class DatabaseManagerDialog(QDialog):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _fill(self, tbl: QTableWidget, data, headers):
-        tbl.setRowCount(0)
-        tbl.setColumnCount(len(headers))
-        tbl.setHorizontalHeaderLabels(headers)
-        for r, row in enumerate(data):
-            tbl.insertRow(r)
-            for c, val in enumerate(row):
-                tbl.setItem(r, c, QTableWidgetItem(str(val)))
+        self._loading_table = True
+        try:
+            tbl.setRowCount(0)
+            tbl.setColumnCount(len(headers))
+            tbl.setHorizontalHeaderLabels(headers)
+            for r, row in enumerate(data):
+                tbl.insertRow(r)
+                for c, val in enumerate(row):
+                    it = QTableWidgetItem(str(val))
+                    # Only rate column is editable from this dialog.
+                    if c == 2:
+                        it.setData(Qt.ItemDataRole.UserRole, str(val))
+                    else:
+                        it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    tbl.setItem(r, c, it)
+        finally:
+            self._loading_table = False
         tbl.resizeColumnsToContents()
         hdr = tbl.horizontalHeader()
         if hdr is not None:
             hdr.setSectionResizeMode(
                 1, QHeaderView.ResizeMode.Stretch
             )
+
+    def _refresh_parent_estimate(self) -> None:
+        p = self.parent()
+        if p is None:
+            return
+        fn = getattr(p, "refresh_live_estimate", None)
+        if callable(fn):
+            fn()
+
+    def _handle_rate_edit(self, item: QTableWidgetItem, table_name: str) -> None:
+        if self._loading_table or self._suppress_item_changed:
+            return
+        if item is None or item.column() != 2:
+            return
+
+        tbl = item.tableWidget()
+        if tbl is None:
+            return
+
+        code_item = tbl.item(item.row(), 0)
+        old_val = item.data(Qt.ItemDataRole.UserRole)
+        if code_item is None or old_val is None:
+            return
+
+        try:
+            new_rate = float(item.text().strip())
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Rate", "Rate must be a number.")
+            self._suppress_item_changed = True
+            item.setText(str(old_val))
+            self._suppress_item_changed = False
+            return
+
+        if str(new_rate) == str(old_val) or item.text().strip() == str(old_val):
+            return
+
+        yn = QMessageBox.question(
+            self,
+            "Confirm Rate Update",
+            (
+                "You are updating master DB price.\n\n"
+                "This affects all future estimates that use this item.\n"
+                f"Code: {code_item.text()}\n"
+                f"Old rate: {old_val}\n"
+                f"New rate: {new_rate}\n\n"
+                "Proceed?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if yn != QMessageBox.StandardButton.Yes:
+            self._suppress_item_changed = True
+            item.setText(str(old_val))
+            self._suppress_item_changed = False
+            return
+
+        try:
+            conn = sqlite3.connect("erp_master.db")
+            cur = conn.cursor()
+            if table_name == "materials":
+                cur.execute(
+                    "UPDATE materials SET rate=? WHERE item_code=?",
+                    (new_rate, code_item.text().strip()),
+                )
+            else:
+                cur.execute(
+                    "UPDATE labor SET rate=? WHERE labor_code=?",
+                    (new_rate, code_item.text().strip()),
+                )
+            conn.commit()
+            conn.close()
+            item.setData(Qt.ItemDataRole.UserRole, str(new_rate))
+            self._refresh_parent_estimate()
+        except Exception as exc:
+            QMessageBox.critical(self, "Update Failed", str(exc))
+            self._suppress_item_changed = True
+            item.setText(str(old_val))
+            self._suppress_item_changed = False
+
+    def _open_add_dialog(self, db_type: str) -> None:
+        dlg = QDialog(self)
+        dlg.setModal(True)
+        dlg.setWindowTitle(f"Add {db_type}")
+        lay = QVBoxLayout(dlg)
+        frm = QFormLayout()
+
+        code_ed = QLineEdit()
+        name_ed = QLineEdit()
+        rate_ed = QDoubleSpinBox()
+        unit_ed = QLineEdit()
+
+        rate_ed.setRange(0, 10_000_000)
+        rate_ed.setDecimals(3)
+        rate_ed.setSingleStep(1.0)
+
+        if db_type == "Material":
+            frm.addRow("Item Code:", code_ed)
+            frm.addRow("Item Name:", name_ed)
+        else:
+            frm.addRow("Labour Code:", code_ed)
+            frm.addRow("Task Name:", name_ed)
+        frm.addRow("Rate:", rate_ed)
+        frm.addRow("Unit:", unit_ed)
+        lay.addLayout(frm)
+
+        warn = QLabel("Warning: This adds a permanent master DB entry used in future estimates.")
+        warn.setStyleSheet("color:#a94442; font-size:11px;")
+        lay.addWidget(warn)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        code = code_ed.text().strip()
+        name = name_ed.text().strip()
+        unit = unit_ed.text().strip()
+        rate = float(rate_ed.value())
+
+        if not code or not name or not unit:
+            QMessageBox.warning(self, "Missing Data", "Code, name and unit are required.")
+            return
+
+        try:
+            conn = sqlite3.connect("erp_master.db")
+            cur = conn.cursor()
+            if db_type == "Material":
+                cur.execute(
+                    "INSERT INTO materials (item_code, item_name, rate, unit) VALUES (?, ?, ?, ?)",
+                    (code, name, rate, unit),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO labor (labor_code, task_name, rate, unit) VALUES (?, ?, ?, ?)",
+                    (code, name, rate, unit),
+                )
+            conn.commit()
+            conn.close()
+            self._load()
+            self._refresh_parent_estimate()
+            QMessageBox.information(self, "Added", f"{db_type} added successfully.")
+        except sqlite3.IntegrityError:
+            QMessageBox.warning(self, "Duplicate Code", "This code already exists in master DB.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
 
     def _row_matches_filter(self, tbl: QTableWidget, row: int, needle: str) -> bool:
         if not needle:
