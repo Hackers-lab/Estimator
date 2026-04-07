@@ -5,15 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('rules.json', '.'),
-        ('defaults.json', '.'),
-        ('erp_master.db', '.'),
-        ('seed_data.json', '.'),
-        ('logo.ico', '.'),
-        ('logo.svg', '.'),
-        ('HELP.html', '.'),
-    ],
+    datas=[('seed_data.json', '.'), ('rules.json', '.'), ('logo.svg', '.'), ('logo.ico', '.'), ('HELP.html', '.')],
     hiddenimports=['openpyxl', 'sqlite3'],
     hookspath=[],
     hooksconfig={},
@@ -49,5 +41,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='ERP_EstimateV6.0',
+    name='ERP_Estimate',
 )

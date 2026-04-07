@@ -41,6 +41,13 @@ cmd = [
     "--windowed",
     "--name", APP_NAME,
     "--icon", "logo.ico",
+    # Bundle data files into _internal/ so resource_path() and __file__-relative
+    # lookups work correctly at runtime.
+    "--add-data", "seed_data.json;.",
+    "--add-data", "rules.json;.",
+    "--add-data", "logo.svg;.",
+    "--add-data", "logo.ico;.",
+    "--add-data", "HELP.html;.",
     # Hidden imports that PyInstaller might miss
     "--hidden-import", "openpyxl",
     "--hidden-import", "sqlite3",
