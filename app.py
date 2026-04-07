@@ -1676,6 +1676,13 @@ class EstimateApp(QMainWindow):
             )
             self.editor_layout.addRow("DTR Size:", dtr_cb)
 
+            kiosk_chk = QCheckBox("Kiosk required")
+            kiosk_chk.setChecked(bool(getattr(item, "kiosk_required", True)))
+            kiosk_chk.stateChanged.connect(
+                lambda v, i=item: self._update_structure(i, "kiosk_required", v == 2)
+            )
+            self.editor_layout.addRow(kiosk_chk)
+
         # Pole material
         pt2_cb = QComboBox()
         pt2_cb.addItems(["PCC", "STP", "H-BEAM"])
@@ -2095,10 +2102,13 @@ class EstimateApp(QMainWindow):
     def _update_structure_type(self, item, value):
         item.structure_type = value
         # Reset earth defaults
-        defaults = {"DP": 2, "TP": 3, "4P": 4, "DTR": 5}
-        item.earth_count = defaults.get(value, 2)
+        earth_defaults = {"DP": 2, "TP": 3, "4P": 4, "DTR": 5}
+        item.earth_count = earth_defaults.get(value, 2)
         if value != "DTR":
             item.dtr_size = "None"
+            item.kiosk_required = False
+        else:
+            item.kiosk_required = bool(defaults.current.get("dtr_kiosk_required", True))
         item.update_visuals()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)
@@ -2578,6 +2588,7 @@ class EstimateApp(QMainWindow):
                         "earth_count":       item.earth_count,
                         "stay_count":        item.stay_count,
                         "dtr_size":          item.dtr_size,
+                        "kiosk_required":    getattr(item, "kiosk_required", True),
                     })
                 elif isinstance(item, SmartConsumer):
                     nd.update({
@@ -2694,6 +2705,10 @@ class EstimateApp(QMainWindow):
                 struct.earth_count      = nd.get("earth_count", 2)
                 struct.stay_count       = nd.get("stay_count", 4)
                 struct.dtr_size         = nd.get("dtr_size", "None")
+                struct.kiosk_required   = nd.get(
+                    "kiosk_required",
+                    True if struct.structure_type == "DTR" else False
+                )
                 struct.custom_note      = nd.get("custom_note", "")
                 struct.update_visuals()
                 struct.label.setPos(nd["label_x"], nd["label_y"])

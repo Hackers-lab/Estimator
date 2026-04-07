@@ -470,9 +470,9 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                     txt += f"\n+Ext {self.extension_height:.1f}m"
 
             if not self.is_existing:
-                if self.earth_count > 0:
+                if (not self.detail_view) and self.earth_count > 0:
                     txt += f"\n⏚ {self.earth_count} Earth"
-                if self.stay_count > 0:
+                if (not self.detail_view) and self.stay_count > 0:
                     txt += f"\nS×{self.stay_count} Stay"
             if self.custom_note:
                 txt += f"\n📝 {self.custom_note}"
@@ -587,6 +587,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.earth_count      = self._EARTH_DEFAULTS["DP"]
         self.stay_count       = _d["struct_stay_count"]
         self.dtr_size         = "None"
+        self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))
 
         self.label = DraggableLabel(self)
         self.label.setTextWidth(100)
@@ -696,9 +697,9 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             txt += f"\n{self.dtr_size} DTR"
         if self.has_extension:
             txt += f"\n+Ext {self.extension_height:.1f}m"
-        if self.earth_count > 0:
+        if (not self.detail_view) and self.earth_count > 0:
             txt += f"\n⏚ {self.earth_count} Earth"
-        if self.stay_count > 0:
+        if (not self.detail_view) and self.stay_count > 0:
             txt += f"\nS×{self.stay_count} Stay"
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"
@@ -1074,8 +1075,8 @@ class SmartSpan(QGraphicsPathItem):
                 txt = f"{self.length}m PVC"
             if self.aug_type != "New":
                 txt += f"\n({self.aug_type})"
-            if self.has_cg:
-                txt += "\n[CG]"
+            if self.has_cg and (not self.detail_view):
+                txt += "\n+CG"
 
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"

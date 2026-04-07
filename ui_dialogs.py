@@ -368,7 +368,7 @@ class PlacementDefaultsDialog(QDialog):
         "H-BEAM": ["13MTR"],
     }
     _LT_CONDUCTORS = ["AB Cable", "ACSR", "PVC Cable"]
-    _HT_CONDUCTORS = ["ACSR", "AB Cable", "PVC Cable"]
+    _HT_CONDUCTORS = ["ACSR", "AB Cable"]
     _CONDUCTOR_SIZES = {
         ("AB Cable",  "LT"): ["3CX50+1CX35", "3CX50+1CX16+1CX35", "3CX70+1CX16+1CX50"],
         ("AB Cable",  "HT"): ["3CX50+1CX150", "3CX95+1CX70"],
@@ -499,6 +499,10 @@ class PlacementDefaultsDialog(QDialog):
         self.st_stay.setRange(0, 20)
         self.st_stay.setValue(d["struct_stay_count"])
         st_frm.addRow("Stay Sets:", self.st_stay)
+
+        self.st_kiosk = QCheckBox("DTR kiosk required by default")
+        self.st_kiosk.setChecked(bool(d.get("dtr_kiosk_required", True)))
+        st_frm.addRow(self.st_kiosk)
 
         lay.addWidget(st_grp)
 
@@ -664,6 +668,7 @@ class PlacementDefaultsDialog(QDialog):
             "struct_pole_type2": self.st_type2.currentText(),
             "struct_height":     self.st_height.currentText(),
             "struct_stay_count": self.st_stay.value(),
+            "dtr_kiosk_required": self.st_kiosk.isChecked(),
             "extension_height":  self.ext_ht.value(),
             "node_min_gap":      self.node_min_gap.value(),
             "lt_conductor":      self.lt_cond.currentText(),
@@ -721,11 +726,27 @@ class DatabaseManagerDialog(QDialog):
         btn_row.addStretch()
         lay.addLayout(btn_row)
 
+        search_row = QHBoxLayout()
+        self._db_search = QLineEdit()
+        self._db_search.setPlaceholderText(
+            "Search code/name/unit/rate in current tab..."
+        )
+        self._db_search.textChanged.connect(self._apply_db_filter)
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(lambda: self._db_search.clear())
+        self._db_count = QLabel("")
+        self._db_count.setStyleSheet("color:#666; font-size:11px;")
+        search_row.addWidget(self._db_search, 1)
+        search_row.addWidget(clear_btn)
+        search_row.addWidget(self._db_count)
+        lay.addLayout(search_row)
+
         self.tabs          = QTabWidget()
         self.mat_table     = QTableWidget()
         self.labour_table  = QTableWidget()
         self.tabs.addTab(self.mat_table,    "Materials")
         self.tabs.addTab(self.labour_table, "Labour")
+        self.tabs.currentChanged.connect(lambda _i: self._apply_db_filter())
         lay.addWidget(self.tabs)
 
         self._load()
@@ -747,6 +768,31 @@ class DatabaseManagerDialog(QDialog):
                 1, QHeaderView.ResizeMode.Stretch
             )
 
+    def _row_matches_filter(self, tbl: QTableWidget, row: int, needle: str) -> bool:
+        if not needle:
+            return True
+        for c in range(tbl.columnCount()):
+            cell = tbl.item(row, c)
+            if cell is not None and needle in cell.text().lower():
+                return True
+        return False
+
+    def _active_table(self) -> QTableWidget:
+        idx = self.tabs.currentIndex()
+        return self.mat_table if idx == 0 else self.labour_table
+
+    def _apply_db_filter(self):
+        tbl = self._active_table()
+        needle = self._db_search.text().strip().lower()
+        visible = 0
+        total = tbl.rowCount()
+        for r in range(total):
+            match = self._row_matches_filter(tbl, r, needle)
+            tbl.setRowHidden(r, not match)
+            if match:
+                visible += 1
+        self._db_count.setText(f"{visible}/{total} shown")
+
     def _load(self):
         self.mat_table.clear()
         self.labour_table.clear()
@@ -763,6 +809,7 @@ class DatabaseManagerDialog(QDialog):
             ["Labour Code", "Task Name", "Rate", "Unit"]
         )
         conn.close()
+        self._apply_db_filter()
 
     # ── Actions ───────────────────────────────────────────────────────────────
 

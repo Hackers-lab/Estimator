@@ -953,7 +953,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '25KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '25KVA' and kiosk_required",
     "type": "Material",
     "item_code": "0407010641",
     "item_name": "LT Distribution KIOSK For 25KVA DTR",
@@ -961,7 +961,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '25KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '25KVA' and kiosk_required",
     "type": "Labor",
     "item_code": "LAB-54",
     "item_name": "Fixing of LT Distribution KIOSK Single Switch",
@@ -969,7 +969,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '63KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '63KVA' and kiosk_required",
     "type": "Material",
     "item_code": "0407010741",
     "item_name": "LT Distribution KIOSK For 63KVA DTR",
@@ -977,7 +977,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '63KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '63KVA' and kiosk_required",
     "type": "Labor",
     "item_code": "LAB-54",
     "item_name": "Fixing of LT Distribution KIOSK Single Switch",
@@ -985,7 +985,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '100KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '100KVA' and kiosk_required",
     "type": "Material",
     "item_code": "0407010541",
     "item_name": "LT Distribution KIOSK For 100KVA DTR",
@@ -993,7 +993,7 @@
   },
   {
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size == '100KVA'",
+    "condition": "structure_type == 'DTR' and dtr_size == '100KVA' and kiosk_required",
     "type": "Labor",
     "item_code": "LAB-54",
     "item_name": "Fixing of LT Distribution KIOSK Single Switch",

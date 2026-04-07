@@ -244,6 +244,7 @@ class DynamicRuleEngine:
             "earth_count":      item.earth_count,
             "stay_count":       item.stay_count,
             "dtr_size":         item.dtr_size,
+            "kiosk_required":   getattr(item, "kiosk_required", True),
             "ht_spans_count":   ht_spans_count,
             "use_uh":           use_uh,
             "project_type":     project_type,

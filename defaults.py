@@ -51,6 +51,7 @@ _FACTORY: dict = {
     "struct_pole_type2":  "PCC",
     "struct_height":      "9MTR",
     "struct_stay_count":  4,
+    "dtr_kiosk_required": True,
 
     # LT Span
     "lt_conductor":       "AB Cable",
