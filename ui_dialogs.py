@@ -592,6 +592,10 @@ class PlacementDefaultsDialog(QDialog):
         self.ht_wires.setCurrentText(str(d["ht_wire_count"]))
         ht_frm.addRow("Wire Count:", self.ht_wires)
 
+        self.ht_cg = QCheckBox("Cradle Guard (CG) required by default")
+        self.ht_cg.setChecked(bool(d.get("ht_cg_required", True)))
+        ht_frm.addRow(self.ht_cg)
+
         lay.addWidget(ht_grp)
 
         # ── Service Drop ──────────────────────────────────────────────────
@@ -670,6 +674,7 @@ class PlacementDefaultsDialog(QDialog):
             "ht_conductor_size": self.ht_size.currentText(),
             "ht_span_length":    self.ht_len.value(),
             "ht_wire_count":     self.ht_wires.currentText(),
+            "ht_cg_required":    self.ht_cg.isChecked(),
             "sd_conductor_size": self.sd_size.currentText(),
             "sd_length":         self.sd_len.value(),
             "sd_phase":          self.sd_phase.currentText(),

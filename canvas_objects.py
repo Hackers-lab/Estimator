@@ -876,7 +876,8 @@ class SmartSpan(QGraphicsPathItem):
             self.length         = _d[_pfx + "span_length"]
             self.aug_type       = "New"
             self.wire_count     = _d[_pfx + "wire_count"]
-            self.has_cg         = False
+            # CG: for HT spans, follow the ht_cg_required default
+            self.has_cg         = bool(_d.get("ht_cg_required", True)) if not self.is_lt_span else False
             self.consider_cable = False
             self.phase          = "3 Phase"
 

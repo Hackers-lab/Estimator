@@ -21,6 +21,7 @@
   "ht_conductor_size": "50SQMM",
   "ht_span_length": 40,
   "ht_wire_count": "3",
+  "ht_cg_required": true,
   "sd_conductor_size": "10 SQMM",
   "sd_length": 20,
   "sd_phase": "1 Phase"

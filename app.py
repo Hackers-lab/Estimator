@@ -1776,9 +1776,14 @@ class EstimateApp(QMainWindow):
         )
         self.editor_layout.addRow("Length (m):", len_sp)
 
-        # Conductor type
+        # Conductor type — filtered by voltage level
+        _LT_CONDUCTORS = ["AB Cable", "ACSR", "PVC Cable"]
+        _HT_CONDUCTORS = ["ACSR", "AB Cable"]
+        cond_list = _LT_CONDUCTORS if item.is_lt_span else _HT_CONDUCTORS
         cond_cb = QComboBox()
-        cond_cb.addItems(["ACSR", "AB Cable", "PVC Cable"])
+        cond_cb.addItems(cond_list)
+        if item.conductor not in cond_list:
+            cond_cb.addItem(item.conductor)   # preserve loaded value
         cond_cb.setCurrentText(item.conductor)
         cond_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_conductor(i, t)
@@ -2071,6 +2076,19 @@ class EstimateApp(QMainWindow):
     def _update_existing_subtype(self, item, value):
         item.existing_subtype = value
         item.update_visuals()
+        # Re-evaluate voltage level & conductor defaults on all connected spans
+        for span in getattr(item, "connected_spans", []):
+            was_lt = span.is_lt_span
+            span.is_lt_span = span._detect_lt()
+            if span.is_lt_span != was_lt:
+                # Voltage side changed — reset conductor to the new side's default
+                _d = defaults.current
+                _pfx = "lt_" if span.is_lt_span else "ht_"
+                span.conductor      = _d[_pfx + "conductor"]
+                span.conductor_size = _d[_pfx + "conductor_size"]
+                span.wire_count     = _d[_pfx + "wire_count"]
+                span.has_cg = bool(_d.get("ht_cg_required", True)) if not span.is_lt_span else False
+            span.update_visuals()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)
 

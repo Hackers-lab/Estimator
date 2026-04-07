@@ -63,6 +63,7 @@ _FACTORY: dict = {
     "ht_conductor_size":  "50SQMM",
     "ht_span_length":     40,
     "ht_wire_count":      "3",
+    "ht_cg_required":     True,
 
     # Service Drop
     "sd_conductor_size":  "10 SQMM",

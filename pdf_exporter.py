@@ -712,7 +712,20 @@ class PDFExporter:
                     hidden_spans.append(span)
                     span.setVisible(False)
 
-            render_rect = QRectF(draw_rect)
+            # Preserve aspect ratio: compute uniform scale and centre inside draw_rect
+            scene_w = src_rect.width()
+            scene_h = src_rect.height()
+            if scene_w > 0 and scene_h > 0:
+                s = min(draw_rect.width() / scene_w, draw_rect.height() / scene_h)
+                rw = scene_w * s
+                rh = scene_h * s
+                render_rect = QRectF(
+                    draw_rect.left() + (draw_rect.width()  - rw) / 2.0,
+                    draw_rect.top()  + (draw_rect.height() - rh) / 2.0,
+                    rw, rh,
+                )
+            else:
+                render_rect = QRectF(draw_rect)
             painter.save()
             painter.setClipRect(draw_rect)
             app.scene.render(
