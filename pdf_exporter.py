@@ -36,9 +36,10 @@ class PDFExporter:
 
     # ── PDF layout constants ──────────────────────────────────────────────────
     MARG_T = MARG_B = MARG_L = MARG_R = 10
-    PAGE_EDGE_GAP = 20
-    TITLE_H  = 32   # title strip height (device px) — tall enough for 2-line wrap
-    FOOTER_H = 16   # footer strip height
+    PAGE_EDGE_GAP  = 20
+    TITLE_H        = 32   # title strip height (device px) — tall enough for 2-line wrap
+    FOOTER_H       = 16   # footer strip height
+    LEGEND_RESERVE = 140  # px reserved at bottom of last page for the legend box
 
     def __init__(self, app: "EstimateApp") -> None:
         self._app = app
@@ -466,16 +467,16 @@ class PDFExporter:
         rows      = max(len(left_col), len(right_col))
         total_h   = hdr_h + rows * row_h + ll_h
 
+        # Default anchor: bottom-right inside the provided border rect.
         leg_left = border.right()  - total_w - 5
         leg_top  = border.bottom() - total_h - 5
         leg_rect = QRectF(leg_left, leg_top, total_w, total_h)
 
         painter.save()
-        painter.setOpacity(0.82)
-        painter.setBrush(QBrush(QColor(255, 255, 255, 210)))
+        painter.setOpacity(1.0)
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(leg_rect)
-        painter.setOpacity(1.0)
 
         grid_pen   = QPen(QColor(170, 170, 170), 0.4)
         border_pen = QPen(Qt.GlobalColor.black, 0.7)
@@ -700,6 +701,40 @@ class PDFExporter:
                 max(1.0, page_w - 2 * PAGE_EDGE_GAP),
                 max(1.0, draw_h  - 2 * PAGE_EDGE_GAP),
             )
+
+            # Reserve legend strip only when last-page bottom-right has content.
+            # This keeps full drawing scale when the corner is already empty.
+            if is_last and app.pdf_show_legend:
+                probe_scene = QRectF(
+                    src_rect.left() + src_rect.width() * 0.58,
+                    src_rect.top() + src_rect.height() * 0.62,
+                    src_rect.width() * 0.42,
+                    src_rect.height() * 0.38,
+                )
+                reserve_legend_strip = any(
+                    item.scene() is not None
+                    and item.isVisible()
+                    and src_rect.intersects(item.sceneBoundingRect())
+                    and probe_scene.intersects(item.sceneBoundingRect())
+                    for item in drawable_items
+                )
+            else:
+                reserve_legend_strip = False
+
+            if reserve_legend_strip:
+                content_rect = QRectF(
+                    draw_rect.left(), draw_rect.top(),
+                    draw_rect.width(),
+                    max(1.0, draw_rect.height() - self.LEGEND_RESERVE),
+                )
+                legend_strip = QRectF(
+                    draw_rect.left(), content_rect.bottom(),
+                    draw_rect.width(), self.LEGEND_RESERVE,
+                )
+            else:
+                content_rect = draw_rect
+                legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
+
             page_marks = continuation_marks.get(page_num, [])
 
             # Hide crossing spans before rendering this tile
@@ -712,22 +747,22 @@ class PDFExporter:
                     hidden_spans.append(span)
                     span.setVisible(False)
 
-            # Preserve aspect ratio: compute uniform scale and centre inside draw_rect
+            # Preserve aspect ratio: compute uniform scale and centre inside content_rect
             scene_w = src_rect.width()
             scene_h = src_rect.height()
             if scene_w > 0 and scene_h > 0:
-                s = min(draw_rect.width() / scene_w, draw_rect.height() / scene_h)
+                s = min(content_rect.width() / scene_w, content_rect.height() / scene_h)
                 rw = scene_w * s
                 rh = scene_h * s
                 render_rect = QRectF(
-                    draw_rect.left() + (draw_rect.width()  - rw) / 2.0,
-                    draw_rect.top()  + (draw_rect.height() - rh) / 2.0,
+                    content_rect.left() + (content_rect.width()  - rw) / 2.0,
+                    content_rect.top()  + (content_rect.height() - rh) / 2.0,
                     rw, rh,
                 )
             else:
-                render_rect = QRectF(draw_rect)
+                render_rect = QRectF(content_rect)
             painter.save()
-            painter.setClipRect(draw_rect)
+            painter.setClipRect(content_rect)
             app.scene.render(
                 painter, render_rect, src_rect,
                 Qt.AspectRatioMode.IgnoreAspectRatio,
@@ -737,9 +772,8 @@ class PDFExporter:
             for span in hidden_spans:
                 span.setVisible(True)
 
-            # Legend on last page only
-            if is_last and app.pdf_show_legend:
-                self._draw_pdf_legend(painter, draw_rect)
+            if legend_strip is not None:
+                self._draw_pdf_legend(painter, legend_strip)
 
             for mark in page_marks:
                 self._draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark)

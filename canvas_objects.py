@@ -505,7 +505,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             return
         if self.has_extension:
             r = self._RADIUS
-            badge = QRectF(-5, -(r + 14), 10, 10)
+            badge = QRectF(-5, -(r + 22), 10, 10)
             painter.save()
             painter.setPen(QPen(QColor("#1a5276"), 1))
             painter.setBrush(QBrush(QColor("#d6eaf8")))
@@ -715,11 +715,14 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             return
         if self.has_extension:
             r = self._RADIUS
+            badge = QRectF(-5, -(r * 2 + 22), 10, 10)
             painter.save()
-            painter.setPen(QPen(Qt.GlobalColor.black, 1))
+            painter.setPen(QPen(QColor("#1a5276"), 1))
+            painter.setBrush(QBrush(QColor("#d6eaf8")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setPen(QPen(QColor("#1a5276"), 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
-            painter.drawText(QRectF(-4, -(r * 2 + 14), 8, 8),
-                             Qt.AlignmentFlag.AlignCenter, "E")
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "E")
             painter.restore()
     def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
