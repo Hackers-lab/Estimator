@@ -1201,7 +1201,7 @@
   },
   {
     "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX50+1CX16+1CX35' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Labor",
     "item_code": "LAB-37",
     "item_name": "Stringing & Sagging LT AB Cable 3CX50+1CX16+1CX35",
@@ -1353,7 +1353,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_dead_end",
+    "condition": "ab_needs_dead_end",
     "type": "Material",
     "item_code": "0505034141",
     "item_name": "Dead End Clamp LT ABC (3X70+1X16+1X50SQMM)",
@@ -1361,7 +1361,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_needs_dead_end",
+    "condition": "ab_needs_dead_end",
     "type": "Labor",
     "item_code": "LAB-61",
     "item_name": "Erection of Anchor/Dead End Clamp LT ABC",
@@ -1385,7 +1385,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "is_new == True and ab_cable_count > 0",
+    "condition": "ab_new_cable_count > 0",
     "type": "Material",
     "item_code": "0505030841",
     "item_name": "Eye Hook for Anchor/Suspension Clamp",
@@ -1549,6 +1549,14 @@
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0501030521",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
+    "type": "Labor",
+    "item_code": "LAB-36",
+    "item_name": "Stringing & Sagging LT AB Cable 3CX70+1CX16+1CX50",
     "formula": "length / 1000"
   },
   {

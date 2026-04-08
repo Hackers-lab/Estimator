@@ -1218,9 +1218,9 @@ class SmartSpan(QGraphicsPathItem):
         # ── Label text ────────────────────────────────────────────────────
         if self.is_existing_span:
             if self.conductor == "ACSR":
-                txt = f"{self.length}m {self.wire_count}w\nEx ACSR"
+                txt = f"{self.length}m"
             elif self.conductor == "AB Cable":
-                txt = f"Ex. ABC"
+                txt = f"{self.length}m"
             else:
                 txt = f"Existing\n{self.conductor}"
         elif self.is_service_drop:
@@ -1229,11 +1229,10 @@ class SmartSpan(QGraphicsPathItem):
             if self.consider_cable:
                 txt += f"\n{self.conductor_size}"
         else:
-            size_s = self.conductor_size or ""
             if self.conductor == "ACSR":
-                txt = f"{self.length}m {self.wire_count}w\nACSR"
+                txt = f"{self.length}m"
             elif self.conductor == "AB Cable":
-                txt = f"{self.length}m ABC"
+                txt = f"{self.length}m"
             else:
                 txt = f"{self.length}m PVC"
             if self.aug_type != "New":
@@ -1279,6 +1278,33 @@ class SmartSpan(QGraphicsPathItem):
         else:                    # vertical-ish: ensure nx > 0 (rightward)
             if nx < 0:
                 nx, ny = -nx, -ny
+
+        # ── Wire-count tick marks for ACSR spans ──────────────────────────
+        if self.conductor == "ACSR" and self.detail_view:
+            try:
+                n_wires = int(self.wire_count)
+            except (ValueError, TypeError):
+                n_wires = 3
+            tick_h  = 5.0          # half-height of each tick (px)
+            spacing = 4.0          # gap between ticks (px)
+            tilt    = 0.35         # along-span lean (fraction of tick_h)
+            total_w = (n_wires - 1) * spacing
+            mx = (x1 + x2) / 2
+            my = (y1 + y2) / 2
+            tick_color = self._PEN_COLORS.get("ACSR", QColor("#222222"))
+            painter.save()
+            painter.setPen(QPen(tick_color, 0.8))
+            for k in range(n_wires):
+                along = -total_w / 2 + k * spacing
+                cx_ = mx + ux * along
+                cy_ = my + uy * along
+                painter.drawLine(
+                    QPointF(cx_ - nx * tick_h - ux * tick_h * tilt,
+                            cy_ - ny * tick_h - uy * tick_h * tilt),
+                    QPointF(cx_ + nx * tick_h + ux * tick_h * tilt,
+                            cy_ + ny * tick_h + uy * tick_h * tilt),
+                )
+            painter.restore()
 
         # Draw CG rail symbol at midpoint if enabled.
         if self.detail_view and self.has_cg and not self.is_existing_span:

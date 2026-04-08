@@ -599,7 +599,7 @@ class PDFExporter:
         if not filename:
             start_path = default
             if initial_dir:
-                start_path = f"{initial_dir.rstrip('/\\')}\\{default}"
+                start_path = os.path.join(initial_dir.rstrip('/\\'), default)
             filename, _ = QFileDialog.getSaveFileName(
                 app, "Export PDF Drawing", start_path, "PDF Files (*.pdf)"
             )

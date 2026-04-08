@@ -62,7 +62,7 @@ class ExcelExporter:
         if not filename:
             start_path = default
             if initial_dir:
-                start_path = f"{initial_dir.rstrip('/\\')}\\{default}"
+                start_path = os.path.join(initial_dir.rstrip('/\\'), default)
             filename, _ = QFileDialog.getSaveFileName(
                 app, "Export ERP Estimate", start_path, "Excel Files (*.xlsx)"
             )
