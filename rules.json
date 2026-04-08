@@ -1105,6 +1105,14 @@
   },
   {
     "object": "SmartSpan",
+    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 2",
+    "type": "Labor",
+    "item_code": "LAB-32",
+    "item_name": "Stringing & Sagging ACSR 50SQMM 2 Wire",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",
     "item_code": "0502010621",
@@ -1125,6 +1133,14 @@
     "type": "Labor",
     "item_code": "LAB-34",
     "item_name": "Stringing & Sagging ACSR 30SQMM 4 Wire",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 2",
+    "type": "Labor",
+    "item_code": "LAB-35",
+    "item_name": "Stringing & Sagging ACSR 30SQMM 2 Wire",
     "formula": "length / 1000"
   },
   {
@@ -1176,36 +1192,20 @@
     "formula": "4"
   },
   {
-    "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
+    "object": "SmartPole",
+    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0",
     "type": "Material",
     "item_code": "0508040441",
     "item_name": "Porcelain Shackle Insulator",
-    "formula": "int(wire_count)"
-  },
-  {
-    "object": "SmartSpan",
-    "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
-    "type": "Labor",
-    "item_code": "LAB-47",
-    "item_name": "Fixing of LT Shackle Insulator with N/B",
-    "formula": "int(wire_count)"
+    "formula": "int(lt_wire_count)"
   },
   {
     "object": "SmartPole",
-    "condition": "is_existing == False and pole_type == 'LT' and has_new_lt_acsr == True and has_existing_lt_acsr == True",
-    "type": "Material",
-    "item_code": "0508040441",
-    "item_name": "Porcelain Shackle Insulator",
-    "formula": "existing_lt_wire_count"
-  },
-  {
-    "object": "SmartPole",
-    "condition": "is_existing == False and pole_type == 'LT' and has_new_lt_acsr == True and has_existing_lt_acsr == True",
+    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0",
     "type": "Labor",
     "item_code": "LAB-47",
     "item_name": "Fixing of LT Shackle Insulator with N/B",
-    "formula": "existing_lt_wire_count"
+    "formula": "int(lt_wire_count)"
   },
   {
     "object": "SmartSpan",
