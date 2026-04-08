@@ -138,6 +138,8 @@ class DynamicRuleEngine:
             getattr(item, "existing_subtype", item.pole_type)
             if item.is_existing else item.pole_type
         )
+        dyn = dict(getattr(item, "dynamic_props", {}) or {})
+        dtr_aug_required_pole = bool(dyn.get("dtr_aug_required", False))
         ctx: dict = {
             "object_type":      "SmartPole",
             "pole_type":        eff_pole_type,
@@ -154,7 +156,19 @@ class DynamicRuleEngine:
             "use_uh":           use_uh,
             "project_type":     project_type,
             "work_mode":        getattr(item, "work_mode", "new"),
-            "reuse_material":   getattr(item, "reuse_material", False)        }
+            "reuse_material":   getattr(item, "reuse_material", False),
+            # DTR augmentation fields (used when existing_subtype == 'DTR')
+            "dtr_aug_required":             dtr_aug_required_pole,
+            "dtr_structure_change_required": bool(dyn.get("dtr_structure_change_required", False)),
+            "dtr_new_pole_type2":           str(dyn.get("dtr_new_pole_type2", item.pole_type2)),
+            "dtr_new_height":               str(dyn.get("dtr_new_height", item.height)),
+            "dtr_size":                     getattr(item, "existing_dtr_size", "None"),
+            "dtr_from_size":                getattr(item, "existing_dtr_size", "None"),
+            "dtr_to_size":                  str(dyn.get("dtr_new_size", "None")),
+            "dtr_return_old_dtr":           bool(dyn.get("dtr_return_old_dtr", dtr_aug_required_pole)),
+            "dtr_return_old_pole":          bool(dyn.get("dtr_return_old_pole", bool(dyn.get("dtr_structure_change_required", False)))),
+            "dtr_return_old_iron":          bool(dyn.get("dtr_return_old_iron", False)),
+        }
 
         # has_cg — True if any connected span has cattle guard
         ctx["has_cg"] = any(
