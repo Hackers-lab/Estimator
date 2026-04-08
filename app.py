@@ -1517,6 +1517,7 @@ class EstimateApp(QMainWindow):
                 )
                 self.editor_layout.addRow("DTR Size:", dtr_cb)
 
+
         # Pole type 2 (material)
         pt2_cb = QComboBox()
         pt2_cb.addItems(["PCC", "STP", "H-BEAM"])
@@ -1661,6 +1662,9 @@ class EstimateApp(QMainWindow):
         )
         self.editor_layout.addRow("Note:", note)
 
+        if item.is_existing and subtype == "DTR":
+            self._build_dtr_augmentation_editor(item)
+
         self._add_delete_btn(item)
 
     def _set_pole_advanced_props(self, enabled: bool) -> None:
@@ -1705,6 +1709,8 @@ class EstimateApp(QMainWindow):
                 lambda v, i=item: self._update_structure(i, "kiosk_required", v == 2)
             )
             self.editor_layout.addRow(kiosk_chk)
+
+            # Augmentation editor is shown only for existing DTR poles.
 
         # Pole material
         pt2_cb = QComboBox()
@@ -1852,6 +1858,9 @@ class EstimateApp(QMainWindow):
         )
         self.editor_layout.addRow("Work Nature:", aug_cb)
 
+        if item.conductor == "ACSR" and item.is_existing_span and not item.is_service_drop:
+            self._build_conductor_augmentation_editor(item)
+
         # CG
         cg_chk = QCheckBox("Cattle Guard required")
         cg_chk.setChecked(item.has_cg)
@@ -1936,6 +1945,201 @@ class EstimateApp(QMainWindow):
         if phase == "1 Phase":
             return ["10 SQMM", "16 SQMM"]
         return ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+
+    def _add_section_separator(self, title: str) -> None:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color:#cfcfcf;")
+        self.editor_layout.addRow(sep)
+        lbl = QLabel(title)
+        lbl.setStyleSheet("color:#444; font-weight:bold;")
+        self.editor_layout.addRow(lbl)
+
+    def _add_separator_line(self) -> None:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color:#cfcfcf;")
+        self.editor_layout.addRow(sep)
+
+    @staticmethod
+    def _parse_kva(size_text: str) -> int:
+        txt = str(size_text or "").upper().replace("KVA", "").strip()
+        try:
+            return int(txt)
+        except ValueError:
+            return 0
+
+    def _set_dynamic_prop(self, item, key: str, value, refresh_selection: bool = False) -> None:
+        props = dict(getattr(item, "dynamic_props", {}) or {})
+        if value in (None, "", False):
+            props.pop(key, None)
+        else:
+            props[key] = value
+        item.dynamic_props = props
+        if hasattr(item, "update_visuals"):
+            item.update_visuals()
+        self.refresh_live_estimate()
+        if refresh_selection:
+            QTimer.singleShot(10, self.on_selection_changed)
+
+    def _build_dtr_augmentation_editor(self, item) -> None:
+        props = dict(getattr(item, "dynamic_props", {}) or {})
+
+        self._add_section_separator("Augmentation")
+
+        aug_chk = QCheckBox("DTR Augmentation required")
+        aug_chk.setChecked(bool(props.get("dtr_aug_required", False)))
+        aug_chk.stateChanged.connect(
+            lambda s, i=item: self._set_dynamic_prop(i, "dtr_aug_required", s == 2, True)
+        )
+        self.editor_layout.addRow(aug_chk)
+
+        if not aug_chk.isChecked():
+            return
+
+        self._set_dynamic_prop(item, "dtr_return_old_dtr", True)
+
+        existing_size = str(getattr(item, "existing_dtr_size", "None"))
+        existing_pt2 = str(getattr(item, "pole_type2", "PCC"))
+        existing_h = str(getattr(item, "height", "9MTR"))
+
+        ex_txt = (
+            f"Ex {existing_size} S/STN ({existing_pt2} {existing_h}) "
+            f"to be augmentated"
+        )
+        ex_lbl = QLabel(ex_txt)
+        ex_lbl.setStyleSheet("color:#6b4e00; font-style:italic;")
+        self.editor_layout.addRow("Existing:", ex_lbl)
+
+        new_dtr = QComboBox()
+        dtr_sizes = ["10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
+        new_dtr.addItems(dtr_sizes)
+        new_dtr_val = str(props.get("dtr_new_size", existing_size))
+        if new_dtr_val not in dtr_sizes:
+            new_dtr.addItem(new_dtr_val)
+        new_dtr.setCurrentText(new_dtr_val)
+
+        def _on_new_dtr_size_change(text: str, i=item):
+            old_kva = self._parse_kva(getattr(i, "existing_dtr_size", "None"))
+            new_kva = self._parse_kva(text)
+            self._set_dynamic_prop(i, "dtr_new_size", text)
+            if old_kva and new_kva and new_kva <= old_kva:
+                QMessageBox.warning(
+                    self,
+                    "DTR size warning",
+                    "New DTR size should be greater than existing DTR size for augmentation.",
+                )
+
+        new_dtr.currentTextChanged.connect(_on_new_dtr_size_change)
+        self.editor_layout.addRow("New DTR Size:", new_dtr)
+
+        struct_change_chk = QCheckBox("S/STN structure change required")
+        struct_change_chk.setChecked(bool(props.get("dtr_structure_change_required", False)))
+        struct_change_chk.stateChanged.connect(
+            lambda s, i=item: self._set_dynamic_prop(i, "dtr_structure_change_required", s == 2, True)
+        )
+        self.editor_layout.addRow(struct_change_chk)
+
+        if struct_change_chk.isChecked():
+            self._set_dynamic_prop(item, "dtr_return_old_pole", True)
+
+            new_pt2 = QComboBox()
+            new_pt2.addItems(["PCC", "STP", "H-BEAM"])
+            new_pt2_val = str(props.get("dtr_new_pole_type2", existing_pt2))
+            if new_pt2_val not in ["PCC", "STP", "H-BEAM"]:
+                new_pt2.addItem(new_pt2_val)
+            new_pt2.setCurrentText(new_pt2_val)
+            new_pt2.currentTextChanged.connect(
+                lambda t, i=item: self._set_dynamic_prop(i, "dtr_new_pole_type2", t, True)
+            )
+            self.editor_layout.addRow("New Pole Type:", new_pt2)
+
+            new_ht = QComboBox()
+            new_ht_opts = self._height_options(new_pt2.currentText())
+            new_ht.addItems(new_ht_opts)
+            new_ht_val = str(props.get("dtr_new_height", existing_h))
+            if new_ht_val not in new_ht_opts:
+                new_ht.addItem(new_ht_val)
+            new_ht.setCurrentText(new_ht_val)
+            new_ht.currentTextChanged.connect(
+                lambda t, i=item: self._set_dynamic_prop(i, "dtr_new_height", t)
+            )
+            self.editor_layout.addRow("New Pole Height:", new_ht)
+
+            def _refresh_new_height_options(pt2: str):
+                old = new_ht.currentText()
+                new_ht.blockSignals(True)
+                new_ht.clear()
+                opts = self._height_options(pt2)
+                new_ht.addItems(opts)
+                if old in opts:
+                    new_ht.setCurrentText(old)
+                elif opts:
+                    new_ht.setCurrentText(opts[0])
+                    self._set_dynamic_prop(item, "dtr_new_height", opts[0])
+                new_ht.blockSignals(False)
+
+            new_pt2.currentTextChanged.connect(_refresh_new_height_options)
+
+            ret_iron = QCheckBox("Return old iron to store")
+            ret_iron.setChecked(bool(props.get("dtr_return_old_iron", False)))
+            ret_iron.stateChanged.connect(
+                lambda s, i=item: self._set_dynamic_prop(i, "dtr_return_old_iron", s == 2)
+            )
+            self.editor_layout.addRow(ret_iron)
+        else:
+            self._set_dynamic_prop(item, "dtr_return_old_pole", False)
+
+        labour_txt = "Includes labour: dismantling existing DTR and fixing new DTR"
+        labour_lbl = QLabel(labour_txt)
+        labour_lbl.setStyleSheet("color:#555; font-style:italic;")
+        self.editor_layout.addRow("Labour:", labour_lbl)
+
+        self._add_separator_line()
+
+    def _build_conductor_augmentation_editor(self, item) -> None:
+        props = dict(getattr(item, "dynamic_props", {}) or {})
+
+        self._add_section_separator("Augmentation")
+
+        aug_chk = QCheckBox("Conductor augmentation required")
+        aug_chk.setChecked(bool(props.get("conductor_aug_required", False)))
+        aug_chk.stateChanged.connect(
+            lambda s, i=item: self._set_dynamic_prop(i, "conductor_aug_required", s == 2, True)
+        )
+        self.editor_layout.addRow(aug_chk)
+
+        if not aug_chk.isChecked():
+            return
+
+        try:
+            current_wc = int(str(getattr(item, "wire_count", "3") or "3"))
+        except ValueError:
+            current_wc = 3
+        if current_wc <= 2:
+            aug_targets = ["3", "4", "5", "ABC"]
+        elif current_wc == 3:
+            aug_targets = ["4", "5", "ABC"]
+        elif current_wc == 4:
+            aug_targets = ["5", "ABC"]
+        else:
+            aug_targets = ["ABC"]
+
+        to_cb = QComboBox()
+        to_cb.addItems(aug_targets)
+        to_val = str(props.get("aug_to_config", aug_targets[0]))
+        if to_val not in aug_targets:
+            to_cb.addItem(to_val)
+        to_cb.setCurrentText(to_val)
+
+        def _on_aug_to_change(text: str, i=item):
+            self._set_dynamic_prop(i, "aug_to_config", text)
+            self._set_dynamic_prop(i, "aug_to_conductor", "AB Cable" if text == "ABC" else "ACSR")
+
+        to_cb.currentTextChanged.connect(_on_aug_to_change)
+        self.editor_layout.addRow("Augment To:", to_cb)
+
+        self._add_separator_line()
 
     def _bind_property_widget(self, item, prop_name: str, widget) -> None:
         """

@@ -25,7 +25,7 @@ import math
 from typing import TYPE_CHECKING, Any
 from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem
 from PyQt6.QtGui import (
-    QPainterPath, QBrush, QColor, QPen, QFont, QPainter, QTransform
+    QPainterPath, QPainterPathStroker, QBrush, QColor, QPen, QFont, QPainter, QTransform
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 
@@ -453,8 +453,16 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             # Colours
             black_pen = QPen(Qt.GlobalColor.black, 1)
             if self.is_existing:
-                self.setBrush(QBrush(QColor("#cccccc")))
-                self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
+                is_aug_dtr = (
+                    self.existing_subtype == "DTR"
+                    and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+                )
+                if is_aug_dtr:
+                    self.setBrush(QBrush(QColor("#f7b267")))
+                    self.setPen(QPen(QColor("#7a4000"), 1.6, Qt.PenStyle.DashLine))
+                else:
+                    self.setBrush(QBrush(QColor("#cccccc")))
+                    self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
             elif self.pole_type == "LT":
                 self.setBrush(QBrush(QColor("#2980b9")))   # blue
                 self.setPen(black_pen)
@@ -467,6 +475,16 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 _sub = self.existing_subtype
                 _sfx = " Struct" if _sub in ("DP", "TP", "4P", "DTR") else " Pole"
                 txt = f"Ex. {_sub}{_sfx}"
+                if _sub == "DTR":
+                    ex_kva = getattr(self, "existing_dtr_size", "None")
+                    txt += f"\n{ex_kva}"
+                    aug_required = bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+                    if aug_required:
+                        target = str(getattr(self, "dynamic_props", {}).get("dtr_new_size", "") or "")
+                        if target:
+                            txt += f"\nEx {ex_kva} S/STN to {target} S/STN"
+                        else:
+                            txt += "\nDTR Augmentation"
             else:
                 ht_m = self.height.replace("MTR", "m")
                 txt  = f"{self.pole_type2} {ht_m} ({self.pole_type})"
@@ -512,6 +530,25 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         super().paint(painter, option, widget)
         if painter is None:
             return
+
+        if (
+            self.is_existing
+            and self.existing_subtype == "DTR"
+            and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+        ):
+            # Emphasize augmented DTR with a larger shadow halo.
+            painter.save()
+            painter.translate(3.0, 3.0)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(0, 0, 0, 80)))
+            painter.drawPath(self.path())
+            painter.restore()
+
+            painter.save()
+            painter.setPen(self.pen())
+            painter.setBrush(self.brush())
+            painter.drawPath(self.path())
+            painter.restore()
 
         # Existing poles use dashed grey pen for body; redraw stay in dark stroke
         # so it remains as visible as new stays.
@@ -561,6 +598,22 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             painter.setPen(QPen(QColor("#7f6000"), 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "DB")
+            painter.restore()
+
+        if (
+            self.is_existing
+            and self.existing_subtype == "DTR"
+            and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+        ):
+            r = self._RADIUS
+            badge = QRectF(r + 4, -(r + 13), 18, 10)
+            painter.save()
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.setBrush(QBrush(QColor("#ffe5cc")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "AUG")
             painter.restore()
     def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -722,6 +775,13 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         txt  = f"{st} Structure\n{self.pole_type2} {ht_m}"
         if st == "DTR" and self.dtr_size != "None":
             txt += f"\n{self.dtr_size} DTR"
+        aug_required = bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+        if st == "DTR" and aug_required:
+            target = str(getattr(self, "dynamic_props", {}).get("dtr_new_size", "") or "")
+            if target:
+                txt += f"\nEx {self.dtr_size} S/STN to {target} S/STN"
+            else:
+                txt += "\nDTR Augmentation"
         if self.has_extension:
             txt += f"\n+Ext {self.extension_height:.1f}m"
         if (not self.detail_view) and self.earth_count > 0:
@@ -749,6 +809,20 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             painter.setPen(QPen(QColor("#1a5276"), 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "E")
+            painter.restore()
+        if (
+            self.structure_type == "DTR"
+            and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
+        ):
+            r = self._RADIUS
+            badge = QRectF(r + 4, -(r + 13), 18, 10)
+            painter.save()
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.setBrush(QBrush(QColor("#ffe5cc")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "AUG")
             painter.restore()
     def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -807,6 +881,19 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         txt = f"Consumer\n{phase_short}{supply_tag}"
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"
+
+        if bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False)):
+            from_cfg = str(getattr(self, "dynamic_props", {}).get("aug_from_config", "") or "")
+            to_cfg = str(getattr(self, "dynamic_props", {}).get("aug_to_config", "") or "")
+            to_cond = str(getattr(self, "dynamic_props", {}).get("aug_to_conductor", "") or "")
+            aug_txt = "AUG"
+            if from_cfg and to_cfg:
+                aug_txt = f"AUG {from_cfg}->{to_cfg}"
+            elif to_cfg:
+                aug_txt = f"AUG TO {to_cfg}"
+            if to_cond:
+                aug_txt += f" ({to_cond})"
+            txt += f"\n{aug_txt}"
         self.label.setPlainText(txt)
         self.label.setPos(-(self.label.boundingRect().width() / 2), 20)
 
@@ -1080,14 +1167,43 @@ class SmartSpan(QGraphicsPathItem):
                             mid_y + ny_n * 16 - 10
                         )
 
+    # ── Hit-test shape (wide corridor for easy clicking) ──────────────────────
+
+    _HIT_WIDTH: float = 26.0   # total hit corridor width (~13 px each side)
+
+    def shape(self) -> QPainterPath:
+        """Return a wide stroked hit area so clicking anywhere between
+        the two poles selects the span, not just clicking the 1 px line."""
+        stroker = QPainterPathStroker()
+        stroker.setWidth(self._HIT_WIDTH)
+        stroker.setCapStyle(Qt.PenCapStyle.FlatCap)    # don't spill past endpoints
+        stroker.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        return stroker.createStroke(self.path())
+
+    def boundingRect(self) -> QRectF:
+        """Pad the base bounding rect by the hit corridor half-width so Qt's
+        coarse culling never rejects a click that is within the hit shape.
+        This is critical for augmented spans whose pen is NoPen (zero default padding)."""
+        base = super().boundingRect()
+        pad  = self._HIT_WIDTH / 2.0
+        return base.adjusted(-pad, -pad, pad, pad)
+
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:
         # ── Pen style ─────────────────────────────────────────────────────
         color = self._PEN_COLORS.get(self.conductor, QColor("#222222"))
         pen   = QPen(color, 1.8)
+        aug_overlay_pair = (
+            bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))
+            and self.conductor == "ACSR"
+            and self.is_existing_span
+        )
 
-        if self.is_existing_span:
+        if aug_overlay_pair:
+            # The pair (existing + projected) is drawn manually in paint().
+            pen = QPen(Qt.PenStyle.NoPen)
+        elif self.is_existing_span:
             pen.setStyle(Qt.PenStyle.SolidLine)
             pen.setWidthF(1.2)
         elif self.conductor == "ACSR":
@@ -1139,10 +1255,6 @@ class SmartSpan(QGraphicsPathItem):
         # Draw the span line itself
         super().paint(painter, option, widget)
 
-        # Draw CG rail symbol at midpoint if enabled
-        if not self.detail_view or not self.has_cg or self.is_existing_span:
-            return
-
         x1, y1 = self.p1.x(), self.p1.y()
         x2, y2 = self.p2.x(), self.p2.y()
         dx, dy  = x2 - x1, y2 - y1
@@ -1164,17 +1276,86 @@ class SmartSpan(QGraphicsPathItem):
             if nx < 0:
                 nx, ny = -nx, -ny
 
-        cg_half  = 0.30 * px_len   # half of 60% span length
-        offset   = 9               # px gap from span line to rail centre
-        rail_sep = 2.6             # px half-gap between the two rails
+        # Draw CG rail symbol at midpoint if enabled.
+        if self.detail_view and self.has_cg and not self.is_existing_span:
+            cg_half  = 0.30 * px_len   # half of 60% span length
+            offset   = 9               # px gap from span line to rail centre
+            rail_sep = 2.6             # px half-gap between the two rails
 
-        # Centre of CG rail band (offset perpendicularly from span midpoint)
-        cx = (x1 + x2) / 2 + nx * offset
-        cy = (y1 + y2) / 2 + ny * offset
+            # Centre of CG rail band (offset perpendicularly from span midpoint)
+            cx = (x1 + x2) / 2 + nx * offset
+            cy = (y1 + y2) / 2 + ny * offset
 
-        painter.save()
-        painter.translate(cx, cy)
-        painter.setPen(QPen(QColor("#9ec5e8"), 1.0))   # light blue rail
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(_cg_rail_path(ux, uy, nx, ny, cg_half, rail_sep))
-        painter.restore()
+            painter.save()
+            painter.translate(cx, cy)
+            painter.setPen(QPen(QColor("#9ec5e8"), 1.0))   # light blue rail
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(_cg_rail_path(ux, uy, nx, ny, cg_half, rail_sep))
+            painter.restore()
+
+        if bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False)):
+            cx = (x1 + x2) / 2
+            cy = (y1 + y2) / 2
+
+            # Draw projected augmentation line parallel to existing span.
+            gap_total = 10.0
+            half_gap = gap_total / 2.0
+
+            # Keep the two lines centered around the true pole-to-pole center line.
+            exx1 = x1 - nx * half_gap
+            exy1 = y1 - ny * half_gap
+            exx2 = x2 - nx * half_gap
+            exy2 = y2 - ny * half_gap
+            px1 = x1 + nx * half_gap
+            py1 = y1 + ny * half_gap
+            px2 = x2 + nx * half_gap
+            py2 = y2 + ny * half_gap
+            aug_to = str(getattr(self, "dynamic_props", {}).get("aug_to_config", "") or "")
+
+            painter.save()
+            # Existing line in pair.
+            painter.setPen(QPen(QColor("#222222"), 1.3, Qt.PenStyle.SolidLine))
+            painter.drawLine(QLineF(exx1, exy1, exx2, exy2))
+
+            if aug_to == "ABC":
+                # Wavy projected line for ABC conversion.
+                wavy = QPainterPath()
+                wavy.moveTo(px1, py1)
+                steps = max(self._MIN_WAVY_STEPS, int(px_len / 2))
+                amp = 2.8
+                freq = px_len / self._WAVY_FREQUENCY_DIV
+                for i in range(1, steps + 1):
+                    t = i / float(steps)
+                    lx = px1 + (px2 - px1) * t
+                    ly = py1 + (py2 - py1) * t
+                    off = math.sin(t * freq * 2 * math.pi) * amp
+                    wavy.lineTo(lx + nx * off, ly + ny * off)
+                painter.setPen(QPen(QColor("#1a5276"), 1.4))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawPath(wavy)
+            else:
+                # Dashed projected line for 3/4/5 wire ACSR projection.
+                dash_pen = QPen(QColor("#4a4a4a"), 1.4, Qt.PenStyle.DashLine)
+                painter.setPen(dash_pen)
+                painter.drawLine(QLineF(px1, py1, px2, py2))
+            painter.restore()
+
+            if aug_to == "ABC":
+                badge_text = "AUG ABC"
+            elif aug_to:
+                badge_text = f"AUG {aug_to}W"
+            else:
+                badge_text = "AUG"
+
+            painter.save()
+            # Keep the badge around the span center but pull it toward the projected/new line.
+            mx = (px1 + px2) / 2 + nx * 3.0
+            my = (py1 + py2) / 2 + ny * 3.0
+            badge = QRectF(mx - 17, my - 5, 34, 10)
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.setBrush(QBrush(QColor("#fff3df")))
+            painter.drawRoundedRect(badge, 2, 2)
+            painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
+            painter.setPen(QPen(QColor("#7a4000"), 1))
+            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, badge_text)
+            painter.restore()

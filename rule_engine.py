@@ -234,6 +234,8 @@ class DynamicRuleEngine:
         self, item: SmartStructure,
         use_uh: bool, project_type: str
     ) -> dict:
+        dyn = dict(getattr(item, "dynamic_props", {}) or {})
+        dtr_aug_required = bool(dyn.get("dtr_aug_required", False))
         ht_spans_count = sum(
             1 for s in getattr(item, "connected_spans", [])
             if s.conductor == "ACSR"
@@ -252,16 +254,29 @@ class DynamicRuleEngine:
             "dtr_size":         item.dtr_size,
             "kiosk_required":   getattr(item, "kiosk_required", True),
             "ht_spans_count":   ht_spans_count,
+            "dtr_aug_required": dtr_aug_required,
+            "dtr_from_size":    item.dtr_size,
+            "dtr_to_size":      str(dyn.get("dtr_new_size", "None")),
+            "dtr_structure_change_required": bool(dyn.get("dtr_structure_change_required", False)),
+            "dtr_new_pole_type2": str(dyn.get("dtr_new_pole_type2", item.pole_type2)),
+            "dtr_new_height":   str(dyn.get("dtr_new_height", item.height)),
+            "dtr_return_old_dtr": bool(dyn.get("dtr_return_old_dtr", dtr_aug_required)),
+            "dtr_return_old_pole": bool(
+                dyn.get("dtr_return_old_pole", bool(dyn.get("dtr_structure_change_required", False)))
+            ),
+            "dtr_return_old_iron": bool(dyn.get("dtr_return_old_iron", False)),
             "use_uh":           use_uh,
             "project_type":     project_type,
         }
-        ctx.update(getattr(item, "dynamic_props", {}))
+        ctx.update(dyn)
         return ctx
 
     def _build_span_context(
         self, item: SmartSpan,
         use_uh: bool, project_type: str
     ) -> dict:
+        dyn = dict(getattr(item, "dynamic_props", {}) or {})
+        cond_aug_required = bool(dyn.get("conductor_aug_required", False))
         # wire_count as int — old rules used int(wire_count)
         try:
             wire_count_int = int(item.wire_count)
@@ -287,10 +302,20 @@ class DynamicRuleEngine:
             "has_cg":           item.has_cg,
             "phase":            item.phase,
             "consider_cable":   item.consider_cable,
+            "conductor_aug_required": cond_aug_required,
+            "aug_from_config":  str(
+                dyn.get("aug_from_config", {
+                    "2": "1P2W",
+                    "3": "2P3W",
+                    "4": "3P4W",
+                }.get(str(getattr(item, "wire_count", "3")), "2P3W"))
+            ),
+            "aug_to_config":    str(dyn.get("aug_to_config", "")),
+            "aug_to_conductor": str(dyn.get("aug_to_conductor", "")),
             "use_uh":           use_uh,
             "project_type":     project_type,
         }
-        ctx.update(getattr(item, "dynamic_props", {}))
+        ctx.update(dyn)
         return ctx
 
     def _build_consumer_context(
