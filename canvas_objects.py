@@ -505,23 +505,25 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             # Preserve old behavior for pure vertical spans: label on right.
             # Preserve old behavior for pure horizontal spans: label below.
             # Only use stay-direction quadrant for mixed corner cases.
-            lw = self.label.boundingRect().width()
-            lh = self.label.boundingRect().height()
-            if self.connected_spans:
-                layout = self._connected_span_layout()
-                if layout == "vertical":
-                    self.label.setPos(r + 10, -lh / 2)
-                elif layout == "mixed":
-                    self.label.setPos(self._label_pos_from_stay(r, lw, lh, stay_angle))
+            if not getattr(self.label, "user_moved", False):
+                lw = self.label.boundingRect().width()
+                lh = self.label.boundingRect().height()
+                if self.connected_spans:
+                    layout = self._connected_span_layout()
+                    if layout == "vertical":
+                        self.label.set_auto_pos(r + 10, -lh / 2)
+                    elif layout == "mixed":
+                        p = self._label_pos_from_stay(r, lw, lh, stay_angle)
+                        self.label.set_auto_pos(p.x(), p.y())
+                    else:
+                        lbl_y = r + 8
+                        self.label.set_auto_pos(-lw / 2, lbl_y)
                 else:
-                    lbl_y = r + 8
-                    self.label.setPos(-lw / 2, lbl_y)
-            else:
-                if self.is_existing and self.existing_subtype in ("TP", "4P"):
-                    lbl_y = 27   # taller structure symbol
-                else:
-                    lbl_y = r + 8
-                self.label.setPos(-lw / 2, lbl_y)
+                    if self.is_existing and self.existing_subtype in ("TP", "4P"):
+                        lbl_y = 27   # taller structure symbol
+                    else:
+                        lbl_y = r + 8
+                    self.label.set_auto_pos(-lw / 2, lbl_y)
         finally:
             self._updating_visuals = False
 
@@ -792,7 +794,8 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             txt += f"\n📝 {self.custom_note}"
 
         self.label.setPlainText(txt)
-        self.label.setPos(-(self.label.boundingRect().width() / 2), 26)
+        if not getattr(self.label, "user_moved", False):
+            self.label.set_auto_pos(-(self.label.boundingRect().width() / 2), 26)
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
@@ -895,7 +898,8 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
                 aug_txt += f" ({to_cond})"
             txt += f"\n{aug_txt}"
         self.label.setPlainText(txt)
-        self.label.setPos(-(self.label.boundingRect().width() / 2), 20)
+        if not getattr(self.label, "user_moved", False):
+            self.label.set_auto_pos(-(self.label.boundingRect().width() / 2), 20)
 
         # Colour hint for agency vs WBSEDCL
         if self.agency_supply:
