@@ -1550,5 +1550,237 @@
     "type": "Material",
     "item_code": "0501030521",
     "formula": "length / 1000"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '16KVA'",
+    "type": "Material",
+    "item_code": "0301018041",
+    "item_name": "DISTRIBUTION TRANSFORMER 16 KVA",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '25KVA'",
+    "type": "Material",
+    "item_code": "0301018141",
+    "item_name": "DISTRIBUTION TRANSFORMER 25 KVA",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '63KVA'",
+    "type": "Material",
+    "item_code": "0301018241",
+    "item_name": "DISTRIBUTION TRANSFORMER 63 KVA",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '100KVA'",
+    "type": "Material",
+    "item_code": "0301018341",
+    "item_name": "DISTRIBUTION TRANSFORMER 100 KVA",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '25KVA'",
+    "type": "Labor",
+    "item_code": "LAB-80",
+    "item_name": "DTR Aug. 16KVA to 25KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '63KVA'",
+    "type": "Labor",
+    "item_code": "LAB-81",
+    "item_name": "DTR Aug. 16KVA to 63KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '100KVA'",
+    "type": "Labor",
+    "item_code": "LAB-82",
+    "item_name": "DTR Aug. 16KVA to 100KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '63KVA'",
+    "type": "Labor",
+    "item_code": "LAB-83",
+    "item_name": "DTR Aug. 25KVA to 63KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '100KVA'",
+    "type": "Labor",
+    "item_code": "LAB-84",
+    "item_name": "DTR Aug. 25KVA to 100KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '63KVA' and dtr_new_size == '100KVA'",
+    "type": "Labor",
+    "item_code": "LAB-85",
+    "item_name": "DTR Aug. 63KVA to 100KVA Dismantling & Installation",
+    "formula": "1"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '8MTR'",
+    "type": "Material",
+    "item_code": "0110030141",
+    "item_name": "P C C POLE:8 Mtrs.Long",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '9MTR'",
+    "type": "Material",
+    "item_code": "0110030241",
+    "item_name": "P C C POLE:9 Mtrs.Long",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP' and dtr_new_height == '9MTR'",
+    "type": "Material",
+    "item_code": "0110010341",
+    "item_name": "STEEL TUBULAR POLE 9 M LONG (WITH CAP)",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP' and dtr_new_height == '11MTR'",
+    "type": "Material",
+    "item_code": "0110010741",
+    "item_name": "STEEL TUBULAR POLE 11 M LONG (WITH CAP)",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '8MTR'",
+    "type": "Labor",
+    "item_code": "LAB-05",
+    "item_name": "Erection of 8MTR PCC Pole (HT) Without Painted",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '9MTR'",
+    "type": "Labor",
+    "item_code": "LAB-06",
+    "item_name": "Erection of 9MTR PCC Pole (HT) Without Painted",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP'",
+    "type": "Labor",
+    "item_code": "LAB-07",
+    "item_name": "Erection of 9MTR STP Pole Single Pole HT",
+    "formula": "2"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True",
+    "type": "Labor",
+    "item_code": "LAB-86",
+    "item_name": "DTR S/STN Structure Conversion DP to 4-Pole",
+    "formula": "1"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '3'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "1 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '4'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "2 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '5'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "3 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 3 and aug_to_config == '4'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "1 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 3 and aug_to_config == '5'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "2 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 4 and aug_to_config == '5'",
+    "type": "Material",
+    "item_code": "0502010921",
+    "item_name": "ACSR Conductor 50SQMM (Rabbit)",
+    "formula": "1 * (length / 1000)"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and ((wire_count == 2 and aug_to_config == '3') or (wire_count == 3 and aug_to_config == '4') or (wire_count == 4 and aug_to_config == '5'))",
+    "type": "Labor",
+    "item_code": "LAB-87",
+    "item_name": "Aug. Stringing & Sagging ACSR 50SQMM 1 Wire",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and ((wire_count == 2 and aug_to_config == '4') or (wire_count == 3 and aug_to_config == '5'))",
+    "type": "Labor",
+    "item_code": "LAB-88",
+    "item_name": "Aug. Stringing & Sagging ACSR 50SQMM 2 Wire",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '5'",
+    "type": "Labor",
+    "item_code": "LAB-89",
+    "item_name": "Aug. Stringing & Sagging ACSR 50SQMM 3 Wire",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and aug_to_config == 'ABC'",
+    "type": "Material",
+    "item_code": "0501030421",
+    "item_name": "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
+    "formula": "length / 1000"
+  },
+  {
+    "object": "SmartSpan",
+    "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and aug_to_config == 'ABC'",
+    "type": "Labor",
+    "item_code": "LAB-37",
+    "item_name": "Stringing & Sagging LT AB Cable 3CX50+1CX16+1CX35",
+    "formula": "length / 1000"
   }
 ]
