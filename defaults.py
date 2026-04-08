@@ -72,6 +72,9 @@ _FACTORY: dict = {
     "sd_conductor_size":  "10 SQMM",
     "sd_length":          20,
     "sd_phase":           "3 Phase",
+
+    # Export settings
+    "export_last_dir":    "",
 }
 
 # Module-level mutable dict — read by canvas_objects.py on each new item

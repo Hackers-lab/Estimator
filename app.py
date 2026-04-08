@@ -173,6 +173,10 @@ class EstimateApp(QMainWindow):
         act_save.triggered.connect(self.save_to_file)
         file_menu.addAction(act_save)
 
+        act_save_bundle = QAction("🧩  Save Project Bundle…", self)
+        act_save_bundle.triggered.connect(self.save_project_bundle)
+        file_menu.addAction(act_save_bundle)
+
         file_menu.addSeparator()
 
         self.act_undo = QAction("↶ Undo", self)
@@ -203,6 +207,10 @@ class EstimateApp(QMainWindow):
         act_xl = QAction("📊  Generate Excel Estimate", self)
         act_xl.triggered.connect(self.generate_excel)
         export_menu.addAction(act_xl)
+
+        act_bundle = QAction("🧩  Save PDF + Excel + JSON Bundle", self)
+        act_bundle.triggered.connect(self.save_project_bundle)
+        export_menu.addAction(act_bundle)
 
         # ── Settings ─────────────────────────────────────────────────────
         settings_menu = mb.addMenu("&Settings")
@@ -2578,9 +2586,117 @@ class EstimateApp(QMainWindow):
     #  EXCEL EXPORT
     # =========================================================================
 
+    def _default_export_dir(self) -> str:
+        saved = str(defaults.current.get("export_last_dir", "") or "").strip()
+        if saved and os.path.isdir(saved):
+            return saved
+        return os.getcwd()
+
+    def _remember_export_path(self, saved_path: str) -> None:
+        folder = os.path.dirname(saved_path)
+        if not folder:
+            return
+        if not os.path.isdir(folder):
+            return
+        defaults.save({"export_last_dir": folder})
+
+    def _open_saved_file(self, file_path: str) -> None:
+        try:
+            os.startfile(file_path)  # type: ignore[attr-defined]
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Open File Failed",
+                f"Could not open file.\n\n{exc}",
+            )
+
+    def _open_saved_folder(self, path: str) -> None:
+        folder = path if os.path.isdir(path) else os.path.dirname(path)
+        if not folder:
+            return
+        try:
+            os.startfile(folder)  # type: ignore[attr-defined]
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Open Folder Failed",
+                f"Could not open folder.\n\n{exc}",
+            )
+
+    def _safe_subject_stem(self, fallback: str) -> str:
+        raw = (self.project_meta.get("subject") or "").strip()
+        safe = "".join(c for c in raw if c not in r'\/*?:"<>|')
+        return safe if safe else fallback
+
+    def save_project_bundle(self):
+        if self.scene.itemsBoundingRect().isNull():
+            QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
+            return
+
+        target_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Folder for Project Bundle",
+            self._default_export_dir(),
+        )
+        if not target_dir:
+            return
+
+        stem = self._safe_subject_stem("project")
+        json_path = os.path.join(target_dir, f"{stem}.json")
+        pdf_path = os.path.join(target_dir, f"{stem}.pdf")
+        excel_path = os.path.join(target_dir, f"{stem}_Estimate.xlsx")
+
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(self.compile_save_data(), f, indent=2)
+
+            pdf_saved = PDFExporter(self).export(
+                output_path=pdf_path,
+                show_success=False,
+            )
+            excel_saved = ExcelExporter(self).generate(
+                output_path=excel_path,
+                show_success=False,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Bundle Export Failed",
+                f"Could not save project bundle.\n\n{exc}",
+            )
+            return
+
+        if not pdf_saved or not excel_saved:
+            QMessageBox.warning(
+                self,
+                "Bundle Export Incomplete",
+                "PDF or Excel export did not complete. JSON file was still saved.",
+            )
+            return
+
+        self._remember_export_path(json_path)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Bundle Saved")
+        msg.setText(
+            "Saved project bundle:\n"
+            f"- {json_path}\n"
+            f"- {pdf_saved}\n"
+            f"- {excel_saved}"
+        )
+        open_folder_btn = msg.addButton("Open Folder", QMessageBox.ButtonRole.ActionRole)
+        msg.addButton(QMessageBox.StandardButton.Close)
+        msg.exec()
+        if msg.clickedButton() == open_folder_btn:
+            self._open_saved_folder(target_dir)
+
     def generate_excel(self):
         """Delegate to ExcelExporter."""
-        ExcelExporter(self).generate()
+        saved_path = ExcelExporter(self).generate(
+            initial_dir=self._default_export_dir()
+        )
+        if saved_path:
+            self._remember_export_path(saved_path)
 
     # =========================================================================
     #  PDF EXPORT
@@ -2588,7 +2704,11 @@ class EstimateApp(QMainWindow):
 
     def export_pdf(self):
         """Delegate to PDFExporter."""
-        PDFExporter(self).export()
+        saved_path = PDFExporter(self).export(
+            initial_dir=self._default_export_dir()
+        )
+        if saved_path:
+            self._remember_export_path(saved_path)
 
     # =========================================================================
     #  SAVE / LOAD / AUTOSAVE
@@ -2926,6 +3046,15 @@ class EstimateApp(QMainWindow):
         if filename:
             with open(filename, "w") as f:
                 json.dump(self.compile_save_data(), f, indent=2)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("Project Saved")
+            msg.setText(f"Project saved to:\n{filename}")
+            open_folder_btn = msg.addButton("Open Folder", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton(QMessageBox.StandardButton.Close)
+            msg.exec()
+            if msg.clickedButton() == open_folder_btn:
+                self._open_saved_folder(filename)
 
     def load_autosave(self):
         loaded_any = False

@@ -12,6 +12,7 @@ Usage::
 from __future__ import annotations
 
 import json as _json
+import os
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -45,24 +46,53 @@ class ExcelExporter:
 
     # ── Main entry point ─────────────────────────────────────────────────────
 
-    def generate(self) -> None:
+    def generate(
+        self,
+        output_path: str | None = None,
+        initial_dir: str | None = None,
+        show_success: bool = True,
+    ) -> str | None:
         app = self._app
         m   = app.project_meta
         subject = m.get("subject", "ERP_Estimate")
         safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
         default = f"{safe}_Estimate.xlsx" if safe else "ERP_Estimate.xlsx"
 
-        filename, _ = QFileDialog.getSaveFileName(
-            app, "Export ERP Estimate", default, "Excel Files (*.xlsx)"
-        )
+        filename = output_path
         if not filename:
-            return
+            start_path = default
+            if initial_dir:
+                start_path = f"{initial_dir.rstrip('/\\')}\\{default}"
+            filename, _ = QFileDialog.getSaveFileName(
+                app, "Export ERP Estimate", start_path, "Excel Files (*.xlsx)"
+            )
+            if not filename:
+                return None
 
         wb = openpyxl.Workbook()
         self._write_estimate_sheet(wb, m)
         self._write_iron_breakup_sheet(wb)
         wb.save(filename)
-        QMessageBox.information(app, "Success", f"Excel saved to:\n{filename}")
+        if show_success:
+            msg = QMessageBox(app)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("Excel Saved")
+            msg.setText(f"Excel saved to:\n{filename}")
+            open_file_btn = msg.addButton("Open File", QMessageBox.ButtonRole.ActionRole)
+            open_folder_btn = msg.addButton("Open Folder", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton(QMessageBox.StandardButton.Close)
+            msg.exec()
+            if msg.clickedButton() == open_file_btn:
+                try:
+                    os.startfile(filename)  # type: ignore[attr-defined]
+                except Exception as exc:
+                    QMessageBox.warning(app, "Open File Failed", f"Could not open file.\n\n{exc}")
+            elif msg.clickedButton() == open_folder_btn:
+                try:
+                    os.startfile(os.path.dirname(filename))  # type: ignore[attr-defined]
+                except Exception as exc:
+                    QMessageBox.warning(app, "Open Folder Failed", f"Could not open folder.\n\n{exc}")
+        return filename
 
     # ── Estimate sheet ───────────────────────────────────────────────────────
 

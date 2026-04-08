@@ -189,6 +189,9 @@ Defines the build configuration for PyInstaller: entry point (`app.py`), hidden 
 
 ## Documentation / Reference Files
 
+### `FUTURE_FEATURES.md`
+Backlog of requested future enhancements and product ideas, including externalized configuration goals, export workflow improvements, and recipe-based iron calculation planning.
+
 ### `DOCS/`
 Sample saved project files used for testing and reference:
 - `KUSHIDA PHE III.json` — a complete project drawing saved in v6 format.

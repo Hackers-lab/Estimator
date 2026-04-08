@@ -12,6 +12,7 @@ Usage::
 from __future__ import annotations
 
 import math
+import os
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -577,7 +578,12 @@ class PDFExporter:
 
     # ── Main export entry point ──────────────────────────────────────────────
 
-    def export(self) -> None:
+    def export(
+        self,
+        output_path: str | None = None,
+        initial_dir: str | None = None,
+        show_success: bool = True,
+    ) -> str | None:
         """
         Export a multi-page PDF whose page layout matches the canvas page grid.
         Each tile visible in the grid becomes one page in the PDF.
@@ -589,21 +595,26 @@ class PDFExporter:
         safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
         default = f"{safe}.pdf" if safe else "Project_Drawing.pdf"
 
-        filename, _ = QFileDialog.getSaveFileName(
-            app, "Export PDF Drawing", default, "PDF Files (*.pdf)"
-        )
+        filename = output_path
         if not filename:
-            return
+            start_path = default
+            if initial_dir:
+                start_path = f"{initial_dir.rstrip('/\\')}\\{default}"
+            filename, _ = QFileDialog.getSaveFileName(
+                app, "Export PDF Drawing", start_path, "PDF Files (*.pdf)"
+            )
+            if not filename:
+                return None
 
         if app.scene.itemsBoundingRect().isNull():
             QMessageBox.warning(app, "Empty Canvas", "Nothing to export.")
-            return
+            return None
 
         app._refresh_page_grid()
         tiles = app.view.grid_tiles
         if not tiles:
             QMessageBox.warning(app, "Empty Canvas", "Nothing to export.")
-            return
+            return None
 
         total_pages = tiles[0]["total"]
 
@@ -788,9 +799,27 @@ class PDFExporter:
         if override_count:
             orient_summary += f"  |  Overrides:{override_count}"
 
-        QMessageBox.information(
-            app, "PDF Exported",
-            f"Saved {total_pages} page(s) to:\n{filename}\n\n"
-            f"Scale: 1:{app.pdf_scale}  |  "
-            f"Orientation: {app.pdf_orientation_mode} ({orient_summary})",
-        )
+        if show_success:
+            msg = QMessageBox(app)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("PDF Exported")
+            msg.setText(
+                f"Saved {total_pages} page(s) to:\n{filename}\n\n"
+                f"Scale: 1:{app.pdf_scale}  |  "
+                f"Orientation: {app.pdf_orientation_mode} ({orient_summary})"
+            )
+            open_file_btn = msg.addButton("Open File", QMessageBox.ButtonRole.ActionRole)
+            open_folder_btn = msg.addButton("Open Folder", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton(QMessageBox.StandardButton.Close)
+            msg.exec()
+            if msg.clickedButton() == open_file_btn:
+                try:
+                    os.startfile(filename)  # type: ignore[attr-defined]
+                except Exception as exc:
+                    QMessageBox.warning(app, "Open File Failed", f"Could not open file.\n\n{exc}")
+            elif msg.clickedButton() == open_folder_btn:
+                try:
+                    os.startfile(os.path.dirname(filename))  # type: ignore[attr-defined]
+                except Exception as exc:
+                    QMessageBox.warning(app, "Open Folder Failed", f"Could not open folder.\n\n{exc}")
+        return filename
