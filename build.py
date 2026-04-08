@@ -18,7 +18,7 @@ DIST_DIR = "dist"
 FOLDER   = f"{APP_NAME}_v{APP_VERSION}"
 
 # Data files to copy next to the exe
-DATA_FILES = ["rules.json", "logo.svg", "HELP.html"]
+DATA_FILES = ["data/rules.json", "assets/logo.svg", "assets/HELP.html"]
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
@@ -43,11 +43,12 @@ cmd = [
     "--icon", "logo.ico",
     # Bundle data files into _internal/ so resource_path() and __file__-relative
     # lookups work correctly at runtime.
-    "--add-data", "seed_data.json;.",
-    "--add-data", "rules.json;.",
-    "--add-data", "logo.svg;.",
-    "--add-data", "logo.ico;.",
-    "--add-data", "HELP.html;.",
+    "--add-data", "data/seed_data.json;data",
+    "--add-data", "data/rules.json;data",
+    "--add-data", "assets/logo.svg;assets",
+    "--add-data", "assets/logo.ico;assets",
+    "--add-data", "assets/HELP.html;assets",
+    "--add-data", "assets/icons;assets/icons",
     # Hidden imports that PyInstaller might miss
     "--hidden-import", "openpyxl",
     "--hidden-import", "sqlite3",

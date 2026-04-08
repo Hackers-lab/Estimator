@@ -1,0 +1,236 @@
+"""
+ui_dialogs.py
+=============
+All QDialog subclasses for ERP Estimate Generator.
+
+Dialogs
+-------
+ProjectSetupDialog      NEW — project wizard shown on launch and via
+                             "Project Settings" button. Captures project
+                             type, subject, lat/long, division, circle,
+                             UH toggle. Returns project_meta dict.
+
+SearchDialog            — search materials / labour DB and add to estimate.
+                          Unchanged from v4 except minor style tweaks.
+
+SettingsDialog          — gateway to DB manager and Ruleset Manager.
+                          Unchanged from v4.
+
+DatabaseManagerDialog   — view, import, export the SQLite master DB.
+                          Unchanged from v4.
+
+RulesetManagerDialog    — full rule builder / simulator / editor.
+                          Updated: TREE_DEF, FILTER_CHIPS, SIM_DEFAULTS
+                          now imported from constants.py instead of being
+                          hardcoded in the class body. SmartStructure and
+                          SmartConsumer added throughout.
+"""
+
+import sqlite3
+import json
+import re
+import openpyxl
+
+from core import defaults
+from core import property_catalog
+from app_config import APP_DISPLAY_NAME, APP_VERSION
+
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+    QLineEdit, QListWidget, QPushButton, QCheckBox,
+    QTabWidget, QTableWidget, QTableWidgetItem,
+    QFileDialog, QMessageBox, QGroupBox, QComboBox,
+    QSpinBox, QDoubleSpinBox, QHeaderView, QInputDialog,
+    QWidget, QSplitter, QTreeWidget, QTreeWidgetItem,
+    QLabel, QScrollArea, QDialogButtonBox, QFrame,
+)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QFont
+
+from core.constants import (
+    PROPERTY_DATA, FORMULA_VARS,
+    PROJECT_TYPES, SUPERVISION_RATES,
+    SIM_DEFAULTS, TREE_DEF, FILTER_CHIPS,
+)
+
+
+def _runtime_property_data() -> dict:
+    return property_catalog.build_property_data(PROPERTY_DATA)
+
+
+def _runtime_sim_defaults() -> dict:
+    return property_catalog.build_sim_defaults(SIM_DEFAULTS)
+
+
+from ui.dialogs._shared import ClickableCard
+
+class ProjectSetupDialog(QDialog):
+    """
+    Project Setup Wizard — shown on first launch and via 'Project Settings'.
+
+    Captures
+    --------
+    subject       : project name / description
+    lat, long     : GPS coordinates
+    division      : utility division name
+    circle        : utility circle name
+    project_type  : one of PROJECT_TYPES (drives supervision rate)
+    use_uh        : bool — use UH (readymade) materials instead of raw steel
+    supervision_rate : float — auto-derived from project_type
+
+    Parameters
+    ----------
+    current_meta : dict  — pre-populate fields from existing project_meta
+    parent       : QWidget
+    first_run    : bool  — if True, shows a welcome banner; if False,
+                           shows an "Edit Settings" heading instead
+    """
+
+    def __init__(self, current_meta: dict, parent=None, first_run: bool = True):
+        super().__init__(parent)
+        self._meta = dict(current_meta)
+        self.setWindowTitle(
+            "New Project Setup" if first_run else "Project Settings"
+        )
+        self.setMinimumWidth(480)
+        self.setModal(True)
+
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+        root.setContentsMargins(16, 16, 16, 16)
+
+        # ── Banner ────────────────────────────────────────────────────────
+        if first_run:
+            banner = QLabel(
+                f"<b style='font-size:14px;'>{APP_DISPLAY_NAME} v{APP_VERSION}</b><br>"
+                "<span style='color:#555;'>Set up your project before drawing.</span>"
+            )
+            banner.setStyleSheet(
+                "background:#ddeeff; padding:10px; border-radius:5px;"
+            )
+            banner.setWordWrap(True)
+            root.addWidget(banner)
+        else:
+            lbl = QLabel("<b>Edit Project Settings</b>")
+            lbl.setStyleSheet("font-size:13px;")
+            root.addWidget(lbl)
+
+        # ── Form ──────────────────────────────────────────────────────────
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        # Subject
+        self._subject = QLineEdit(self._meta.get("subject", ""))
+        self._subject.setPlaceholderText("e.g. GOCHIYA II LT Line Extension")
+        form.addRow("Project Name:", self._subject)
+
+        # Lat / Long side by side
+        ll_w = QWidget()
+        ll_l = QHBoxLayout(ll_w)
+        ll_l.setContentsMargins(0, 0, 0, 0)
+        ll_l.setSpacing(6)
+        self._lat  = QLineEdit(self._meta.get("lat", ""))
+        self._long = QLineEdit(self._meta.get("long", ""))
+        self._lat.setPlaceholderText("Latitude")
+        self._long.setPlaceholderText("Longitude")
+        ll_l.addWidget(self._lat)
+        ll_l.addWidget(self._long)
+        form.addRow("Lat / Long:", ll_w)
+
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color:#ccc;")
+        form.addRow(sep)
+
+        # Project type (Shifting / Maintenance / Augmentation disabled — NSC only)
+        self._proj_type = QComboBox()
+        self._proj_type.addItems(PROJECT_TYPES)
+        current_type = self._meta.get("project_type", "NSC")
+        if current_type in PROJECT_TYPES:
+            self._proj_type.setCurrentText(current_type)
+        else:
+            self._proj_type.setCurrentText("NSC")
+        form.addRow("Project Type:", self._proj_type)
+
+        # Supervision rate display (read-only)
+        self._sup_lbl = QLabel()
+        self._sup_lbl.setStyleSheet("color:#27ae60; font-weight:bold;")
+        form.addRow("Supervision Rate:", self._sup_lbl)
+
+        # Separator
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setStyleSheet("color:#ccc;")
+        form.addRow(sep2)
+
+        # UH toggle (NSC projects only)
+        self._uh = QCheckBox(
+            "Use UH (Readymade) Materials instead of Raw Steel"
+        )
+        self._uh.setStyleSheet("font-weight:bold; color:#107C41;")
+        self._uh.setChecked(self._meta.get("use_uh", False))
+        form.addRow(self._uh)
+
+        # Now connect signal & trigger initial sync (after _uh exists)
+        self._proj_type.currentTextChanged.connect(self._on_type_changed)
+        self._on_type_changed(self._proj_type.currentText())
+
+        root.addLayout(form)
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        btns.accepted.connect(self._on_accept)
+        btns.rejected.connect(self.reject)
+        ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn is not None:
+            ok_btn.setText("✔ Continue" if first_run else "✔ Save")
+            ok_btn.setStyleSheet(
+                "background:#2980b9; color:white; font-weight:bold; padding:6px 16px;"
+            )
+        root.addWidget(btns)
+
+    # ── Slots ─────────────────────────────────────────────────────────────────
+
+    def _on_type_changed(self, proj_type: str):
+        rate = SUPERVISION_RATES.get(proj_type, 0.10)
+        self._sup_lbl.setText(f"{int(rate * 100)}%")
+        self._meta["project_type"]     = proj_type
+        self._meta["supervision_rate"] = rate
+        self._sync_uh_visibility(proj_type)
+
+    def _sync_uh_visibility(self, proj_type: str):
+        is_nsc = proj_type == "NSC"
+        self._uh.setEnabled(is_nsc)
+        if not is_nsc:
+            self._uh.setChecked(False)
+
+    def _on_accept(self):
+        subj = self._subject.text().strip()
+        if not subj:
+            QMessageBox.warning(
+                self, "Required", "Please enter a Project Name."
+            )
+            return
+        self._meta["subject"]  = subj
+        self._meta["lat"]      = self._lat.text().strip()
+        self._meta["long"]     = self._long.text().strip()
+        self._meta["use_uh"]   = self._uh.isChecked()
+        proj_type = self._proj_type.currentText()
+        self._meta["project_type"]     = proj_type
+        self._meta["supervision_rate"] = SUPERVISION_RATES.get(proj_type, 0.10)
+        self.accept()
+
+    def get_meta(self) -> dict:
+        """Call after exec() == Accepted to retrieve the filled project_meta."""
+        return dict(self._meta)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SearchDialog
+# ─────────────────────────────────────────────────────────────────────────────
+

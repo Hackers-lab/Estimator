@@ -5,7 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('seed_data.json', '.'), ('rules.json', '.'), ('logo.svg', '.'), ('logo.ico', '.'), ('HELP.html', '.')],
+    datas=[('data/seed_data.json', 'data'), ('data/rules.json', 'data'), ('assets/logo.svg', 'assets'), ('assets/logo.ico', 'assets'), ('assets/HELP.html', 'assets'), ('assets/icons', 'assets/icons')],
     hiddenimports=['openpyxl', 'sqlite3'],
     hookspath=[],
     hooksconfig={},

@@ -10,7 +10,7 @@ APP_EXPIRY    : Set to "YYYY-MM-DD" to hard-expire the app on that date,
 
 APP_DISPLAY_NAME = "ERP Estimate Generator"
 APP_NAME = "ERP_Estimate"
-APP_VERSION = "6.2"
+APP_VERSION = "6.3"
 APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.

@@ -35,21 +35,21 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, QSize, pyqtSignal
 from PyQt6.QtPrintSupport import QPrinter
 
-from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
-import defaults
-import property_catalog
+from core.constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
+from core import defaults
+from core import property_catalog
 from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY
-from database import setup_database
-from rule_engine import DynamicRuleEngine
-from ui_components import InteractiveView, DraggableLabel
-from canvas_objects import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
-from ui_dialogs import (
+from core.database import setup_database
+from core.rule_engine import DynamicRuleEngine
+from ui.components import InteractiveView, DraggableLabel
+from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
+from ui.dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
     RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
     PropertyEditorDialog,
 )
-from pdf_exporter import PDFExporter
-from excel_exporter import ExcelExporter
+from exporters.pdf import PDFExporter
+from exporters.excel import ExcelExporter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ class EstimateApp(QMainWindow):
         # ── Build UI ───────────────────────────────────────────────────────
         self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
         self.setGeometry(50, 50, 1650, 930)
-        logo_path = resource_path("logo.svg")
+        logo_path = resource_path("assets/logo.svg")
         if os.path.exists(logo_path):
             self.setWindowIcon(QIcon(logo_path))
         self._build_menu_bar()
@@ -439,7 +439,7 @@ class EstimateApp(QMainWindow):
             btn = QPushButton()
             btn.setToolTip(tooltip)
             btn.setFixedSize(28, 28)
-            btn.setIcon(QIcon(resource_path(f"icons/{icon_name}")))
+            btn.setIcon(QIcon(resource_path(f"assets/icons/{icon_name}")))
             btn.setIconSize(QSize(20, 20))
             btn.setStyleSheet(
                 f"background:{bg}; border-radius:3px; border:1px solid #ccc;"
@@ -2767,7 +2767,7 @@ class EstimateApp(QMainWindow):
             # Load rules
             rules = []
             try:
-                with open("rules.json", "r") as f:
+                with open(resource_path("data/rules.json"), "r", encoding="utf-8") as f:
                     rules = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
@@ -3472,7 +3472,7 @@ class EstimateApp(QMainWindow):
     def show_about_dialog(self):
         dlg = QMessageBox(self)
         dlg.setWindowTitle("About")
-        logo_path = resource_path("logo.svg")
+        logo_path = resource_path("assets/logo.svg")
         if os.path.exists(logo_path):
             pix = QPixmap(logo_path).scaled(96, 96, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             dlg.setIconPixmap(pix)
@@ -3508,7 +3508,7 @@ class EstimateApp(QMainWindow):
         """)
 
     def show_help(self):
-        help_path = resource_path("HELP.html")
+        help_path = resource_path("assets/HELP.html")
         if os.path.exists(help_path):
             with open(help_path, "r", encoding="utf-8") as f:
                 html = f.read()
