@@ -1154,22 +1154,18 @@ class SmartSpan(QGraphicsPathItem):
             lh     = self.label.boundingRect().height()
 
             if not getattr(self.label, "user_moved", False):
-                # ACSR: horizontal label above span, vertical label left of span.
-                if self.conductor == "ACSR":
-                    if abs(dx) >= abs(dy):
-                        y_top = min(y1, y2) - lh - 8
-                        self.label.set_auto_pos(mid_x - lw / 2, y_top)
-                    else:
-                        x_left = min(x1, x2) - lw - 10
-                        self.label.set_auto_pos(x_left, mid_y - lh / 2)
-                else:
-                    if abs(dx) >= abs(dy):
-                        self.label.set_auto_pos(mid_x - lw / 2, mid_y - 24)
-                    else:
-                        self.label.set_auto_pos(
-                            mid_x + nx_n * 16 - lw / 2,
-                            mid_y + ny_n * 16 - 10
-                        )
+                # Always offset perpendicularly from midpoint so diagonal
+                # spans keep the label centred, not drifted toward a pole.
+                # Pick the perpendicular direction that goes upward (–y in screen).
+                perp_x = nx_n
+                perp_y = ny_n
+                if perp_y > 0:           # pointing down — flip to go up
+                    perp_x, perp_y = -perp_x, -perp_y
+                offset = 20              # px gap from span line to label edge
+                self.label.set_auto_pos(
+                    mid_x + perp_x * offset - lw / 2,
+                    mid_y + perp_y * offset - lh / 2,
+                )
 
     # ── Hit-test shape (wide corridor for easy clicking) ──────────────────────
 
