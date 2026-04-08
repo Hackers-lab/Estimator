@@ -1,11 +1,12 @@
 {
-    "version": "6.1",
+    "version": "6.2",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-04-30",
-    "release_date": "2026-04-07",
+    "release_date": "2026-04-08",
     "changelog": {
+        "6.2": "AB cable erection labour split by size (3CX50→LAB-37, 3CX70→LAB-36), dead-end threshold ≥65°, ACSR span wire-count tick marks, span labels show length only, label positioned perpendicularly at midpoint",
         "6.1": "Database Manager (add/edit/delete materials & labour), collapsible Placement Defaults dialog with scroll, existing-pole stay logic overhaul, IPC scoping to new AB cable spans, UH/MS-Flat conditional, stay angle tolerance configurable, stay direction bisects EX+NEW resultant",
         "6.0": "Initial production release — SmartPole, SmartStructure, SmartSpan, SmartConsumer, dynamic JSON rule engine, Excel iron breakup, PDF drawings with legend"
     }

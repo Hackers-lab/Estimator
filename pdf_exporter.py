@@ -774,6 +774,8 @@ class PDFExporter:
                 render_rect = QRectF(content_rect)
             painter.save()
             painter.setClipRect(content_rect)
+            # Deselect all items before rendering to avoid selection highlight / handles in PDF
+            app.scene.clearSelection()
             app.scene.render(
                 painter, render_rect, src_rect,
                 Qt.AspectRatioMode.IgnoreAspectRatio,

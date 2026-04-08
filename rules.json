@@ -1192,6 +1192,22 @@
     "formula": "int(wire_count)"
   },
   {
+    "object": "SmartPole",
+    "condition": "is_existing == False and pole_type == 'LT' and has_new_lt_acsr == True and has_existing_lt_acsr == True",
+    "type": "Material",
+    "item_code": "0508040441",
+    "item_name": "Porcelain Shackle Insulator",
+    "formula": "existing_lt_wire_count"
+  },
+  {
+    "object": "SmartPole",
+    "condition": "is_existing == False and pole_type == 'LT' and has_new_lt_acsr == True and has_existing_lt_acsr == True",
+    "type": "Labor",
+    "item_code": "LAB-47",
+    "item_name": "Fixing of LT Shackle Insulator with N/B",
+    "formula": "existing_lt_wire_count"
+  },
+  {
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX50+1CX16+1CX35' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
     "type": "Material",

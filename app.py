@@ -42,7 +42,7 @@ from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_
 from database import setup_database
 from rule_engine import DynamicRuleEngine
 from ui_components import InteractiveView, DraggableLabel
-from canvas_objects import SmartPole, SmartStructure, SmartSpan, SmartConsumer
+from canvas_objects import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
 from ui_dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
     RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
@@ -96,6 +96,7 @@ class EstimateApp(QMainWindow):
         self.last_placed_node = None        # for auto-span chain when placing nodes
         self.autosave_file  = "autosave_erp.json"
         self.current_tool   = "SELECT"
+        self._pending_symbol_shape = "circle"   # last chosen symbol shape
 
         # ── Page grid state ────────────────────────────────────────────────
         # 17.5 scene units ≈ 1 real-world metre  (calibrated: 40m span = ~700 units)
@@ -509,6 +510,33 @@ class EstimateApp(QMainWindow):
         sep.setStyleSheet("color:#bbb; font-size:16px; padding:0 4px;")
         bar.addWidget(sep)
 
+        # ── Symbol button ──────────────────────────────────────────────────
+        sym_btn = QPushButton("⬡ Symbol")
+        sym_btn.setToolTip("Place a decorative symbol on the canvas (circle, square, arrow, line)")
+        sym_btn.setStyleSheet(
+            "padding:7px 10px; font-weight:bold;"
+            "background:#eaf7ea; color:#1e8449; border-radius:3px;"
+        )
+        sym_btn.clicked.connect(self._show_symbol_picker)
+        bar.addWidget(sym_btn)
+        self.tools_btns["ADD_SYMBOL"] = sym_btn
+
+        # ── Text Box button ────────────────────────────────────────────────
+        txt_btn = QPushButton("T Text")
+        txt_btn.setToolTip("Place a draggable text box on the canvas")
+        txt_btn.setStyleSheet(
+            "padding:7px 10px; font-weight:bold;"
+            "background:#fef9e7; color:#7d6608; border-radius:3px;"
+        )
+        txt_btn.clicked.connect(lambda: self.set_tool("ADD_TEXTBOX"))
+        bar.addWidget(txt_btn)
+        self.tools_btns["ADD_TEXTBOX"] = txt_btn
+
+        # Thin visual separator
+        sep2 = QLabel("|")
+        sep2.setStyleSheet("color:#bbb; font-size:16px; padding:0 4px;")
+        bar.addWidget(sep2)
+
         # Fit-View button — also triggered by F key on the canvas
         fit_btn = QPushButton("⬡ Fit View")
         fit_btn.setToolTip(
@@ -521,7 +549,40 @@ class EstimateApp(QMainWindow):
         )
         fit_btn.clicked.connect(self._fit_view)
         bar.addWidget(fit_btn)
+
+        bar.addStretch()
         return bar
+
+    def _show_symbol_picker(self):
+        """Show a small popup menu to pick symbol shape, then activate ADD_SYMBOL tool."""
+        menu = QMenu(self)
+        shapes = [("⬤ Circle", "circle"), ("■ Square", "square"),
+                  ("➤ Arrow", "arrow"),   ("― Line",   "line")]
+        for label, shape in shapes:
+            act = QAction(label, self)
+            act.triggered.connect(lambda checked, s=shape: self._activate_symbol_tool(s))
+            menu.addAction(act)
+        btn = self.tools_btns.get("ADD_SYMBOL")
+        if btn:
+            menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.exec()
+
+    def _activate_symbol_tool(self, shape: str):
+        self._pending_symbol_shape = shape
+        self.set_tool("ADD_SYMBOL")
+
+    def _annotation_bring_front(self):
+        """Move selected annotation symbols/text boxes one Z-level forward."""
+        for item in self.scene.selectedItems():
+            if isinstance(item, (CanvasSymbol, CanvasTextBox)):
+                item.setZValue(item.zValue() + 1)
+
+    def _annotation_send_back(self):
+        """Move selected annotation symbols/text boxes one Z-level backward."""
+        for item in self.scene.selectedItems():
+            if isinstance(item, (CanvasSymbol, CanvasTextBox)):
+                item.setZValue(item.zValue() - 1)
 
     def _build_properties_panel(self):
         w = QWidget()
@@ -1181,6 +1242,25 @@ class EstimateApp(QMainWindow):
                 self.span_start_pole.setPen(QPen(Qt.GlobalColor.black, 1))
                 self.span_start_pole = None
                 self.refresh_live_estimate()
+
+        # ── Symbol placement ──────────────────────────────────────────────
+        elif self.current_tool == "ADD_SYMBOL":
+            shape = getattr(self, "_pending_symbol_shape", "circle")
+            sym = CanvasSymbol(shape, pos.x() - 20, pos.y() - 20)
+            self.scene.addItem(sym)
+            self.scene.clearSelection()
+            sym.setSelected(True)
+            self.set_tool("SELECT")
+
+        # ── Text box placement ────────────────────────────────────────────
+        elif self.current_tool == "ADD_TEXTBOX":
+            text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
+            if ok and text.strip():
+                tb = CanvasTextBox(text.strip(), pos.x(), pos.y())
+                self.scene.addItem(tb)
+                self.scene.clearSelection()
+                tb.setSelected(True)
+                self.set_tool("SELECT")
 
     # =========================================================================
     #  AUTO-CONNECT SPAN HELPER
@@ -2484,6 +2564,10 @@ class EstimateApp(QMainWindow):
         for item in items:
             if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
                 self.delete_item(item)
+        for item in items:
+            if isinstance(item, (CanvasSymbol, CanvasTextBox)):
+                if item.scene():
+                    self.scene.removeItem(item)
 
     def delete_item(self, item):
         if not item or not item.scene():
@@ -3002,6 +3086,7 @@ class EstimateApp(QMainWindow):
             "overrides":     self.bom_overrides,
             "nodes":         [],
             "spans":         [],
+            "annotations":   [],
         }
         node_map = {}
         node_id_by_obj = {}
@@ -3087,6 +3172,10 @@ class EstimateApp(QMainWindow):
                     "label_y":        item.label.pos().y(),
                     "label_text":     item.label.toPlainText(),
                 })
+
+        for item in self.scene.items():
+            if isinstance(item, (CanvasSymbol, CanvasTextBox)):
+                state["annotations"].append(item.to_dict())
 
         return state
 
@@ -3229,6 +3318,17 @@ class EstimateApp(QMainWindow):
             self.scene.addItem(span)
             self.scene.addItem(span.label)
 
+        # ── Annotations (symbols & text boxes) ───────────────────────────
+        for ann in state.get("annotations", []):
+            try:
+                kind = ann.get("kind")
+                if kind == "symbol":
+                    self.scene.addItem(CanvasSymbol.from_dict(ann))
+                elif kind == "textbox":
+                    self.scene.addItem(CanvasTextBox.from_dict(ann))
+            except Exception:
+                pass
+
         self.refresh_live_estimate()
 
         # After loading, optionally fit the view
@@ -3318,7 +3418,7 @@ class EstimateApp(QMainWindow):
             self, "Open Project", "", "JSON Files (*.json)"
         )
         if filename:
-            with open(filename, "r") as f:
+            with open(filename, "r", encoding="utf-8") as f:
                 self.parse_load_data(json.load(f))
 
     def save_to_file(self):
@@ -3331,7 +3431,7 @@ class EstimateApp(QMainWindow):
             self, "Save Project", default, "JSON Files (*.json)"
         )
         if filename:
-            with open(filename, "w") as f:
+            with open(filename, "w", encoding="utf-8") as f:
                 json.dump(self.compile_save_data(), f, indent=2)
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
@@ -3348,7 +3448,7 @@ class EstimateApp(QMainWindow):
         if os.path.exists(self.autosave_file):
             try:
                 if os.path.getsize(self.autosave_file) > 0:
-                    with open(self.autosave_file, "r") as f:
+                    with open(self.autosave_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     # Only load if there is actual canvas content
                     if data.get("nodes") or data.get("spans"):
@@ -3361,7 +3461,7 @@ class EstimateApp(QMainWindow):
             QTimer.singleShot(100, self._show_blank_start_page)
 
     def closeEvent(self, event):
-        with open(self.autosave_file, "w") as f:
+        with open(self.autosave_file, "w", encoding="utf-8") as f:
             json.dump(self.compile_save_data(), f)
         super().closeEvent(event)
 

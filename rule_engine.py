@@ -22,7 +22,9 @@ Context keys available per object type
 SmartPole
     object_type, pole_type, pole_type2, is_existing, height (int metres),
     has_extension, extension_height (float), earth_count, stay_count,
-    has_cg, ht_spans_count, use_uh, project_type
+    has_cg, ht_spans_count, lt_acsr_count, lt_wire_count,
+    has_new_lt_acsr, has_existing_lt_acsr, existing_lt_wire_count,
+    use_uh, project_type
 
 SmartStructure
     object_type, structure_type, pole_type2, height (int metres),
@@ -181,6 +183,19 @@ class DynamicRuleEngine:
         # lt_wire_count — max wire count across LT ACSR spans (for UH D-Iron rule)
         ctx["lt_wire_count"] = max(
             (int(getattr(s, "wire_count", 0)) for s in lt_acsr_spans),
+            default=0
+        )
+
+        # ── Shackle insulator context for new poles jointing existing lines ─
+        # has_existing_lt_acsr — True when connected to at least one existing LT ACSR span
+        # has_new_lt_acsr      — True when connected to at least one new LT ACSR span
+        # existing_lt_wire_count — wire count of the existing LT ACSR span (max, if multiple)
+        new_lt_acsr_spans      = [s for s in lt_acsr_spans if not getattr(s, "is_existing_span", False)]
+        existing_lt_acsr_spans = [s for s in lt_acsr_spans if getattr(s, "is_existing_span", False)]
+        ctx["has_new_lt_acsr"]          = len(new_lt_acsr_spans) > 0
+        ctx["has_existing_lt_acsr"]     = len(existing_lt_acsr_spans) > 0
+        ctx["existing_lt_wire_count"]   = max(
+            (int(getattr(s, "wire_count", 0)) for s in existing_lt_acsr_spans),
             default=0
         )
 
