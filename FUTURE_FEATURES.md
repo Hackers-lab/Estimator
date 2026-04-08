@@ -49,5 +49,6 @@ Captured on: 2026-04-08
 
 ## Progress
 - Implemented on 2026-04-08:
-	- Reuse last export path.
-	- Save project bundle (PDF + Excel + drawing JSON).
+  - Reuse last export path.
+  - Save project bundle (PDF + Excel + drawing JSON).
+  - Initial custom property system: Property Editor, slot count, per-object Custom 1..N selectors, rule-context exposure, and project save/load persistence.

@@ -227,7 +227,6 @@ class DynamicRuleEngine:
         ctx["ab_needs_suspension"] = ab_needs_suspension
         ctx["dist_box_required"]   = getattr(item, "dist_box_required", True)
 
-        # Merge any dynamic props attached to the item
         ctx.update(getattr(item, "dynamic_props", {}))
         return ctx
 

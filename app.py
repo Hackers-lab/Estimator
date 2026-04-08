@@ -37,6 +37,7 @@ from PyQt6.QtPrintSupport import QPrinter
 
 from constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
 import defaults
+import property_catalog
 from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY
 from database import setup_database
 from rule_engine import DynamicRuleEngine
@@ -44,7 +45,8 @@ from ui_components import InteractiveView, DraggableLabel
 from canvas_objects import SmartPole, SmartStructure, SmartSpan, SmartConsumer
 from ui_dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
-    RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog
+    RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
+    PropertyEditorDialog,
 )
 from pdf_exporter import PDFExporter
 from excel_exporter import ExcelExporter
@@ -241,6 +243,11 @@ class EstimateApp(QMainWindow):
         act_defs.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogStart))
         act_defs.triggered.connect(self.open_placement_defaults)
         settings_menu.addAction(act_defs)
+
+        act_props = QAction("  Property Editor", self)
+        act_props.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView))
+        act_props.triggered.connect(self.open_property_editor)
+        settings_menu.addAction(act_props)
 
         # ── Help ──────────────────────────────────────────────────────────
         help_menu = mb.addMenu("&Help")
@@ -1644,6 +1651,8 @@ class EstimateApp(QMainWindow):
                 )
             )
 
+        self._add_custom_slots_editor(item)
+
         # Note
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -1744,6 +1753,8 @@ class EstimateApp(QMainWindow):
         self._bind_property_widget(item, "stay_count", stay_sp)
         self.editor_layout.addRow("Stay Sets:", stay_sp)
 
+        self._add_custom_slots_editor(item)
+
         # Note
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -1763,6 +1774,8 @@ class EstimateApp(QMainWindow):
         else:
             self.editor_group.setTitle("Span")
             self._build_line_span_editor(item)
+
+        self._add_custom_slots_editor(item)
 
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -1881,6 +1894,8 @@ class EstimateApp(QMainWindow):
             lambda v, i=item: self._update_consumer(i, "consider_cable", v == 2)
         )
         self.editor_layout.addRow(cons_chk)
+
+        self._add_custom_slots_editor(item)
 
         note = QLineEdit(getattr(item, "custom_note", ""))
         note.setPlaceholderText("Custom note...")
@@ -2171,6 +2186,64 @@ class EstimateApp(QMainWindow):
     def _update_note(self, item, text):
         item.custom_note = text
         item.update_visuals()
+
+    def _add_custom_slots_editor(self, item) -> None:
+        """
+        Render per-object-type custom property fields into the editor panel.
+
+        Values are stored directly by label in ``item.dynamic_props``
+        (e.g. ``{"OLD_IRON": "Yes"}``), which the rule engine automatically
+        exposes as context variables (e.g. ``OLD_IRON == "Yes"``).
+        """
+        obj_type = item.__class__.__name__
+        entries  = property_catalog.get_custom_entries(obj_type)
+        if not entries:
+            return
+
+        for entry in entries:
+            label   = entry["label"]
+            options = entry.get("options", [])
+            props   = getattr(item, "dynamic_props", {})
+
+            if options:
+                # Choice-type: show combo box
+                current_val = str(props.get(label, "None") or "None")
+                all_opts    = ["None"] + options
+                combo = QComboBox()
+                combo.addItems(all_opts)
+                if current_val not in all_opts:
+                    combo.addItem(current_val)
+                combo.setCurrentText(current_val)
+
+                def _on_combo_change(value, i=item, lbl=label):
+                    p = getattr(i, "dynamic_props", {})
+                    if value == "None":
+                        p.pop(lbl, None)
+                    else:
+                        p[lbl] = value
+                    i.dynamic_props = p
+                    self.refresh_live_estimate()
+
+                combo.currentTextChanged.connect(_on_combo_change)
+                self.editor_layout.addRow(f"{label}:", combo)
+
+            else:
+                # Marker-type: show checkbox
+                current_val = bool(props.get(label, False))
+                chk = QCheckBox(f"Mark as {label}")
+                chk.setChecked(current_val)
+
+                def _on_check_change(state, i=item, lbl=label):
+                    p = getattr(i, "dynamic_props", {})
+                    if state == 2:
+                        p[lbl] = True
+                    else:
+                        p.pop(lbl, None)
+                    i.dynamic_props = p
+                    self.refresh_live_estimate()
+
+                chk.stateChanged.connect(_on_check_change)
+                self.editor_layout.addRow(chk)
 
     # =========================================================================
     #  DELETION
@@ -2576,6 +2649,10 @@ class EstimateApp(QMainWindow):
     def open_placement_defaults(self):
         PlacementDefaultsDialog(self).exec()
 
+    def open_property_editor(self):
+        if PropertyEditorDialog(self).exec():
+            self.on_selection_changed()
+
     def open_db_manager(self):
         DatabaseManagerDialog(self).exec()
 
@@ -2741,6 +2818,7 @@ class EstimateApp(QMainWindow):
                     "label_y": item.label.pos().y(),
                     "label_text": item.label.toPlainText(),
                     "custom_note": getattr(item, "custom_note", ""),
+                    "dynamic_props": getattr(item, "dynamic_props", {}),
                 }
                 if isinstance(item, SmartPole):
                     nd.update({
@@ -2800,6 +2878,7 @@ class EstimateApp(QMainWindow):
                     "consider_cable": item.consider_cable,
                     "phase":          item.phase,
                     "custom_note":    getattr(item, "custom_note", ""),
+                    "dynamic_props":  getattr(item, "dynamic_props", {}),
                     "label_x":        item.label.pos().x(),
                     "label_y":        item.label.pos().y(),
                     "label_text":     item.label.toPlainText(),
@@ -2867,6 +2946,7 @@ class EstimateApp(QMainWindow):
                     pole.earth_angle_override  = nd.get("earth_angle_override", None)
                     pole.dist_box_required     = nd.get("dist_box_required", True)
                     pole.custom_note           = nd.get("custom_note", "")
+                    pole.dynamic_props         = dict(nd.get("dynamic_props", {}))
                     pole.existing_subtype      = nd.get("existing_subtype", nd.get("pole_type", "LT"))
                     pole.existing_dtr_size     = nd.get("existing_dtr_size", "None")
                     pole.update_visuals()
@@ -2893,6 +2973,7 @@ class EstimateApp(QMainWindow):
                     True if struct.structure_type == "DTR" else False
                 )
                 struct.custom_note      = nd.get("custom_note", "")
+                struct.dynamic_props    = dict(nd.get("dynamic_props", {}))
                 struct.update_visuals()
                 struct.label.setPos(nd["label_x"], nd["label_y"])
                 struct.label.setPlainText(nd["label_text"])
@@ -2908,6 +2989,7 @@ class EstimateApp(QMainWindow):
                 consumer.agency_supply  = nd.get("agency_supply", False)
                 consumer.consider_cable = nd.get("consider_cable", False)
                 consumer.custom_note   = nd.get("custom_note", "")
+                consumer.dynamic_props = dict(nd.get("dynamic_props", {}))
                 consumer.update_visuals()
                 consumer.label.setPos(nd["label_x"], nd["label_y"])
                 consumer.label.setPlainText(nd["label_text"])
@@ -2934,6 +3016,7 @@ class EstimateApp(QMainWindow):
             span.consider_cable  = sd.get("consider_cable", False)
             span.phase           = sd.get("phase", "3 Phase")
             span.custom_note     = sd.get("custom_note", "")
+            span.dynamic_props   = dict(sd.get("dynamic_props", {}))
             span.update_visuals()
             span.label.setPos(sd["label_x"], sd["label_y"])
             span.label.setPlainText(sd["label_text"])
