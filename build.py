@@ -40,7 +40,7 @@ cmd = [
     "--onedir",
     "--windowed",
     "--name", APP_NAME,
-    "--icon", "logo.ico",
+    "--icon", "assets/logo.ico",
     # Bundle data files into _internal/ so resource_path() and __file__-relative
     # lookups work correctly at runtime.
     "--add-data", "data/seed_data.json;data",
@@ -67,6 +67,7 @@ exe_dir = os.path.join(ROOT, DIST_DIR, APP_NAME)
 for fname in DATA_FILES:
     src = os.path.join(ROOT, fname)
     dst = os.path.join(exe_dir, fname)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
     if os.path.exists(src):
         shutil.copy2(src, dst)
         print(f"  Copied {fname}")
