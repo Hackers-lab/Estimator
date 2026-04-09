@@ -33,6 +33,7 @@ import openpyxl
 
 from core import defaults
 from core import property_catalog
+from core.database import DB_PATH
 from app_config import APP_DISPLAY_NAME, APP_VERSION
 
 from PyQt6.QtWidgets import (
@@ -111,7 +112,7 @@ class SearchDialog(QDialog):
         self._load(db_type)
 
     def _load(self, db_type: str):
-        conn   = sqlite3.connect("erp_master.db")
+        conn   = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         if db_type == "Material":
             cursor.execute(

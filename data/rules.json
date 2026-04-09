@@ -1067,8 +1067,8 @@
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable'",
     "type": "Labor",
-    "item_code": "LAB-64",
-    "item_name": "Laying & Dressing 1.1KV PVC/XLPE 4x10/16/25 SQMM Cable",
+    "item_code": "LAB-74",
+    "item_name": "Stringing & Sagging PVC Cable",
     "formula": "length / 1000"
   },
   {

@@ -4,6 +4,7 @@ import json
 import os
 from copy import deepcopy
 
+from app_config import get_data_path
 
 # All canvas object types that support custom properties.
 OBJECT_TYPES: list[str] = [
@@ -13,10 +14,7 @@ OBJECT_TYPES: list[str] = [
     "SmartConsumer",
 ]
 
-_CATALOG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..","data","property_catalog.json",
-)
+_CATALOG_FILE = get_data_path("property_catalog.json")
 
 
 def _empty_type_data() -> dict:

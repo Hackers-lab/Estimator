@@ -33,7 +33,7 @@ import openpyxl
 
 from core import defaults
 from core import property_catalog
-from app_config import APP_DISPLAY_NAME, APP_VERSION
+from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -338,7 +338,7 @@ class PropertyEditorDialog(QDialog):
 
     def _load_rules(self) -> list[dict]:
         try:
-            with open("rules.json", "r", encoding="utf-8") as handle:
+            with open(get_data_path("rules.json"), "r", encoding="utf-8") as handle:
                 return json.load(handle)
         except (FileNotFoundError, json.JSONDecodeError):
             return []

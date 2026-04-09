@@ -22,9 +22,9 @@ from __future__ import annotations
 import json
 import os
 
-_DEFAULTS_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "defaults.json"
-)
+from app_config import get_data_path
+
+_DEFAULTS_FILE = get_data_path("defaults.json")
 
 # ── Factory defaults ──────────────────────────────────────────────────────────
 _FACTORY: dict = {
@@ -97,8 +97,12 @@ def load() -> None:
 def save(values: dict) -> None:
     """Persist *values* and update ``current`` in-place."""
     current.update({k: v for k, v in values.items() if k in _FACTORY})
-    with open(_DEFAULTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(current, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(_DEFAULTS_FILE), exist_ok=True)
+        with open(_DEFAULTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2)
+    except OSError:
+        pass  # Silently ignore write failures (read-only fs, permissions, etc)
 
 
 def reset_to_factory() -> None:

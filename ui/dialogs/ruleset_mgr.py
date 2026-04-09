@@ -26,6 +26,7 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
                           SmartConsumer added throughout.
 """
 
+import os
 import sqlite3
 import json
 import re
@@ -33,7 +34,7 @@ import openpyxl
 
 from core import defaults
 from core import property_catalog
-from app_config import APP_DISPLAY_NAME, APP_VERSION
+from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -63,6 +64,7 @@ def _runtime_sim_defaults() -> dict:
 
 
 from ui.dialogs._shared import ClickableCard
+from ui.dialogs.search import SearchDialog
 
 class RulesetManagerDialog(QDialog):
     """
@@ -1873,14 +1875,16 @@ class RulesetManagerDialog(QDialog):
 
     def load_rules(self):
         try:
-            with open("rules.json", "r") as f:
+            with open(get_data_path("rules.json"), "r", encoding="utf-8") as f:
                 self.rules = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             self.rules = []
 
     def save_rules(self):
         try:
-            with open("rules.json", "w") as f:
+            path = get_data_path("rules.json")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.rules, f, indent=2)
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to save rules:\n{exc}")

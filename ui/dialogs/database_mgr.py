@@ -33,6 +33,7 @@ import openpyxl
 
 from core import defaults
 from core import property_catalog
+from core.database import DB_PATH
 from app_config import APP_DISPLAY_NAME, APP_VERSION
 
 from PyQt6.QtWidgets import (
@@ -214,7 +215,7 @@ class DatabaseManagerDialog(QDialog):
             return
 
         try:
-            conn = sqlite3.connect("erp_master.db")
+            conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
             if table_name == "materials":
                 cur.execute(
@@ -287,7 +288,7 @@ class DatabaseManagerDialog(QDialog):
             return
 
         try:
-            conn = sqlite3.connect("erp_master.db")
+            conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
             if db_type == "Material":
                 cur.execute(
@@ -345,7 +346,7 @@ class DatabaseManagerDialog(QDialog):
             return
 
         try:
-            conn = sqlite3.connect("erp_master.db")
+            conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
             cur.execute(
                 f"DELETE FROM {table_name} WHERE {code_col}=?",
@@ -387,7 +388,7 @@ class DatabaseManagerDialog(QDialog):
     def _load(self):
         self.mat_table.clear()
         self.labour_table.clear()
-        conn   = sqlite3.connect("erp_master.db")
+        conn   = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM materials")
         self._fill(
@@ -414,7 +415,7 @@ class DatabaseManagerDialog(QDialog):
             wb = openpyxl.Workbook()
             if "Sheet" in wb.sheetnames:
                 wb.remove(wb["Sheet"])
-            conn   = sqlite3.connect("erp_master.db")
+            conn   = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
             for tbl in ("materials", "labor"):
                 ws = wb.create_sheet(tbl)
@@ -437,7 +438,7 @@ class DatabaseManagerDialog(QDialog):
             return
         try:
             wb   = openpyxl.load_workbook(fn)
-            conn = sqlite3.connect("erp_master.db")
+            conn = sqlite3.connect(DB_PATH)
             cur  = conn.cursor()
             for tbl in ("materials", "labor"):
                 if tbl not in wb.sheetnames:

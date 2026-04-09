@@ -36,7 +36,8 @@ import sqlite3
 import json
 import os
 
-DB_PATH = "erp_master.db"
+from app_config import get_app_root as _get_app_root
+DB_PATH = os.path.join(_get_app_root(), "erp_master.db")
 _SEED_DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..","data","seed_data.json")
 
 

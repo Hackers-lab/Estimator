@@ -38,8 +38,8 @@ from PyQt6.QtPrintSupport import QPrinter
 from core.constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
 from core import defaults
 from core import property_catalog
-from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY
-from core.database import setup_database
+from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY, get_data_path
+from core.database import setup_database, DB_PATH
 from core.rule_engine import DynamicRuleEngine
 from ui.components import InteractiveView, DraggableLabel
 from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
@@ -2767,7 +2767,7 @@ class EstimateApp(QMainWindow):
             # Load rules
             rules = []
             try:
-                with open(resource_path("data/rules.json"), "r", encoding="utf-8") as f:
+                with open(get_data_path("rules.json"), "r", encoding="utf-8") as f:
                     rules = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
@@ -2799,7 +2799,7 @@ class EstimateApp(QMainWindow):
 
             # Build live_bom_data
             self.live_bom_data = []
-            conn   = sqlite3.connect("erp_master.db")
+            conn   = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
             processed = set()
 
