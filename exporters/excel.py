@@ -22,6 +22,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
+from app_config import get_data_path
 
 if TYPE_CHECKING:
     from app import EstimateApp
@@ -345,7 +346,7 @@ class ExcelExporter:
         UW  = self._IRON_UNIT_WEIGHTS
 
         try:
-            with open("rules.json", "r") as f:
+            with open(get_data_path("rules.json"), "r") as f:
                 rules = _json.load(f)
         except (FileNotFoundError, _json.JSONDecodeError):
             rules = []
