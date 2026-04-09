@@ -1142,6 +1142,18 @@ class EstimateApp(QMainWindow):
 
     def handle_canvas_click(self, event, view):
         if event.button() == Qt.MouseButton.RightButton:
+            if self.current_tool == "SELECT":
+                pos = view.mapToScene(event.pos())
+                hit = self.scene.itemAt(pos, view.transform())
+                canvas_types = (SmartPole, SmartStructure, SmartSpan, SmartConsumer)
+                while hit is not None and not isinstance(hit, canvas_types):
+                    hit = hit.parentItem()
+                if hit is not None:
+                    self.scene.clearSelection()
+                    hit.setSelected(True)
+                    QTimer.singleShot(10, self.on_selection_changed)
+                    self._show_item_context_menu(hit, event.globalPosition().toPoint())
+                    return
             self.set_tool("SELECT")
             return
         if self.current_tool == "SELECT":
@@ -2239,6 +2251,153 @@ class EstimateApp(QMainWindow):
             widget.currentTextChanged.connect(_apply)
         elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
             widget.valueChanged.connect(_apply)
+
+    # ── Right-click context menu ──────────────────────────────────────────────
+
+    def _show_item_context_menu(self, item, global_pos):
+        """Show a context menu with inline property editing for a canvas item."""
+        menu = QMenu(self)
+
+        def _choice_submenu(title, choices, current, callback):
+            """Add a submenu where each choice is a checkable action."""
+            sub = menu.addMenu(title)
+            for choice in choices:
+                act = sub.addAction(str(choice))
+                act.setCheckable(True)
+                act.setChecked(str(choice) == str(current))
+                act.triggered.connect(
+                    lambda _checked, c=choice: callback(c)
+                )
+            return sub
+
+        def _input_action(title, current, callback, min_val=0, max_val=999):
+            """Add a single action that opens an input dialog for a numeric value."""
+            act = menu.addAction(f"{title}: {current}  ✏")
+            act.triggered.connect(
+                lambda _checked, t=title, c=current, cb=callback:
+                    self._prompt_int(t, c, cb, min_val, max_val)
+            )
+            return act
+
+        if isinstance(item, SmartPole):
+            _choice_submenu(
+                "Material", ["PCC", "STP", "H-BEAM"], item.pole_type2,
+                lambda v, i=item: self._update_pole_type2(i, v)
+            )
+            _choice_submenu(
+                "Height", self._height_options(item.pole_type2), item.height,
+                lambda v, i=item: self._update_pole(i, "height", v)
+            )
+            _input_action(
+                "Earthing Sets", item.earth_count,
+                lambda v, i=item: self._update_pole(i, "earth_count", v),
+                0, 20
+            )
+            _input_action(
+                "Stay Sets", item.stay_count,
+                lambda v, i=item: self._manual_stay(i, v),
+                0, 20
+            )
+            ext_act = menu.addAction("Extension Required")
+            ext_act.setCheckable(True)
+            ext_act.setChecked(item.has_extension)
+            ext_act.triggered.connect(
+                lambda checked, i=item: self._toggle_pole_extension(i, checked)
+            )
+            menu.addSeparator()
+
+        elif isinstance(item, SmartStructure):
+            _choice_submenu(
+                "Structure Type", ["DP", "TP", "4P", "DTR"], item.structure_type,
+                lambda v, i=item: self._update_structure_type(i, v)
+            )
+            _choice_submenu(
+                "Pole Material", ["PCC", "STP", "H-BEAM"], item.pole_type2,
+                lambda v, i=item: self._update_struct_type2(i, v)
+            )
+            _choice_submenu(
+                "Height", self._height_options(item.pole_type2), item.height,
+                lambda v, i=item: self._update_structure(i, "height", v)
+            )
+            _input_action(
+                "Earthing Sets", item.earth_count,
+                lambda v, i=item: self._update_structure(i, "earth_count", v),
+                0, 20
+            )
+            _input_action(
+                "Stay Sets", item.stay_count,
+                lambda v, i=item: self._update_structure(i, "stay_count", v),
+                0, 20
+            )
+            menu.addSeparator()
+
+        elif isinstance(item, SmartSpan):
+            if item.is_service_drop:
+                _input_action(
+                    "Length (m)", int(item.length),
+                    lambda v, i=item: self._update_span(i, "length", v),
+                    1, 150
+                )
+            else:
+                _input_action(
+                    "Length (m)", int(item.length),
+                    lambda v, i=item: self._update_span(i, "length", v),
+                    1, 500
+                )
+                cond_list = (["AB Cable", "ACSR", "PVC Cable"]
+                             if item.is_lt_span else ["ACSR", "AB Cable"])
+                _choice_submenu(
+                    "Conductor", cond_list, item.conductor,
+                    lambda v, i=item: self._update_conductor(i, v)
+                )
+                _choice_submenu(
+                    "Size", self._conductor_sizes(item.conductor, item.is_lt_span),
+                    item.conductor_size,
+                    lambda v, i=item: self._update_span(i, "conductor_size", v)
+                )
+                if item.conductor == "ACSR":
+                    _choice_submenu(
+                        "Wire Count", ["2", "3", "4"], str(item.wire_count),
+                        lambda v, i=item: self._update_span(i, "wire_count", v)
+                    )
+                cg_act = menu.addAction("Cattle Guard Required")
+                cg_act.setCheckable(True)
+                cg_act.setChecked(item.has_cg)
+                cg_act.triggered.connect(
+                    lambda checked, i=item: self._update_span_refresh(i, "has_cg", checked)
+                )
+            menu.addSeparator()
+
+        elif isinstance(item, SmartConsumer):
+            _choice_submenu(
+                "Phase", ["1 Phase", "3 Phase"], item.phase,
+                lambda v, i=item: self._update_consumer(i, "phase", v)
+            )
+            _choice_submenu(
+                "Cable Size", self._service_cable_sizes(item.phase), item.cable_size,
+                lambda v, i=item: self._update_consumer(i, "cable_size", v)
+            )
+            agency_act = menu.addAction("Agency Supplied")
+            agency_act.setCheckable(True)
+            agency_act.setChecked(item.agency_supply)
+            agency_act.triggered.connect(
+                lambda checked, i=item: self._update_consumer(i, "agency_supply", checked)
+            )
+            menu.addSeparator()
+
+        del_act = menu.addAction("🗑  Delete")
+        del_act.triggered.connect(lambda: self.delete_item(item))
+
+        menu.exec(global_pos)
+
+    def _prompt_int(self, title, current, callback, min_val=0, max_val=999):
+        """Open a simple integer input dialog and call callback if accepted."""
+        val, ok = QInputDialog.getInt(
+            self, title, f"Enter value for {title}:",
+            value=int(current), min=min_val, max=max_val
+        )
+        if ok:
+            callback(val)
 
     def _add_delete_btn(self, item):
         del_btn = QPushButton("🗑 Delete Selected")
