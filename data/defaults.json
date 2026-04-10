@@ -28,5 +28,13 @@
   "sd_conductor_size": "10 SQMM",
   "sd_length": 20,
   "sd_phase": "1 Phase",
-  "export_last_dir": "C:/Users/Pramod/Documents/GitHub/Estimator"
+  "export_last_dir": "C:/Users/Pramod/Desktop",
+  "label_new_lt": "PP",
+  "label_new_ht": "HP",
+  "label_ex_pole": "EP",
+  "label_dp": "DP",
+  "label_tp": "TP",
+  "label_4p": "4P",
+  "label_dtr": "DTR",
+  "label_consumer": "SC"
 }

@@ -1401,7 +1401,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "ab_needs_dead_end",
+    "condition": "ab_needs_dead_end and ab_new_cable_count > 0",
     "type": "Material",
     "item_code": "0505034141",
     "item_name": "Dead End Clamp LT ABC (3X70+1X16+1X50SQMM)",
@@ -1409,7 +1409,7 @@
   },
   {
     "object": "SmartPole",
-    "condition": "ab_needs_dead_end",
+    "condition": "ab_needs_dead_end and ab_new_cable_count > 0",
     "type": "Labor",
     "item_code": "LAB-61",
     "item_name": "Erection of Anchor/Dead End Clamp LT ABC",

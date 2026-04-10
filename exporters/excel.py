@@ -14,10 +14,7 @@ from __future__ import annotations
 import json as _json
 import os
 from datetime import datetime
-from typing import TYPE_CHECKING
-
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
@@ -25,7 +22,15 @@ from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
 from app_config import get_data_path
 
 if TYPE_CHECKING:
+    import openpyxl as _openpyxl_t
     from app import EstimateApp
+
+
+def _xl():
+    """Lazy-load openpyxl and its styles. Cached after first call."""
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    return openpyxl, Font, Alignment, PatternFill, Border, Side
 
 
 class ExcelExporter:
@@ -95,9 +100,8 @@ class ExcelExporter:
                     QMessageBox.warning(app, "Open Folder Failed", f"Could not open folder.\n\n{exc}")
         return filename
 
-    # ── Estimate sheet ───────────────────────────────────────────────────────
-
-    def _write_estimate_sheet(self, wb: openpyxl.Workbook, m: dict) -> None:
+    def _write_estimate_sheet(self, wb: Any, m: dict) -> None:
+        openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
         app = self._app
         ws  = wb.active
         assert ws is not None
@@ -209,11 +213,12 @@ class ExcelExporter:
 
     # ── Iron breakup sheet ───────────────────────────────────────────────────
 
-    def _write_iron_breakup_sheet(self, wb: openpyxl.Workbook) -> None:
+    def _write_iron_breakup_sheet(self, wb: Any) -> None:
         """
         Generates a detailed Iron Breakup sheet showing per-source metre/kg rows,
         plus 3% wastage + sag.
         """
+        openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
         ws = wb.create_sheet("Iron Breakup")
         wastage_sag_pct = 0.03
 

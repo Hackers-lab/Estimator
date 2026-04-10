@@ -239,6 +239,29 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
     _LABEL_MARGIN_X: int = 10
     _LABEL_MARGIN_Y: int = 8
 
+    # ── Sequential label counters (per category) ──────────────────────────
+    _ex_seq: int = 0   # existing poles
+    _lt_seq: int = 0   # new LT poles
+    _ht_seq: int = 0   # new HT poles
+
+    @classmethod
+    def _next_seq(cls, category: str) -> int:
+        if category == "ex":
+            cls._ex_seq += 1
+            return cls._ex_seq
+        elif category == "lt":
+            cls._lt_seq += 1
+            return cls._lt_seq
+        else:
+            cls._ht_seq += 1
+            return cls._ht_seq
+
+    @classmethod
+    def reset_counters(cls) -> None:
+        cls._ex_seq = 0
+        cls._lt_seq = 0
+        cls._ht_seq = 0
+
     def __init__(
         self, x: float, y: float, refresh_signal: Any,
         pole_type: str = "LT", is_existing: bool = False,
@@ -259,6 +282,14 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.has_extension      = False
         self.extension_height   = _d["extension_height"]
         self.override_auto_stay = False
+
+        # Assign unique sequential label number for this pole category
+        if is_existing:
+            self.seq_id = SmartPole._next_seq("ex")
+        elif pole_type == "LT":
+            self.seq_id = SmartPole._next_seq("lt")
+        else:
+            self.seq_id = SmartPole._next_seq("ht")
 
         if is_existing:
             self.earth_count = 0
@@ -486,10 +517,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 self.setPen(black_pen)
 
             # Label text
+            _pfx_d = defaults.current
             if self.is_existing:
                 _sub = self.existing_subtype
-                _sfx = " Struct" if _sub in ("DP", "TP", "4P", "DTR") else " Pole"
-                txt = f"Ex. {_sub}{_sfx}"
+                _lbl = _pfx_d.get("label_ex_pole", "EP")
+                txt = f"{_lbl}{self.seq_id}"
                 if _sub == "DTR":
                     ex_kva = getattr(self, "existing_dtr_size", "None")
                     txt += f"\n{ex_kva}"
@@ -500,9 +532,14 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                             txt += f"\nEx {ex_kva} S/STN to {target} S/STN"
                         else:
                             txt += "\nDTR Augmentation"
+                else:
+                    pass   # no extra line for plain existing poles
             else:
-                ht_m = self.height.replace("MTR", "m")
-                txt  = f"{self.pole_type2} {ht_m} ({self.pole_type})"
+                if self.pole_type == "LT":
+                    _lbl = _pfx_d.get("label_new_lt", "PP")
+                else:
+                    _lbl = _pfx_d.get("label_new_ht", "HP")
+                txt  = f"{_lbl}{self.seq_id}"
                 if self.has_extension:
                     txt += f"\n+Ext {self.extension_height:.1f}m"
 

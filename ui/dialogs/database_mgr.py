@@ -29,7 +29,6 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
 import sqlite3
 import json
 import re
-import openpyxl
 
 from core import defaults
 from core import property_catalog
@@ -412,6 +411,7 @@ class DatabaseManagerDialog(QDialog):
         if not fn:
             return
         try:
+            import openpyxl
             wb = openpyxl.Workbook()
             if "Sheet" in wb.sheetnames:
                 wb.remove(wb["Sheet"])
@@ -437,6 +437,7 @@ class DatabaseManagerDialog(QDialog):
         if not fn:
             return
         try:
+            import openpyxl
             wb   = openpyxl.load_workbook(fn)
             conn = sqlite3.connect(DB_PATH)
             cur  = conn.cursor()

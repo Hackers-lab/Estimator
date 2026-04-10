@@ -29,7 +29,6 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
 import sqlite3
 import json
 import re
-import openpyxl
 
 from core import defaults
 from core import property_catalog
@@ -120,10 +119,32 @@ class ProjectSetupDialog(QDialog):
         form.setSpacing(8)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        # Subject
+        # Subject — max ~5 lines (300 chars) with live counter
+        _SUBJECT_MAX = 300
         self._subject = QLineEdit(self._meta.get("subject", ""))
         self._subject.setPlaceholderText("e.g. GOCHIYA II LT Line Extension")
-        form.addRow("Project Name:", self._subject)
+        self._subject.setMaxLength(_SUBJECT_MAX)
+        _subj_counter = QLabel()
+        _subj_counter.setStyleSheet("color:#888; font-size:11px;")
+
+        def _update_counter(text: str) -> None:
+            remaining = _SUBJECT_MAX - len(text)
+            _subj_counter.setText(f"{len(text)}/{_SUBJECT_MAX} chars")
+            _subj_counter.setStyleSheet(
+                "color:#c0392b; font-size:11px;" if remaining < 30
+                else "color:#888; font-size:11px;"
+            )
+
+        self._subject.textChanged.connect(_update_counter)
+        _update_counter(self._subject.text())
+
+        _subj_w = QWidget()
+        _subj_l = QVBoxLayout(_subj_w)
+        _subj_l.setContentsMargins(0, 0, 0, 0)
+        _subj_l.setSpacing(2)
+        _subj_l.addWidget(self._subject)
+        _subj_l.addWidget(_subj_counter)
+        form.addRow("Project Name:", _subj_w)
 
         # Lat / Long side by side
         ll_w = QWidget()

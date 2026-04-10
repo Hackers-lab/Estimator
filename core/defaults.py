@@ -75,6 +75,16 @@ _FACTORY: dict = {
 
     # Export settings
     "export_last_dir":    "",
+
+    # Canvas label prefixes (prefix + sequential number shown on canvas objects)
+    "label_new_lt":   "PP",    # New LT pole     e.g. PP1, PP2
+    "label_new_ht":   "HP",    # New HT pole     e.g. HP1, HP2
+    "label_ex_pole":  "EP",    # Existing pole   e.g. EP1, EP2
+    "label_dp":       "DP",    # DP structure    e.g. DP1, DP2
+    "label_tp":       "TP",    # TP structure    e.g. TP1, TP2
+    "label_4p":       "4P",    # 4P structure    e.g. 4P1, 4P2
+    "label_dtr":      "DTR",   # DTR sub-station e.g. DTR1, DTR2
+    "label_consumer": "SC",    # Consumer        e.g. SC1,  SC2
 }
 
 # Module-level mutable dict — read by canvas_objects.py on each new item

@@ -44,6 +44,18 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     _RADIUS: int = 8
     _GAP: int = 6
 
+    # ── Sequential label counters (per structure type) ────────────────────────
+    _type_seq: dict = {"DP": 0, "TP": 0, "4P": 0, "DTR": 0}
+
+    @classmethod
+    def _next_seq(cls, st: str) -> int:
+        cls._type_seq[st] = cls._type_seq.get(st, 0) + 1
+        return cls._type_seq[st]
+
+    @classmethod
+    def reset_counters(cls) -> None:
+        cls._type_seq = {"DP": 0, "TP": 0, "4P": 0, "DTR": 0}
+
     def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
@@ -61,6 +73,11 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.dtr_size         = "None"
         self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))
 
+        # seq_id starts at 0; assigned lazily on first update_visuals call
+        # (because structure_type may be changed after __init__)
+        self.seq_id    = 0
+        self._seq_type = None   # tracks which type the seq_id was assigned for
+
         self.label = DraggableLabel(self)
 
         self.update_visuals()
@@ -68,6 +85,11 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:
+        # Lazy-assign (or re-assign on type change) the sequential label number
+        if not self.seq_id or self._seq_type != self.structure_type:
+            self.seq_id    = SmartStructure._next_seq(self.structure_type)
+            self._seq_type = self.structure_type
+
         path = QPainterPath()
         r    = self._RADIUS
         gap  = self._GAP
@@ -165,8 +187,10 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.setPen(QPen(Qt.GlobalColor.black, 1.5))
 
         # Label
-        ht_m = self.height.replace("MTR", "m")
-        txt  = f"{st} Structure\n{self.pole_type2} {ht_m}"
+        _pfx_d = defaults.current
+        _lbl_keys = {"DP": "label_dp", "TP": "label_tp", "4P": "label_4p", "DTR": "label_dtr"}
+        _pfx = _pfx_d.get(_lbl_keys.get(st, "label_dp"), st)
+        txt  = f"{_pfx}{self.seq_id}"
         if st == "DTR" and self.dtr_size != "None":
             txt += f"\n{self.dtr_size} DTR"
         aug_required = bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
@@ -243,6 +267,18 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
     agency_supply : bool  — True = agency supplied, False = WBSEDCL
     """
 
+    # ── Sequential label counter ──────────────────────────────────────────────
+    _con_seq: int = 0
+
+    @classmethod
+    def _next_seq(cls) -> int:
+        cls._con_seq += 1
+        return cls._con_seq
+
+    @classmethod
+    def reset_counters(cls) -> None:
+        cls._con_seq = 0
+
     def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
@@ -252,6 +288,8 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self.cable_size     = _d.get("sd_conductor_size", "10 SQMM")
         self.agency_supply  = False
         self.consider_cable = False
+
+        self.seq_id = SmartConsumer._next_seq()
 
         # Build house path (static — does not change)
         house = QPainterPath()
@@ -271,9 +309,10 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:
+        _pfx = defaults.current.get("label_consumer", "SC")
         phase_short = "1φ" if self.phase == "1 Phase" else "3φ"
         supply_tag  = " [A]" if self.agency_supply else ""
-        txt = f"Consumer\n{phase_short}{supply_tag}"
+        txt = f"{_pfx}{self.seq_id}\n{phase_short}{supply_tag}"
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"
 

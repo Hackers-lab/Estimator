@@ -40,6 +40,34 @@ from app_config import get_app_root as _get_app_root
 DB_PATH = os.path.join(_get_app_root(), "erp_master.db")
 _SEED_DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..","data","seed_data.json")
 
+# Prefixes / codes for incremental rows added to existing databases
+_NEW_MATERIAL_PREFIXES = (
+    "0110010", "0110011", "0110020", "0110051",
+    "0101011011", "0103011611", "0103011911", "0103012311",
+    "0502010621", "0502011221",
+    "0501030321", "0501030421", "0501031121",
+    "0501017921", "0501018121", "0501018221", "0501018321",
+    "0301010541", "0301011041", "0301018341", "0301018741",
+    "0301019041", "0301019141", "0301019341",
+    "0407010741", "0407010541",
+    "0504070341",
+    "195021741", "597011541", "597011741",
+    "0508040441",
+)
+_NEW_LABOUR_CODES = {
+    "LAB-04", "LAB-07", "LAB-08",
+    "LAB-09", "LAB-10", "LAB-11", "LAB-12",
+    "LAB-13", "LAB-14", "LAB-15", "LAB-16",
+    "LAB-17", "LAB-18",
+    "LAB-19", "LAB-20", "LAB-21",
+    "LAB-23", "LAB-24", "LAB-26", "LAB-27", "LAB-28", "LAB-29",
+    "LAB-32", "LAB-33", "LAB-34", "LAB-35",
+    "LAB-36", "LAB-37", "LAB-38", "LAB-39",
+    "LAB-61", "LAB-62", "LAB-63", "LAB-71", "LAB-72", "LAB-73",
+    "LAB-64", "LAB-65", "LAB-66",
+    "LAB-67", "LAB-68", "LAB-69", "LAB-70",
+}
+
 
 def _load_seed_data() -> tuple[list, list]:
     """Load seed materials and labour from seed_data.json."""
@@ -54,45 +82,8 @@ def _load_seed_data() -> tuple[list, list]:
         return [], []
 
 
-_SEED_MATERIALS, _SEED_LABOUR = _load_seed_data()
-
-
-# Rows to add to existing v4 databases (INSERT OR IGNORE)
-_NEW_MATERIALS = [
-    r for r in _SEED_MATERIALS
-    if r[0].startswith(("0110010", "0110011", "0110020", "0110051",
-                         "0101011011", "0103011611", "0103011911", "0103012311",
-                         "0502010621", "0502011221",
-                         "0501030321", "0501030421", "0501031121",
-                         "0501017921", "0501018121", "0501018221", "0501018321",
-                         "0301010541", "0301011041", "0301018341", "0301018741",
-                         "0301019041", "0301019141", "0301019341",
-                         "0407010741", "0407010541",
-                         "0504070341",
-                         "195021741", "597011541", "597011741",
-                         "0508040441"))
-]
-
-_NEW_LABOUR = [
-    r for r in _SEED_LABOUR
-    if r[0] in {
-        "LAB-04", "LAB-07", "LAB-08",
-        "LAB-09", "LAB-10", "LAB-11", "LAB-12",
-        "LAB-13", "LAB-14", "LAB-15", "LAB-16",
-        "LAB-17", "LAB-18",
-        "LAB-19", "LAB-20", "LAB-21",
-        "LAB-23", "LAB-24", "LAB-26", "LAB-27", "LAB-28", "LAB-29",
-        "LAB-32", "LAB-33", "LAB-34", "LAB-35",
-        "LAB-36", "LAB-37", "LAB-38", "LAB-39",
-        "LAB-61", "LAB-62", "LAB-63", "LAB-71", "LAB-72", "LAB-73",
-        "LAB-64", "LAB-65", "LAB-66",
-        "LAB-67", "LAB-68", "LAB-69", "LAB-70",
-    }
-]
-
-
 def setup_database():
-    """Called on every app launch."""
+    """Called on every app launch. Seed data is loaded lazily only when needed."""
     conn   = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -116,12 +107,16 @@ def setup_database():
     cursor.execute("SELECT COUNT(*) FROM materials")
     is_empty = cursor.fetchone()[0] == 0
 
+    seed_materials, seed_labour = _load_seed_data()
+
     if is_empty:
-        cursor.executemany("INSERT INTO materials VALUES (?,?,?,?)", _SEED_MATERIALS)
-        cursor.executemany("INSERT INTO labor VALUES (?,?,?,?)", _SEED_LABOUR)
+        cursor.executemany("INSERT INTO materials VALUES (?,?,?,?)", seed_materials)
+        cursor.executemany("INSERT INTO labor VALUES (?,?,?,?)", seed_labour)
     else:
-        cursor.executemany("INSERT OR IGNORE INTO materials VALUES (?,?,?,?)", _NEW_MATERIALS)
-        cursor.executemany("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", _NEW_LABOUR)
+        new_materials = [r for r in seed_materials if r[0].startswith(_NEW_MATERIAL_PREFIXES)]
+        new_labour    = [r for r in seed_labour    if r[0] in _NEW_LABOUR_CODES]
+        cursor.executemany("INSERT OR IGNORE INTO materials VALUES (?,?,?,?)", new_materials)
+        cursor.executemany("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", new_labour)
 
     conn.commit()
     conn.close()

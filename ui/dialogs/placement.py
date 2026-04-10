@@ -29,7 +29,6 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
 import sqlite3
 import json
 import re
-import openpyxl
 
 from core import defaults
 from core import property_catalog
@@ -113,12 +112,22 @@ class PlacementDefaultsDialog(QDialog):
         spans_scroll.setFrameShape(QFrame.Shape.NoFrame)
         spans_scroll.setWidget(spans_page)
         tabs.addTab(spans_scroll, "📏 Spans & Service Drop")
+
+        labels_page = self._build_labels_tab()
+        labels_scroll = QScrollArea()
+        labels_scroll.setWidgetResizable(True)
+        labels_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        labels_scroll.setWidget(labels_page)
+        tabs.addTab(labels_scroll, "🏷 Labels")
+
+        self._tabs = tabs   # keep reference for tab-aware reset
         root.addWidget(tabs)
 
         # ── Buttons ───────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
-        reset_btn = QPushButton("↩  Reset to Factory")
-        reset_btn.clicked.connect(self._reset)
+        reset_btn = QPushButton("↩  Reset this tab")
+        reset_btn.setToolTip("Reset only the currently visible tab to factory values")
+        reset_btn.clicked.connect(self._reset_current_tab)
         btn_row.addWidget(reset_btn)
         btn_row.addStretch()
 
@@ -387,6 +396,61 @@ class PlacementDefaultsDialog(QDialog):
 
     # ── Cascade helpers ───────────────────────────────────────────────────
 
+    def _build_labels_tab(self) -> QWidget:
+        w   = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setSpacing(10)
+
+        d = defaults.current
+
+        grp = QGroupBox("Canvas Label Prefixes")
+        frm = QFormLayout(grp)
+        frm.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+
+        note = QLabel(
+            "Each object on canvas is labelled with the prefix below\n"
+            "followed by a sequential number (e.g. PP1, PP2 …).\n"
+            "Changes take effect the next time a label is refreshed."
+        )
+        note.setStyleSheet("color: #555; font-size: 11px;")
+        frm.addRow(note)
+
+        self.lbl_new_lt = QLineEdit(d.get("label_new_lt", "PP"))
+        self.lbl_new_lt.setMaxLength(8)
+        frm.addRow("New LT Pole prefix:", self.lbl_new_lt)
+
+        self.lbl_new_ht = QLineEdit(d.get("label_new_ht", "HP"))
+        self.lbl_new_ht.setMaxLength(8)
+        frm.addRow("New HT Pole prefix:", self.lbl_new_ht)
+
+        self.lbl_ex_pole = QLineEdit(d.get("label_ex_pole", "EP"))
+        self.lbl_ex_pole.setMaxLength(8)
+        frm.addRow("Existing Pole prefix:", self.lbl_ex_pole)
+
+        self.lbl_dp = QLineEdit(d.get("label_dp", "DP"))
+        self.lbl_dp.setMaxLength(8)
+        frm.addRow("DP Structure prefix:", self.lbl_dp)
+
+        self.lbl_tp = QLineEdit(d.get("label_tp", "TP"))
+        self.lbl_tp.setMaxLength(8)
+        frm.addRow("TP Structure prefix:", self.lbl_tp)
+
+        self.lbl_4p = QLineEdit(d.get("label_4p", "4P"))
+        self.lbl_4p.setMaxLength(8)
+        frm.addRow("4P Structure prefix:", self.lbl_4p)
+
+        self.lbl_dtr = QLineEdit(d.get("label_dtr", "DTR"))
+        self.lbl_dtr.setMaxLength(8)
+        frm.addRow("DTR Sub-station prefix:", self.lbl_dtr)
+
+        self.lbl_consumer = QLineEdit(d.get("label_consumer", "SC"))
+        self.lbl_consumer.setMaxLength(8)
+        frm.addRow("Consumer prefix:", self.lbl_consumer)
+
+        lay.addWidget(grp)
+        lay.addStretch()
+        return w
+
     def _refresh_heights(self, type2_cb: QComboBox, height_cb: QComboBox,
                          current_val: str = "") -> None:
         opts = self._HEIGHT_OPTIONS.get(type2_cb.currentText(), ["8MTR", "9MTR"])
@@ -443,17 +507,85 @@ class PlacementDefaultsDialog(QDialog):
             "sd_conductor_size": self.sd_size.currentText(),
             "sd_length":         self.sd_len.value(),
             "sd_phase":          self.sd_phase.currentText(),
+            # Label prefixes
+            "label_new_lt":   self.lbl_new_lt.text().strip() or "PP",
+            "label_new_ht":   self.lbl_new_ht.text().strip() or "HP",
+            "label_ex_pole":  self.lbl_ex_pole.text().strip() or "EP",
+            "label_dp":       self.lbl_dp.text().strip() or "DP",
+            "label_tp":       self.lbl_tp.text().strip() or "TP",
+            "label_4p":       self.lbl_4p.text().strip() or "4P",
+            "label_dtr":      self.lbl_dtr.text().strip() or "DTR",
+            "label_consumer": self.lbl_consumer.text().strip() or "SC",
         }
 
     def _save(self) -> None:
         defaults.save(self._collect())
         self.accept()
 
+    def _reset_current_tab(self) -> None:
+        """Reset only the widgets on the currently visible tab to factory values."""
+        from PyQt6.QtWidgets import QMessageBox
+        from core.defaults import _FACTORY
+        tab_names = [
+            self._tabs.tabText(i) for i in range(self._tabs.count())
+        ]
+        idx  = self._tabs.currentIndex()
+        name = tab_names[idx]
+        # Strip emoji characters before Python 3.12 (no backslashes in f-string expressions)
+        plain_name = name.encode("ascii", errors="ignore").decode("ascii").strip()
+        if QMessageBox.question(
+            self, "Reset Tab",
+            f'Reset "{plain_name}" defaults to factory values?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        f = _FACTORY
+        if idx == 0:   # Poles & Structures
+            self.lt_type2.setCurrentText(f["lt_pole_type2"])
+            self._refresh_heights(self.lt_type2, self.lt_height, f["lt_height"])
+            self.lt_earth.setValue(f["lt_earth_count"])
+            self.lt_stay.setValue(f["lt_stay_count"])
+            self.lt_dist_box.setChecked(bool(f["lt_dist_box_required"]))
+            self.ht_type2.setCurrentText(f["ht_pole_type2"])
+            self._refresh_heights(self.ht_type2, self.ht_height, f["ht_height"])
+            self.ht_earth.setValue(f["ht_earth_count"])
+            self.ht_stay.setValue(f["ht_stay_count"])
+            self.st_type2.setCurrentText(f["struct_pole_type2"])
+            self._refresh_heights(self.st_type2, self.st_height, f["struct_height"])
+            self.st_stay.setValue(f["struct_stay_count"])
+            self.st_orient.setCurrentText(f["struct_orientation"])
+            self.st_kiosk.setChecked(bool(f["dtr_kiosk_required"]))
+            self.ext_ht.setValue(f["extension_height"])
+            self.node_min_gap.setValue(int(f["node_min_gap"]))
+            self.ex_stay_tol.setValue(int(f["existing_stay_angle_tolerance_deg"]))
+        elif idx == 1:   # Spans & Service Drop
+            self.lt_cond.setCurrentText(f["lt_conductor"])
+            self._refresh_sizes(self.lt_cond, self.lt_size, "LT", f["lt_conductor_size"])
+            self.lt_len.setValue(f["lt_span_length"])
+            self.lt_wires.setCurrentText(str(f["lt_wire_count"]))
+            self.ht_cond.setCurrentText(f["ht_conductor"])
+            self._refresh_sizes(self.ht_cond, self.ht_size, "HT", f["ht_conductor_size"])
+            self.ht_len.setValue(f["ht_span_length"])
+            self.ht_wires.setCurrentText(str(f["ht_wire_count"]))
+            self.ht_cg.setChecked(bool(f["ht_cg_required"]))
+            self.sd_size.setCurrentText(f["sd_conductor_size"])
+            self.sd_len.setValue(f["sd_length"])
+            self.sd_phase.setCurrentText(f["sd_phase"])
+        elif idx == 2:   # Labels
+            self.lbl_new_lt.setText(f["label_new_lt"])
+            self.lbl_new_ht.setText(f["label_new_ht"])
+            self.lbl_ex_pole.setText(f["label_ex_pole"])
+            self.lbl_dp.setText(f["label_dp"])
+            self.lbl_tp.setText(f["label_tp"])
+            self.lbl_4p.setText(f["label_4p"])
+            self.lbl_dtr.setText(f["label_dtr"])
+            self.lbl_consumer.setText(f["label_consumer"])
+
     def _reset(self) -> None:
         from PyQt6.QtWidgets import QMessageBox
         if QMessageBox.question(
             self, "Reset Defaults",
-            "Reset all placement defaults to factory values?",
+            "Reset ALL placement defaults to factory values?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         ) == QMessageBox.StandardButton.Yes:
             defaults.reset_to_factory()

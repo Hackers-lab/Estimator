@@ -29,7 +29,6 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
 import sqlite3
 import json
 import re
-import openpyxl
 
 from core import defaults
 from core import property_catalog

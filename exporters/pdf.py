@@ -38,7 +38,7 @@ class PDFExporter:
     # ── PDF layout constants ──────────────────────────────────────────────────
     MARG_T = MARG_B = MARG_L = MARG_R = 10
     PAGE_EDGE_GAP  = 20
-    TITLE_H        = 32   # title strip height (device px) — tall enough for 2-line wrap
+    TITLE_H_MIN   = 20   # minimum title strip height (device px) when text fits on one line
     FOOTER_H       = 16   # footer strip height
     LEGEND_RESERVE = 140  # px reserved at bottom of last page for the legend box
 
@@ -621,7 +621,7 @@ class PDFExporter:
         MARG_T, MARG_B = self.MARG_T, self.MARG_B
         MARG_L, MARG_R = self.MARG_L, self.MARG_R
         PAGE_EDGE_GAP  = self.PAGE_EDGE_GAP
-        TITLE_H        = self.TITLE_H
+        TITLE_H_MIN    = self.TITLE_H_MIN
         FOOTER_H       = self.FOOTER_H
 
         printer = QPrinter(QPrinter.PrinterMode.ScreenResolution)
@@ -655,7 +655,17 @@ class PDFExporter:
             page_h = paper.height() - MARG_T  - MARG_B
             ox, oy = MARG_L, MARG_T
 
-            # ── Border ────────────────────────────────────────────────────
+            # ── Dynamic title height based on actual text content ─────────────
+            title_text = (m.get("subject") or "ERP PROJECT DRAWING") if app.pdf_show_project_name else ""
+            if title_text:
+                from PyQt6.QtGui import QTextDocument
+                _doc = QTextDocument()
+                _doc.setDefaultFont(QFont("Arial", 9, QFont.Weight.Bold))
+                _doc.setTextWidth(page_w * 0.70 - 8)
+                _doc.setPlainText(title_text)
+                TITLE_H = max(TITLE_H_MIN, int(_doc.size().height()) + 10)
+            else:
+                TITLE_H = TITLE_H_MIN
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(QColor(180, 180, 180), 0.8))
             painter.drawRect(QRectF(ox, oy, page_w, page_h))
@@ -664,11 +674,10 @@ class PDFExporter:
             painter.fillRect(QRectF(ox, oy, page_w, TITLE_H), QColor(240, 244, 250))
             painter.setPen(Qt.GlobalColor.black)
             painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            if app.pdf_show_project_name:
-                title_text = m.get("subject") or "ERP PROJECT DRAWING"
+            if title_text:
                 painter.drawText(
-                    QRectF(ox + 4, oy, page_w * 0.70, TITLE_H),
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                    QRectF(ox + 4, oy + 4, page_w * 0.70 - 8, TITLE_H - 4),
+                    Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
                     | Qt.TextFlag.TextWordWrap,
                     title_text,
                 )

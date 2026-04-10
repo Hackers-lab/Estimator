@@ -33,7 +33,6 @@ from PyQt6.QtGui import (
     QAction, QKeySequence, QIcon, QPixmap
 )
 from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, QSize, pyqtSignal
-from PyQt6.QtPrintSupport import QPrinter
 
 from core.constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
 from core import defaults
@@ -48,8 +47,6 @@ from ui.dialogs import (
     RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
     PropertyEditorDialog,
 )
-from exporters.pdf import PDFExporter
-from exporters.excel import ExcelExporter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -949,10 +946,12 @@ class EstimateApp(QMainWindow):
 
     def _build_continuation_marks_for_tiles(self, tiles, inset_scene: float = 20.0):
         """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
+        from exporters.pdf import PDFExporter
         return PDFExporter(self)._build_continuation_marks_for_tiles(tiles, inset_scene)
 
     def _position_split_span_labels(self, continuation_marks):
         """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
+        from exporters.pdf import PDFExporter
         PDFExporter(self)._position_split_span_labels(continuation_marks)
 
     def _refresh_page_grid(self):
@@ -2755,6 +2754,8 @@ class EstimateApp(QMainWindow):
                 self.scene.removeItem(item.label)
         if item.scene():
             self.scene.removeItem(item)
+        if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
+            self._renumber_labels()
         self.refresh_live_estimate()
 
     # =========================================================================
@@ -2787,7 +2788,10 @@ class EstimateApp(QMainWindow):
                     1 for s in pole.connected_spans
                     if (s.p1 if s.p2 == pole else s.p2) in existing_set
                 )
-                if neighbours_existing >= 2:
+                # Only relay SmartPoles can be promoted — SmartStructures
+                # (DP, TP, 4P, DTR) are always new infrastructure and must
+                # never be silently reclassified as existing.
+                if neighbours_existing >= 2 and isinstance(pole, SmartPole):
                     promoted.add(pole)
             if not promoted:
                 break
@@ -3149,8 +3153,13 @@ class EstimateApp(QMainWindow):
 
     def _safe_subject_stem(self, fallback: str) -> str:
         raw = (self.project_meta.get("subject") or "").strip()
-        safe = "".join(c for c in raw if c not in r'\/*?:"<>|')
-        return safe if safe else fallback
+        # Replace non-filename chars with underscores (keep letters, digits, spaces, hyphens, dots)
+        import re as _re
+        sanitized = _re.sub(r'[\\/*?:"<>|]', "_", raw)
+        # Trim to first 6 words to keep filenames short
+        words = sanitized.split()[:6]
+        stem  = "_".join(words)
+        return stem if stem else fallback
 
     def save_project_bundle(self):
         if self.scene.itemsBoundingRect().isNull():
@@ -3174,6 +3183,8 @@ class EstimateApp(QMainWindow):
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(self.compile_save_data(), f, indent=2)
 
+            from exporters.pdf import PDFExporter
+            from exporters.excel import ExcelExporter
             pdf_saved = PDFExporter(self).export(
                 output_path=pdf_path,
                 show_success=False,
@@ -3216,6 +3227,7 @@ class EstimateApp(QMainWindow):
 
     def generate_excel(self):
         """Delegate to ExcelExporter."""
+        from exporters.excel import ExcelExporter
         saved_path = ExcelExporter(self).generate(
             initial_dir=self._default_export_dir()
         )
@@ -3228,6 +3240,7 @@ class EstimateApp(QMainWindow):
 
     def export_pdf(self):
         """Delegate to PDFExporter."""
+        from exporters.pdf import PDFExporter
         saved_path = PDFExporter(self).export(
             initial_dir=self._default_export_dir()
         )
@@ -3237,6 +3250,7 @@ class EstimateApp(QMainWindow):
     # =========================================================================
     #  SAVE / LOAD / AUTOSAVE
     # =========================================================================
+
 
     def compile_save_data(self):
         state = {
@@ -3270,6 +3284,7 @@ class EstimateApp(QMainWindow):
                 }
                 if isinstance(item, SmartPole):
                     nd.update({
+                        "seq_id":            item.seq_id,
                         "pole_type":         item.pole_type,
                         "pole_type2":        item.pole_type2,
                         "is_existing":       item.is_existing,
@@ -3287,6 +3302,7 @@ class EstimateApp(QMainWindow):
                     })
                 elif isinstance(item, SmartStructure):
                     nd.update({
+                        "seq_id":            item.seq_id,
                         "structure_type":    item.structure_type,
                         "pole_type2":        item.pole_type2,
                         "height":            item.height,
@@ -3300,6 +3316,7 @@ class EstimateApp(QMainWindow):
                     })
                 elif isinstance(item, SmartConsumer):
                     nd.update({
+                        "seq_id":          item.seq_id,
                         "phase":           item.phase,
                         "cable_size":      item.cable_size,
                         "agency_supply":   item.agency_supply,
@@ -3375,6 +3392,8 @@ class EstimateApp(QMainWindow):
                     struct.earth_count      = nd.get("earth_count", 5)
                     struct.stay_count       = nd.get("stay_count", 4)
                     struct.height           = nd.get("height", "9MTR")
+                    struct.seq_id    = nd.get("seq_id", 0)
+                    struct._seq_type = "DTR"   # prevent lazy-reassignment
                     struct.update_visuals()
                     struct.label.setPos(nd["label_x"], nd["label_y"])
                     struct.label.setPlainText(nd["label_text"])
@@ -3401,6 +3420,7 @@ class EstimateApp(QMainWindow):
                     pole.dynamic_props         = dict(nd.get("dynamic_props", {}))
                     pole.existing_subtype      = nd.get("existing_subtype", nd.get("pole_type", "LT"))
                     pole.existing_dtr_size     = nd.get("existing_dtr_size", "None")
+                    pole.seq_id                = nd.get("seq_id", pole.seq_id)
                     pole.update_visuals()
                     pole.label.setPos(nd["label_x"], nd["label_y"])
                     pole.label.setPlainText(nd["label_text"])
@@ -3426,6 +3446,8 @@ class EstimateApp(QMainWindow):
                 )
                 struct.custom_note      = nd.get("custom_note", "")
                 struct.dynamic_props    = dict(nd.get("dynamic_props", {}))
+                struct.seq_id    = nd.get("seq_id", 0)
+                struct._seq_type = struct.structure_type   # prevent lazy-reassignment
                 struct.update_visuals()
                 struct.label.setPos(nd["label_x"], nd["label_y"])
                 struct.label.setPlainText(nd["label_text"])
@@ -3442,6 +3464,7 @@ class EstimateApp(QMainWindow):
                 consumer.consider_cable = nd.get("consider_cable", False)
                 consumer.custom_note   = nd.get("custom_note", "")
                 consumer.dynamic_props = dict(nd.get("dynamic_props", {}))
+                consumer.seq_id        = nd.get("seq_id", consumer.seq_id)
                 consumer.update_visuals()
                 consumer.label.setPos(nd["label_x"], nd["label_y"])
                 consumer.label.setPlainText(nd["label_text"])
@@ -3489,6 +3512,7 @@ class EstimateApp(QMainWindow):
                 pass
 
         self.refresh_live_estimate()
+        self._calibrate_label_counters()
 
         # After loading, optionally fit the view
         if fit_view:
@@ -3500,6 +3524,104 @@ class EstimateApp(QMainWindow):
                         Qt.AspectRatioMode.KeepAspectRatio
                     )
             QTimer.singleShot(80, _fit_after_load)
+
+    # =========================================================================
+    #  LABEL COUNTER HELPERS
+    # =========================================================================
+
+    def _renumber_labels(self) -> None:
+        """
+        After a node is deleted, compact the sequential label numbers for every
+        category so there are no gaps (e.g. EP1, EP3, EP5 → EP1, EP2, EP3).
+        Objects within each category are sorted by their current seq_id so
+        the relative order is preserved.
+        """
+        # Gather per-category lists (sorted by current seq_id to keep order)
+        buckets: dict = {
+            "ex":  [],   # existing poles
+            "lt":  [],   # new LT poles
+            "ht":  [],   # new HT poles
+            "DP":  [],
+            "TP":  [],
+            "4P":  [],
+            "DTR": [],
+            "con": [],   # consumers
+        }
+
+        for item in self.scene.items():
+            if isinstance(item, SmartPole):
+                if item.is_existing:
+                    buckets["ex"].append(item)
+                elif item.pole_type == "LT":
+                    buckets["lt"].append(item)
+                else:
+                    buckets["ht"].append(item)
+            elif isinstance(item, SmartStructure):
+                st = getattr(item, "structure_type", "DP")
+                if st in buckets:
+                    buckets[st].append(item)
+            elif isinstance(item, SmartConsumer):
+                buckets["con"].append(item)
+
+        # Sort each bucket by existing seq_id, then reassign compactly
+        for key, group in buckets.items():
+            group.sort(key=lambda o: getattr(o, "seq_id", 0))
+            for new_id, obj in enumerate(group, start=1):
+                if getattr(obj, "seq_id", 0) != new_id:
+                    obj.seq_id = new_id
+                    obj.update_visuals()
+
+        # Update class-level counters to match new maximums
+        SmartPole._ex_seq = len(buckets["ex"])
+        SmartPole._lt_seq = len(buckets["lt"])
+        SmartPole._ht_seq = len(buckets["ht"])
+        SmartStructure._type_seq = {
+            "DP":  len(buckets["DP"]),
+            "TP":  len(buckets["TP"]),
+            "4P":  len(buckets["4P"]),
+            "DTR": len(buckets["DTR"]),
+        }
+        SmartConsumer._con_seq = len(buckets["con"])
+
+    def _calibrate_label_counters(self) -> None:
+        """
+        After loading a file, set each class-level label counter to the
+        maximum seq_id already in use so that newly placed objects get
+        the next available number rather than potentially colliding with
+        existing labels.
+        """
+        ex_max = lt_max = ht_max = 0
+        dp_max = tp_max = fp_max = dtr_max = 0
+        con_max = 0
+
+        for item in self.scene.items():
+            if isinstance(item, SmartPole):
+                sid = getattr(item, "seq_id", 0)
+                if item.is_existing:
+                    ex_max = max(ex_max, sid)
+                elif item.pole_type == "LT":
+                    lt_max = max(lt_max, sid)
+                else:
+                    ht_max = max(ht_max, sid)
+            elif isinstance(item, SmartStructure):
+                sid = getattr(item, "seq_id", 0)
+                st  = getattr(item, "structure_type", "DP")
+                if st == "DP":
+                    dp_max = max(dp_max, sid)
+                elif st == "TP":
+                    tp_max = max(tp_max, sid)
+                elif st == "4P":
+                    fp_max = max(fp_max, sid)
+                elif st == "DTR":
+                    dtr_max = max(dtr_max, sid)
+            elif isinstance(item, SmartConsumer):
+                con_max = max(con_max, getattr(item, "seq_id", 0))
+
+        SmartPole._ex_seq = ex_max
+        SmartPole._lt_seq = lt_max
+        SmartPole._ht_seq = ht_max
+        SmartStructure._type_seq = {"DP": dp_max, "TP": tp_max, "4P": fp_max, "DTR": dtr_max}
+        SmartConsumer._con_seq   = con_max
 
     # =========================================================================
     #  UNDO / REDO
@@ -3570,6 +3692,9 @@ class EstimateApp(QMainWindow):
             self.span_start_pole  = None
             self.last_placed_node = None
             self.bom_overrides.clear()
+            SmartPole.reset_counters()
+            SmartStructure.reset_counters()
+            SmartConsumer.reset_counters()
             self._show_blank_start_page()
 
     def load_from_file(self):
@@ -3581,17 +3706,16 @@ class EstimateApp(QMainWindow):
                 self.parse_load_data(json.load(f))
 
     def save_to_file(self):
-        m = self.project_meta
-        safe = "".join(
-            c for c in m.get("subject", "") if c not in r'\/*?:"<>|'
-        )
-        default = f"{safe}.json" if safe else "project.json"
+        last_dir = str(defaults.current.get("export_last_dir", "") or "").strip()
+        stem     = self._safe_subject_stem("project")
+        default  = os.path.join(last_dir, f"{stem}.json") if last_dir else f"{stem}.json"
         filename, _ = QFileDialog.getSaveFileName(
             self, "Save Project", default, "JSON Files (*.json)"
         )
         if filename:
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(self.compile_save_data(), f, indent=2)
+            defaults.save({"export_last_dir": os.path.dirname(filename)})
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("Project Saved")
