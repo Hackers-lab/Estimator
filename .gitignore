@@ -1,0 +1,23 @@
+# Build outputs
+build/
+dist/
+*.spec
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Autosave (user-specific, not for source control)
+autosave_erp.json
+
+# Database (generated at runtime, seeded from seed_data.json)
+erp_master.db
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+*.code-workspace

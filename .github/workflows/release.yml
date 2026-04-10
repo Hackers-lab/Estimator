@@ -1,0 +1,78 @@
+name: Build & Release
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers when you push a tag like v6.6, v6.7, etc.
+# HOW TO RELEASE:
+#   1. Update APP_VERSION in app_config.py  (e.g. "6.7")
+#   2. Add a ## v6.7 entry to CHANGELOG.md with user-facing notes
+#   3. Commit and push: git add . && git commit -m "Release v6.7"
+#   4. Tag the commit:  git tag v6.7
+#   5. Push the tag:    git push origin v6.7
+# GitHub Actions will then build the Windows EXE and publish a release.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    tags:
+      - 'v*.*'
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: windows-latest
+    permissions:
+      contents: write   # needed to create GitHub Releases
+
+    steps:
+      # ── 1. Checkout source ─────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python 3.11 ──────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ── 3. Install dependencies ────────────────────────────────────────────
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. Build the Windows EXE and ZIP ───────────────────────────────────
+      - name: Build application
+        run: python build.py
+
+      # ── 5. Resolve version and ZIP path from the tag ───────────────────────
+      - name: Resolve version info
+        id: info
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $ver = $tag.TrimStart('v')
+          $zip = "dist/ERP_Estimate_v${ver}.zip"
+          "TAG=$tag"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "ZIP=$zip"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Tag=$tag  Version=$ver  ZIP=$zip"
+
+      # ── 6. Extract user-facing release notes from CHANGELOG.md ────────────
+      - name: Extract release notes
+        shell: pwsh
+        run: |
+          python .github/scripts/extract_notes.py `
+            "${{ steps.info.outputs.TAG }}" `
+            CHANGELOG.md `
+            release_notes.txt
+
+      # ── 7. Publish the GitHub Release ──────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "ERP Estimate Generator v${{ steps.info.outputs.VERSION }}"
+          body_path: release_notes.txt
+          files: ${{ steps.info.outputs.ZIP }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
