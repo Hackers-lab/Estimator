@@ -75,6 +75,7 @@ class ExcelExporter:
             if not filename:
                 return None
 
+        openpyxl, *_ = _xl()
         wb = openpyxl.Workbook()
         self._write_estimate_sheet(wb, m)
         self._write_iron_breakup_sheet(wb)

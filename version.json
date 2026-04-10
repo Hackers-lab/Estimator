@@ -1,11 +1,12 @@
 {
-    "version": "6.7",
+    "version": "6.9",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-04-30",
     "release_date": "2026-04-10",
     "changelog": {
+        "6.9": "Fixed openpyxl NameError on Excel export; all module imports verified clean",
         "6.8": "Custom canvas labels (EP1/PP1/HP1/DP1/DTR1/SC1) with configurable prefixes and sequential numbering; per-tab reset in Placement Defaults; auto-renumber on delete; dynamic PDF title strip height; filename trimmed to 6 words on save; project subject 300-char limit with live counter; faster startup (lazy openpyxl + exporters); Dead End Clamp rule fixed for existing poles; DTR new-span-as-existing bug fixed",
         "6.7": "Automated GitHub releases via Actions workflow; right-click property editing and numeric input dialogs",
         "6.2": "AB cable erection labour split by size (3CX50→LAB-37, 3CX70→LAB-36), dead-end threshold ≥65°, ACSR span wire-count tick marks, span labels show length only, label positioned perpendicularly at midpoint",

@@ -2,6 +2,22 @@
 
 ---
 
+## v6.9 — April 10, 2026
+
+### Bug Fixes
+
+#### 🔧 Excel Export: `openpyxl` NameError
+Exporting an estimate to Excel raised a `NameError: name 'openpyxl' is not defined` because
+the `generate()` method in `ExcelExporter` called `openpyxl.Workbook()` directly — but
+`openpyxl` is lazily loaded (only available after calling `_xl()`).
+Fixed by pulling the reference from `_xl()` before constructing the workbook.
+
+#### ✅ All Module Imports Verified
+Every project module (`canvas`, `core`, `exporters`, `ui.dialogs.*`) imports cleanly with
+no stale, circular, or missing imports.
+
+---
+
 ## v6.7 — April 10, 2026
 
 ### What's New
