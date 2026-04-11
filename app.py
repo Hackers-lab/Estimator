@@ -2732,6 +2732,22 @@ class EstimateApp(QMainWindow):
 
         for entry in entries:
             label   = entry["label"]
+
+            # Simple convention for limiting custom properties to specific pole/structure types:
+            if obj_type == "SmartPole":
+                if (label.upper().startswith("HT_") or label.upper().startswith("HT ")) and item.pole_type != "HT":
+                    continue
+                if (label.upper().startswith("LT_") or label.upper().startswith("LT ")) and item.pole_type != "LT":
+                    continue
+            elif obj_type == "SmartStructure":
+                req_st = None
+                for st in ("DP", "TP", "4P", "DTR"):
+                    if label.upper().startswith(f"{st}_") or label.upper().startswith(f"{st} "):
+                        req_st = st
+                        break
+                if req_st and getattr(item, "structure_type", "") != req_st:
+                    continue
+
             options = entry.get("options", [])
             props   = getattr(item, "dynamic_props", {})
 

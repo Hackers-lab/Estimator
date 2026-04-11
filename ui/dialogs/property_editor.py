@@ -1234,6 +1234,22 @@ class PropertyEditorDialog(QDialog):
                     "obj_type": obj_type,
                     "label": label,
                 })
+                # Add child leaves for colors
+                for opt in options:
+                    leaf = QTreeWidgetItem([f"          {opt}", "user-added option", ""])
+                    leaf.setForeground(0, QColor("#1a5276"))
+                    f2 = QFont()
+                    f2.setBold(True)
+                    leaf.setFont(0, f2)
+                    self._set_node(leaf, {
+                        "node": self._N_EXT_OPTION,
+                        "obj_type": obj_type,
+                        "ext_key": f"custom_prop::{label}",
+                        "value": opt,
+                    })
+                    self._bind_item_color(leaf, obj_type, label, opt)
+                    custom_item.addChild(leaf)
+
                 custom_grp.addChild(custom_item)
 
             type_item.setExpanded(True)
@@ -1378,11 +1394,20 @@ class PropertyEditorDialog(QDialog):
                 ot = pnd.get("obj_type")
                 pp = pnd.get("prop")
                 return (ot, pp) if isinstance(ot, str) and isinstance(pp, str) else None
+            if pnode == self._N_CUSTOM_PROP:
+                ot = pnd.get("obj_type")
+                lbl = pnd.get("label")
+                return (ot, f"custom_prop::{lbl}") if isinstance(ot, str) and isinstance(lbl, str) else None
 
         if node == self._N_FIXED_PROP and nd.get("is_list") and not nd.get("is_variant"):
             ot = nd.get("obj_type")
             pp = nd.get("prop")
             return (ot, pp) if isinstance(ot, str) and isinstance(pp, str) else None
+
+        if node == self._N_CUSTOM_PROP:
+            ot = nd.get("obj_type")
+            lbl = nd.get("label")
+            return (ot, f"custom_prop::{lbl}") if isinstance(ot, str) and isinstance(lbl, str) else None
 
         return None
 
@@ -1551,6 +1576,16 @@ class PropertyEditorDialog(QDialog):
 
         if is_cond:
             property_catalog.delete_user_conductor(value)
+        elif ext_key and ext_key.startswith("custom_prop::"):
+            # Remove custom property option
+            label = ext_key.split("::", 1)[1]
+            for entry in property_catalog.get_custom_entries(obj_type):
+                if entry["label"] == label:
+                    opts = entry.get("options", [])
+                    if value in opts:
+                        opts.remove(value)
+                    property_catalog.update_custom_entry(obj_type, label, label, opts)
+                    break
         else:
             property_catalog.remove_extended_option(obj_type, ext_key, value)
         self._build_tree()

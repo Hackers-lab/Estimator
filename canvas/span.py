@@ -321,7 +321,13 @@ class SmartSpan(QGraphicsPathItem):
             str(self.conductor),
             {"voltage": _vt.upper()},
         )
-        color = QColor(_user_col if _user_col else _default_col)
+        
+        _color_hex = _user_col if _user_col else _default_col
+        for k, v in getattr(self, "dynamic_props", {}).items():
+            _c_override = option_colors.resolve_user_only("SmartSpan", k, str(v))
+            if _c_override: _color_hex = _c_override
+
+        color = QColor(_color_hex)
         pen   = QPen(color, 1.8)
         aug_overlay_pair = (
             bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))

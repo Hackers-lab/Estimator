@@ -517,6 +517,12 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 _ctx = {"pole_type": "LT", "pole_type2": str(self.pole_type2)}
                 _user_col = option_colors.resolve_user_only("SmartPole", "height", str(self.height), _ctx)
                 _col = _user_col if _user_col else _default_col
+                
+                # Check for custom properties that might override the color
+                for k, v in getattr(self, "dynamic_props", {}).items():
+                    _c_override = option_colors.resolve_user_only("SmartPole", k, str(v))
+                    if _c_override: _col = _c_override
+                    
                 self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
             else:  # HT
@@ -525,6 +531,12 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 _ctx = {"pole_type": "HT", "pole_type2": str(self.pole_type2)}
                 _user_col = option_colors.resolve_user_only("SmartPole", "height", str(self.height), _ctx)
                 _col = _user_col if _user_col else _default_col
+                
+                # Check for custom properties that might override the color
+                for k, v in getattr(self, "dynamic_props", {}).items():
+                    _c_override = option_colors.resolve_user_only("SmartPole", k, str(v))
+                    if _c_override: _col = _c_override
+                    
                 self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
 
