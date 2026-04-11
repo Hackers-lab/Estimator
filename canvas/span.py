@@ -11,6 +11,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
 from core import defaults
+from core import option_colors
 from ui.components import DraggableLabel
 
 if TYPE_CHECKING:
@@ -293,14 +294,35 @@ class SmartSpan(QGraphicsPathItem):
 
     def update_visuals(self) -> None:
         # ── Pen style ─────────────────────────────────────────────────────
-        _span_color_keys = {
-            "ACSR":         "canvas_acsr",
-            "AB Cable":     "canvas_ab_cable",
-            "PVC Cable":    "canvas_pvc_cable",
-            "Service Drop": "canvas_svc_drop",
+        _vt = "lt" if self.is_lt_span else "ht"
+        _BUILTIN: dict[str, tuple[str, str]] = {
+            # conductor name → (preferred key, fallback key)
+            "ACSR":         (f"canvas_acsr_{_vt}",        "canvas_acsr"),
+            "AB Cable":     (f"canvas_ab_cable_{_vt}",    "canvas_ab_cable"),
+            "PVC Cable":    (f"canvas_pvc_cable_{_vt}",   "canvas_pvc_cable"),
+            "Service Drop": ("canvas_svc_drop",            "canvas_svc_drop"),
         }
-        _ck  = _span_color_keys.get(self.conductor, "canvas_acsr")
-        color = QColor(defaults.current.get(_ck, self._PEN_COLORS.get(self.conductor, QColor("#222222"))))
+        if self.conductor in _BUILTIN:
+            _ck_primary, _ck_fallback = _BUILTIN[self.conductor]
+        else:
+            _slug = self.conductor.lower().replace(" ", "_")
+            _ck_primary  = f"canvas_conductor_{_slug}_{_vt}"
+            _ck_fallback = f"canvas_conductor_{_slug}"
+        _fallback_color = self._PEN_COLORS.get(self.conductor, QColor("#888888"))
+        _fallback_hex   = (_fallback_color.name()
+                           if isinstance(_fallback_color, QColor) else _fallback_color)
+        _legacy_color = defaults.current.get(
+            _ck_primary,
+            defaults.current.get(_ck_fallback, _fallback_hex)
+        )
+        _resolved = option_colors.resolve(
+            "SmartSpan",
+            "conductor",
+            str(self.conductor),
+            _legacy_color,
+            {"voltage": _vt.upper()},
+        )
+        color = QColor(_resolved)
         pen   = QPen(color, 1.8)
         aug_overlay_pair = (
             bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))
@@ -337,8 +359,12 @@ class SmartSpan(QGraphicsPathItem):
                 txt = f"{self.length}m"
             elif self.conductor == "AB Cable":
                 txt = f"{self.length}m"
-            else:
+            elif self.conductor == "PVC Cable":
                 txt = f"{self.length}m PVC"
+            else:
+                # User-defined conductor — show abbreviated name
+                abbr = self.conductor[:6] if len(self.conductor) > 6 else self.conductor
+                txt = f"{self.length}m {abbr}"
             if self.aug_type != "New":
                 txt += f"\n({self.aug_type})"
             if self.has_cg and (not self.detail_view):

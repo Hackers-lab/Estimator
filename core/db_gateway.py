@@ -720,3 +720,164 @@ def get_properties_for_simulator(object_type: str) -> list[dict]:
         return result
     finally:
         con.close()
+
+
+# ─── Option Color Overrides ──────────────────────────────────────────────────
+
+def _norm_color(hex_color: str, fallback: str = "#888888") -> str:
+    s = str(hex_color or "").strip()
+    if len(s) == 7 and s.startswith("#"):
+        try:
+            int(s[1:], 16)
+            return s.lower()
+        except ValueError:
+            return fallback
+    return fallback
+
+
+def upsert_option_color_default(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    default_color: str,
+    context_key: str = "",
+) -> None:
+    """Create or update the default color for an option key without touching user_color."""
+    con = _conn()
+    try:
+        con.execute(
+            """
+            INSERT INTO option_color_overrides
+            (object_type, prop_name, option_val, context_key, default_color, user_color)
+            VALUES (?,?,?,?,?,NULL)
+            ON CONFLICT(object_type, prop_name, option_val, context_key)
+            DO UPDATE SET default_color=excluded.default_color
+            """,
+            (
+                object_type,
+                prop_name,
+                option_val,
+                context_key,
+                _norm_color(default_color),
+            ),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def set_option_user_color(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    user_color: str,
+    context_key: str = "",
+    default_color: str = "#888888",
+) -> None:
+    """Set or update user-selected color for an option key."""
+    con = _conn()
+    try:
+        con.execute(
+            """
+            INSERT INTO option_color_overrides
+            (object_type, prop_name, option_val, context_key, default_color, user_color)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(object_type, prop_name, option_val, context_key)
+            DO UPDATE SET user_color=excluded.user_color
+            """,
+            (
+                object_type,
+                prop_name,
+                option_val,
+                context_key,
+                _norm_color(default_color),
+                _norm_color(user_color),
+            ),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def reset_option_user_color(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    context_key: str = "",
+) -> None:
+    """Reset one option key back to its default by clearing user_color."""
+    con = _conn()
+    try:
+        con.execute(
+            """
+            UPDATE option_color_overrides
+            SET user_color=NULL
+            WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=?
+            """,
+            (object_type, prop_name, option_val, context_key),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def get_option_color_record(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    context_key: str = "",
+) -> dict:
+    """Return {'default_color', 'user_color'} for a key, or {} if not present."""
+    con = _conn()
+    try:
+        row = con.execute(
+            """
+            SELECT default_color, user_color
+            FROM option_color_overrides
+            WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=?
+            """,
+            (object_type, prop_name, option_val, context_key),
+        ).fetchone()
+        if not row:
+            return {}
+        return {"default_color": row[0], "user_color": row[1]}
+    finally:
+        con.close()
+
+
+def resolve_option_color(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    context_key: str = "",
+    fallback_color: str = "#888888",
+) -> str:
+    """Resolve effective color: exact context -> contextless -> fallback."""
+    con = _conn()
+    try:
+        if context_key:
+            row = con.execute(
+                """
+                SELECT COALESCE(user_color, default_color)
+                FROM option_color_overrides
+                WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=?
+                """,
+                (object_type, prop_name, option_val, context_key),
+            ).fetchone()
+            if row and row[0]:
+                return _norm_color(row[0], _norm_color(fallback_color))
+
+        row = con.execute(
+            """
+            SELECT COALESCE(user_color, default_color)
+            FROM option_color_overrides
+            WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=''
+            """,
+            (object_type, prop_name, option_val),
+        ).fetchone()
+        if row and row[0]:
+            return _norm_color(row[0], _norm_color(fallback_color))
+
+        return _norm_color(fallback_color)
+    finally:
+        con.close()

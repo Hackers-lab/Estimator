@@ -1,6 +1,13 @@
 {
   "SmartPole": {
-    "custom_entries": [],
+    "custom_entries": [
+      {
+        "label": "HT_33",
+        "options": [
+          "YES"
+        ]
+      }
+    ],
     "extended_options": {},
     "conductor_meta": {}
   },

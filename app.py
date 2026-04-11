@@ -424,7 +424,7 @@ class EstimateApp(QMainWindow):
         bar = QHBoxLayout()
         bar.setSpacing(6)
         bar.setContentsMargins(0, 0, 0, 2)
-        
+
         def _make_icon_btn(text, tooltip, bg, color="#000"):
             btn = QPushButton(text)
             btn.setToolTip(tooltip)
@@ -447,20 +447,20 @@ class EstimateApp(QMainWindow):
         self.undo_btn = _make_icon_btn("↶", "Undo (Ctrl+Z)", "#e6e6e6")
         self.undo_btn.clicked.connect(self.undo)
         bar.addWidget(self.undo_btn)
-        
+
         self.redo_btn = _make_icon_btn("↷", "Redo (Ctrl+Y)", "#e6e6e6")
         self.redo_btn.clicked.connect(self.redo)
         bar.addWidget(self.redo_btn)
-        
+
         sep = QLabel("|")
         sep.setStyleSheet("color:#bbb; padding:0 2px;")
         bar.addWidget(sep)
-        
+
         # PDF / Excel
         btn_pdf = _make_icon_btn("📑", "Export PDF Drawing", "#f9ebea", "#78281f")
         btn_pdf.clicked.connect(self.export_pdf)
         bar.addWidget(btn_pdf)
-        
+
         btn_xl = _make_icon_btn("📊", "Export Excel Estimate", "#eaf2f8", "#154360")
         btn_xl.clicked.connect(self.generate_excel)
         bar.addWidget(btn_xl)
@@ -485,6 +485,11 @@ class EstimateApp(QMainWindow):
         btn_defs = _make_icon_btn("🔧", "Placement Defaults", "#fdf2f8")
         btn_defs.clicked.connect(self.open_placement_defaults)
         bar.addWidget(btn_defs)
+
+        # Property Editor icon
+        btn_prop_editor = _make_icon_btn("🧩", "Property Editor", "#f7fafd", "#1a5276")
+        btn_prop_editor.clicked.connect(self.open_property_editor)
+        bar.addWidget(btn_prop_editor)
 
         bar.addStretch()
         return bar
@@ -2323,11 +2328,12 @@ class EstimateApp(QMainWindow):
             sub = menu.addMenu(title)
             for choice in choices:
                 act = sub.addAction(str(choice))
-                act.setCheckable(True)
-                act.setChecked(str(choice) == str(current))
-                act.triggered.connect(
-                    lambda _checked, c=choice: callback(c)
-                )
+                if act is not None:
+                    act.setCheckable(True)
+                    act.setChecked(str(choice) == str(current))
+                    act.triggered.connect(
+                        lambda _checked, c=choice: callback(c)
+                    )
             return sub
 
         def _input_action(title, current, callback, min_val=0, max_val=999):
@@ -2359,11 +2365,12 @@ class EstimateApp(QMainWindow):
                 0, 20
             )
             ext_act = menu.addAction("Extension Required")
-            ext_act.setCheckable(True)
-            ext_act.setChecked(item.has_extension)
-            ext_act.triggered.connect(
-                lambda checked, i=item: self._toggle_pole_extension(i, checked)
-            )
+            if ext_act is not None:
+                ext_act.setCheckable(True)
+                ext_act.setChecked(item.has_extension)
+                ext_act.triggered.connect(
+                    lambda checked, i=item: self._toggle_pole_extension(i, checked)
+                )
             menu.addSeparator()
 
         elif isinstance(item, SmartStructure):
@@ -2421,11 +2428,12 @@ class EstimateApp(QMainWindow):
                         lambda v, i=item: self._update_span(i, "wire_count", v)
                     )
                 cg_act = menu.addAction("Cattle Guard Required")
-                cg_act.setCheckable(True)
-                cg_act.setChecked(item.has_cg)
-                cg_act.triggered.connect(
-                    lambda checked, i=item: self._update_span_refresh(i, "has_cg", checked)
-                )
+                if cg_act is not None:
+                    cg_act.setCheckable(True)
+                    cg_act.setChecked(item.has_cg)
+                    cg_act.triggered.connect(
+                        lambda checked, i=item: self._update_span_refresh(i, "has_cg", checked)
+                    )
             menu.addSeparator()
 
         elif isinstance(item, SmartConsumer):
@@ -2438,15 +2446,17 @@ class EstimateApp(QMainWindow):
                 lambda v, i=item: self._update_consumer(i, "cable_size", v)
             )
             agency_act = menu.addAction("Agency Supplied")
-            agency_act.setCheckable(True)
-            agency_act.setChecked(item.agency_supply)
-            agency_act.triggered.connect(
-                lambda checked, i=item: self._update_consumer(i, "agency_supply", checked)
-            )
+            if agency_act is not None:
+                agency_act.setCheckable(True)
+                agency_act.setChecked(item.agency_supply)
+                agency_act.triggered.connect(
+                    lambda checked, i=item: self._update_consumer(i, "agency_supply", checked)
+                )
             menu.addSeparator()
 
         del_act = menu.addAction("🗑  Delete")
-        del_act.triggered.connect(lambda: self.delete_item(item))
+        if del_act is not None:
+            del_act.triggered.connect(lambda: self.delete_item(item))
 
         menu.exec(global_pos)
 

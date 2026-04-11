@@ -74,8 +74,20 @@ _FACTORY: dict = {
     "sd_phase":           "3 Phase",
 
     # Canvas symbol colours  (hex strings; customisable via Property Editor → Canvas Symbols)
-    "canvas_lt_pole":         "#2980b9",   # LT pole fill
-    "canvas_ht_pole":         "#c0392b",   # HT pole fill
+    "canvas_lt_pole":         "#2980b9",   # LT pole fill (base / fallback)
+    "canvas_ht_pole":         "#c0392b",   # HT pole fill (base / fallback)
+    # Per-height LT pole fills (fallback → canvas_lt_pole)
+    "canvas_lt_pole_8mtr":    "#2980b9",
+    "canvas_lt_pole_9mtr":    "#2980b9",
+    "canvas_lt_pole_9_5mtr":  "#2980b9",
+    "canvas_lt_pole_11mtr":   "#2980b9",
+    "canvas_lt_pole_13mtr":   "#2980b9",
+    # Per-height HT pole fills (fallback → canvas_ht_pole)
+    "canvas_ht_pole_8mtr":    "#c0392b",
+    "canvas_ht_pole_9mtr":    "#c0392b",
+    "canvas_ht_pole_9_5mtr":  "#c0392b",
+    "canvas_ht_pole_11mtr":   "#c0392b",
+    "canvas_ht_pole_13mtr":   "#c0392b",
     "canvas_ex_pole":         "#cccccc",   # Existing pole fill
     "canvas_ex_aug_dtr":      "#f7b267",   # Existing augmented-DTR fill
     "canvas_dp":              "#27ae60",   # DP structure fill
@@ -84,9 +96,15 @@ _FACTORY: dict = {
     "canvas_dtr":             "#e67e22",   # DTR structure fill
     "canvas_consumer":        "#f1c40f",   # Consumer fill (WBSEDCL)
     "canvas_consumer_agency": "#f39c12",   # Consumer fill (Agency)
-    "canvas_acsr":            "#222222",   # ACSR span pen
-    "canvas_ab_cable":        "#1a5276",   # AB Cable span pen
-    "canvas_pvc_cable":       "#107C41",   # PVC Cable span pen
+    "canvas_acsr":            "#222222",   # ACSR span pen (base / fallback)
+    "canvas_acsr_lt":         "#222222",   # ACSR — LT spans
+    "canvas_acsr_ht":         "#222222",   # ACSR — HT spans
+    "canvas_ab_cable":        "#1a5276",   # AB Cable span pen (base / fallback)
+    "canvas_ab_cable_lt":     "#1a5276",   # AB Cable — LT spans
+    "canvas_ab_cable_ht":     "#1a5276",   # AB Cable — HT spans
+    "canvas_pvc_cable":       "#107C41",   # PVC Cable span pen (base / fallback)
+    "canvas_pvc_cable_lt":    "#107C41",   # PVC Cable — LT spans
+    "canvas_pvc_cable_ht":    "#107C41",   # PVC Cable — HT spans
     "canvas_svc_drop":        "#d35400",   # Service Drop span pen
 
     # Export settings
@@ -136,7 +154,8 @@ def load() -> None:
         for k, v_str in db_settings.items():
             if k in _FACTORY:
                 merged[k] = _cast(v_str, _FACTORY[k])
-            # Accept unknown keys (future additions) as strings too
+            elif k.startswith("canvas_"):  # dynamic colour keys (e.g. user-added conductors)
+                merged[k] = v_str
         current = merged
         return
     except Exception:
@@ -146,7 +165,9 @@ def load() -> None:
     try:
         with open(_DEFAULTS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        merged.update({k: v for k, v in data.items() if k in _FACTORY})
+        for k, v in data.items():
+            if k in _FACTORY or k.startswith("canvas_"):
+                merged[k] = v if k in _FACTORY else str(v)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
@@ -155,7 +176,9 @@ def load() -> None:
 
 def save(values: dict) -> None:
     """Persist *values*, update ``current`` in-place, write to DB and JSON."""
-    current.update({k: v for k, v in values.items() if k in _FACTORY})
+    for k, v in values.items():
+        if k in _FACTORY or k.startswith("canvas_"):
+            current[k] = v
 
     # ── DB (primary) ───────────────────────────────────────────────────────
     try:

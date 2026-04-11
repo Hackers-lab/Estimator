@@ -241,6 +241,19 @@ def _create_config_tables(cursor) -> None:
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS option_color_overrides (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            object_type   TEXT NOT NULL,
+            prop_name     TEXT NOT NULL,
+            option_val    TEXT NOT NULL DEFAULT '*',
+            context_key   TEXT NOT NULL DEFAULT '',
+            default_color TEXT NOT NULL,
+            user_color    TEXT DEFAULT NULL,
+            UNIQUE(object_type, prop_name, option_val, context_key)
+        )
+    """)
+
     # Indexes
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_object ON rules(object_type, enabled)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_props_object ON properties(object_type)")
@@ -250,6 +263,10 @@ def _create_config_tables(cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cpo_cp ON custom_property_options(custom_property_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_height_pt2 ON height_options(pole_type2)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cond_opts ON conductor_options(conductor_type, voltage_class)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_color_overrides "
+        "ON option_color_overrides(object_type, prop_name, option_val, context_key)"
+    )
 
 
 def _seed_config_tables(cursor) -> None:

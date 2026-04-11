@@ -11,6 +11,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
 from core import defaults
+from core import option_colors
 from ui.components import DraggableLabel
 
 if TYPE_CHECKING:
@@ -511,10 +512,34 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                     self.setBrush(QBrush(QColor(_c.get("canvas_ex_pole", "#cccccc"))))
                     self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
             elif self.pole_type == "LT":
-                self.setBrush(QBrush(QColor(_c.get("canvas_lt_pole", "#2980b9"))))
+                _hk = "canvas_lt_pole_" + self.height.lower().replace(".", "_")
+                _fallback = _c.get(_hk, _c.get("canvas_lt_pole", "#2980b9"))
+                _col = option_colors.resolve(
+                    "SmartPole",
+                    "height",
+                    str(self.height),
+                    _fallback,
+                    {
+                        "pole_type": "LT",
+                        "pole_type2": str(self.pole_type2),
+                    },
+                )
+                self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
             else:  # HT
-                self.setBrush(QBrush(QColor(_c.get("canvas_ht_pole", "#c0392b"))))
+                _hk = "canvas_ht_pole_" + self.height.lower().replace(".", "_")
+                _fallback = _c.get(_hk, _c.get("canvas_ht_pole", "#c0392b"))
+                _col = option_colors.resolve(
+                    "SmartPole",
+                    "height",
+                    str(self.height),
+                    _fallback,
+                    {
+                        "pole_type": "HT",
+                        "pole_type2": str(self.pole_type2),
+                    },
+                )
+                self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
 
             # Label text

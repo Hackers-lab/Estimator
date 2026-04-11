@@ -11,6 +11,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
 from core import defaults
+from core import option_colors
 from ui.components import DraggableLabel
 
 if TYPE_CHECKING:
@@ -188,7 +189,13 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             "4P":  "canvas_4p",
             "DTR": "canvas_dtr",
         }
-        _color_hex = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
+        _fallback = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
+        _color_hex = option_colors.resolve(
+            "SmartStructure",
+            "structure_type",
+            str(st),
+            _fallback,
+        )
         self.setBrush(QBrush(QColor(_color_hex)))
         self.setPen(QPen(Qt.GlobalColor.black, 1.5))
 
@@ -340,9 +347,13 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
 
         # Colour hint for agency vs WBSEDCL
         if self.agency_supply:
-            self.setBrush(QBrush(QColor(defaults.current.get("canvas_consumer_agency", "#f39c12"))))
+            _fallback = defaults.current.get("canvas_consumer_agency", "#f39c12")
+            _col = option_colors.resolve("SmartConsumer", "agency_supply", "True", _fallback)
+            self.setBrush(QBrush(QColor(_col)))
         else:
-            self.setBrush(QBrush(QColor(defaults.current.get("canvas_consumer", "#f1c40f"))))
+            _fallback = defaults.current.get("canvas_consumer", "#f1c40f")
+            _col = option_colors.resolve("SmartConsumer", "agency_supply", "False", _fallback)
+            self.setBrush(QBrush(QColor(_col)))
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
 

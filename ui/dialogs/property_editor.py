@@ -32,6 +32,7 @@ import re
 
 from core import defaults
 from core import property_catalog
+from core import option_colors
 from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
 
 from PyQt6.QtWidgets import (
@@ -328,16 +329,19 @@ class PropertyEditorDialog(QDialog):
 
         # ── Tree ──────────────────────────────────────────────────────────────
         self._tree = QTreeWidget()
-        self._tree.setColumnCount(2)
-        self._tree.setHeaderLabels(["Property / Value", "Info"])
+        self._tree.setColumnCount(3)
+        self._tree.setHeaderLabels(["Property / Value", "Info", "Color"])
         hdr = self._tree.header()
         if hdr is not None:
             hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
             hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
         self._tree.setIndentation(18)
         self._tree.currentItemChanged.connect(self._on_selection_changed)
+        self._tree.itemDoubleClicked.connect(self._on_tree_double_clicked)
         lay.addWidget(self._tree, 1)
+
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
@@ -346,6 +350,8 @@ class PropertyEditorDialog(QDialog):
         self._btn_remove_opt  = QPushButton("\u2715 Remove User Option")
         self._btn_edit        = QPushButton("Edit Custom")
         self._btn_delete      = QPushButton("Delete Custom")
+        self._btn_edit_color  = QPushButton("Edit Color")
+        self._btn_reset_color = QPushButton("Reset Color")
 
         self._btn_remove_opt.setStyleSheet(
             "QPushButton { color:#c0392b; border:1px solid #c0392b; border-radius:3px; padding:2px 10px; }"
@@ -353,7 +359,7 @@ class PropertyEditorDialog(QDialog):
             "QPushButton:disabled { color:#ccc; border-color:#ccc; }"
         )
         for btn in (self._btn_add_custom, self._btn_add_option, self._btn_remove_opt,
-                    self._btn_edit, self._btn_delete):
+                self._btn_edit, self._btn_delete, self._btn_edit_color, self._btn_reset_color):
             btn.setEnabled(False)
             btn_row.addWidget(btn)
         btn_row.addStretch()
@@ -363,9 +369,16 @@ class PropertyEditorDialog(QDialog):
         self._btn_remove_opt.clicked.connect(self._remove_user_option)
         self._btn_edit.clicked.connect(self._edit_custom_property)
         self._btn_delete.clicked.connect(self._delete_custom_property)
+        self._btn_edit_color.clicked.connect(lambda _checked=False: self._edit_selected_color())
+        self._btn_reset_color.clicked.connect(self._reset_selected_color)
         lay.addLayout(btn_row)
 
         self._build_tree()
+        # Collapse all top-level items by default
+        for i in range(self._tree.topLevelItemCount()):
+            item = self._tree.topLevelItem(i)
+            if item:
+                item.setExpanded(False)
         return w
 
     def _build_symbols_tab(self) -> QWidget:
@@ -388,12 +401,6 @@ class PropertyEditorDialog(QDialog):
         lay.addWidget(intro)
 
         SYMBOL_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
-            ("Poles", [
-                ("LT Pole fill",              "canvas_lt_pole"),
-                ("HT Pole fill",              "canvas_ht_pole"),
-                ("Existing Pole fill",         "canvas_ex_pole"),
-                ("Existing Aug-DTR fill",      "canvas_ex_aug_dtr"),
-            ]),
             ("Structures", [
                 ("DP Structure fill",          "canvas_dp"),
                 ("TP Structure fill",          "canvas_tp"),
@@ -404,13 +411,65 @@ class PropertyEditorDialog(QDialog):
                 ("Consumer (WBSEDCL) fill",    "canvas_consumer"),
                 ("Consumer (Agency) fill",     "canvas_consumer_agency"),
             ]),
-            ("Span Lines", [
-                ("ACSR span colour",           "canvas_acsr"),
-                ("AB Cable span colour",       "canvas_ab_cable"),
-                ("PVC Cable span colour",      "canvas_pvc_cable"),
-                ("Service Drop span colour",   "canvas_svc_drop"),
+            ("Existing Poles", [
+                ("Existing Pole fill",         "canvas_ex_pole"),
+                ("Existing Aug-DTR fill",      "canvas_ex_aug_dtr"),
             ]),
         ]
+
+        # ── LT Poles — per-height rows ─────────────────────────────────────
+        lt_pole_entries: list[tuple[str, str]] = []
+        for h in self._all_unique_pole_heights():
+            _key = "canvas_lt_pole_" + h.lower().replace(".", "_")
+            if _key not in _defaults_mod.current:
+                _defaults_mod.current[_key] = _defaults_mod.current.get("canvas_lt_pole", "#2980b9")
+            lt_pole_entries.append((h, _key))
+        SYMBOL_GROUPS.insert(0, ("LT Poles by Height", lt_pole_entries))
+
+        # ── HT Poles — per-height rows ─────────────────────────────────────
+        ht_pole_entries: list[tuple[str, str]] = []
+        for h in self._all_unique_pole_heights():
+            _key = "canvas_ht_pole_" + h.lower().replace(".", "_")
+            if _key not in _defaults_mod.current:
+                _defaults_mod.current[_key] = _defaults_mod.current.get("canvas_ht_pole", "#c0392b")
+            ht_pole_entries.append((h, _key))
+        SYMBOL_GROUPS.insert(1, ("HT Poles by Height", ht_pole_entries))
+
+        # ── Span Lines — split by LT/HT for each conductor ─────────────────
+        _builtin_lt_ht = [
+            ("ACSR  (LT)",        "canvas_acsr_lt"),
+            ("ACSR  (HT)",        "canvas_acsr_ht"),
+            ("AB Cable  (LT)",    "canvas_ab_cable_lt"),
+            ("AB Cable  (HT)",    "canvas_ab_cable_ht"),
+            ("PVC Cable  (LT)",   "canvas_pvc_cable_lt"),
+            ("PVC Cable  (HT)",   "canvas_pvc_cable_ht"),
+            ("Service Drop",      "canvas_svc_drop"),
+        ]
+        span_line_entries: list[tuple[str, str]] = list(_builtin_lt_ht)
+
+        _builtin_conductors = {"ACSR", "AB Cable", "PVC Cable", "Service Drop"}
+        _conductor_meta = (
+            property_catalog.current
+            .get("SmartSpan", {})
+            .get("conductor_meta", {})
+        )
+        for cname in sorted(_conductor_meta):
+            if cname in _builtin_conductors:
+                continue
+            _voltage = _conductor_meta[cname].get("voltage", "Both")
+            _slug = cname.lower().replace(" ", "_")
+            if _voltage in ("LT", "Both"):
+                _key = f"canvas_conductor_{_slug}_lt"
+                if _key not in _defaults_mod.current:
+                    _defaults_mod.current[_key] = "#888888"
+                span_line_entries.append((f"{cname}  (LT)", _key))
+            if _voltage in ("HT", "Both"):
+                _key = f"canvas_conductor_{_slug}_ht"
+                if _key not in _defaults_mod.current:
+                    _defaults_mod.current[_key] = "#888888"
+                span_line_entries.append((f"{cname}  (HT)", _key))
+
+        SYMBOL_GROUPS.append(("Span Lines", span_line_entries))
 
         for group_label, entries in SYMBOL_GROUPS:
             grp = QGroupBox(group_label)
@@ -477,20 +536,33 @@ class PropertyEditorDialog(QDialog):
         if ans != QMessageBox.StandardButton.Yes:
             return
         from core.defaults import _FACTORY
-        color_keys = [
-            "canvas_lt_pole", "canvas_ht_pole", "canvas_ex_pole", "canvas_ex_aug_dtr",
-            "canvas_dp", "canvas_tp", "canvas_4p", "canvas_dtr",
-            "canvas_consumer", "canvas_consumer_agency",
-            "canvas_acsr", "canvas_ab_cable", "canvas_pvc_cable", "canvas_svc_drop",
-        ]
-        for k in color_keys:
-            _defaults_mod.current[k] = _FACTORY.get(k, _defaults_mod.current.get(k, "#888888"))
+        # Reset every canvas_* key that exists in the factory
+        for k, v in _FACTORY.items():
+            if k.startswith("canvas_"):
+                _defaults_mod.current[k] = v
+        # Remove any dynamic canvas keys that are NOT in the factory (user conductors etc.)
+        for k in list(_defaults_mod.current):
+            if k.startswith("canvas_") and k not in _FACTORY:
+                del _defaults_mod.current[k]
         _defaults_mod.save(_defaults_mod.current)
         # Refresh the Canvas Symbols tab
         self._main_tabs.removeTab(1)
         self._main_tabs.addTab(self._build_symbols_tab(), "Canvas Symbols")
 
     # ── Heights & Sizes tab (C1 + C2) ────────────────────────────────────────
+
+    def _all_unique_pole_heights(self) -> list[str]:
+        """Deduplicated ordered list of all height values across all pole types."""
+        seen: dict[str, None] = {}
+        for _disp, ext_key, base_vals in self._height_variants_for("SmartPole"):
+            for h in base_vals:
+                seen.setdefault(h, None)
+            for h in property_catalog.get_extended_options("SmartPole", ext_key):
+                seen.setdefault(h, None)
+        if not seen:  # safety fallback
+            for h in ("8MTR", "9MTR", "9.5MTR", "11MTR", "13MTR"):
+                seen.setdefault(h, None)
+        return list(seen)
 
     def _build_heights_conductors_tab(self) -> QWidget:
         """Dedicated manager for pole heights and conductor sizes stored in DB."""
@@ -773,15 +845,96 @@ class PropertyEditorDialog(QDialog):
     def _set_node(self, item: QTreeWidgetItem, data: dict) -> None:
         item.setData(0, Qt.ItemDataRole.UserRole, data)
 
-    def _make_base_leaf(self, value: str) -> QTreeWidgetItem:
-        leaf = QTreeWidgetItem([f"          {value}", "built-in"])
+    def _color_fallback_for(self, obj_type: str, prop: str, value: str, context: dict) -> str:
+        d = _defaults_mod.current
+        if obj_type == "SmartPole" and prop == "height":
+            pole_t = str(context.get("pole_type", "LT"))
+            hk = (
+                "canvas_lt_pole_" + value.lower().replace(".", "_")
+                if pole_t == "LT"
+                else "canvas_ht_pole_" + value.lower().replace(".", "_")
+            )
+            base = "canvas_lt_pole" if pole_t == "LT" else "canvas_ht_pole"
+            return d.get(hk, d.get(base, "#888888"))
+        if obj_type == "SmartStructure" and prop == "structure_type":
+            mapping = {"DP": "canvas_dp", "TP": "canvas_tp", "4P": "canvas_4p", "DTR": "canvas_dtr"}
+            return d.get(mapping.get(value, "canvas_dp"), "#27ae60")
+        if obj_type == "SmartConsumer" and prop == "agency_supply":
+            return d.get("canvas_consumer_agency", "#f39c12") if value == "True" else d.get("canvas_consumer", "#f1c40f")
+        if obj_type == "SmartSpan" and prop == "conductor":
+            voltage = str(context.get("voltage", "LT"))
+            v = "lt" if voltage.upper() == "LT" else "ht"
+            mapping = {
+                "ACSR": f"canvas_acsr_{v}",
+                "AB Cable": f"canvas_ab_cable_{v}",
+                "PVC Cable": f"canvas_pvc_cable_{v}",
+            }
+            base_map = {
+                "ACSR": "canvas_acsr",
+                "AB Cable": "canvas_ab_cable",
+                "PVC Cable": "canvas_pvc_cable",
+            }
+            if value == "Service Drop":
+                return d.get("canvas_svc_drop", "#d35400")
+            if value in mapping:
+                return d.get(mapping[value], d.get(base_map[value], "#888888"))
+            slug = value.lower().replace(" ", "_")
+            return d.get(f"canvas_conductor_{slug}_{v}", d.get(f"canvas_conductor_{slug}", "#888888"))
+        return "#888888"
+
+    def _apply_item_color_chip(self, item: QTreeWidgetItem) -> None:
+        nd = self._node_data(item)
+        binding = nd.get("color_binding")
+        if not isinstance(binding, dict):
+            item.setText(2, "")
+            return
+        obj_type = binding.get("obj_type", "")
+        prop = binding.get("prop", "")
+        value = binding.get("value", "")
+        ctx = binding.get("context", {}) or {}
+        fallback = self._color_fallback_for(obj_type, prop, value, ctx)
+        option_colors.ensure_default(obj_type, prop, value, fallback, ctx)
+        effective = option_colors.resolve(obj_type, prop, value, fallback, ctx)
+        item.setText(2, "■")
+        item.setForeground(2, QColor(effective))
+        item.setToolTip(2, f"{effective} — double-click to edit")
+
+    def _bind_item_color(
+        self,
+        item: QTreeWidgetItem,
+        obj_type: str,
+        prop: str,
+        value: str,
+        context: dict | None = None,
+    ) -> None:
+        nd = self._node_data(item)
+        nd["color_binding"] = {
+            "obj_type": obj_type,
+            "prop": prop,
+            "value": str(value),
+            "context": context or {},
+        }
+        self._set_node(item, nd)
+        self._apply_item_color_chip(item)
+
+    def _make_base_leaf(
+        self,
+        value: str,
+        obj_type: str | None = None,
+        prop: str | None = None,
+        context: dict | None = None,
+        label_override: str | None = None,
+    ) -> QTreeWidgetItem:
+        leaf = QTreeWidgetItem([label_override or f"          {value}", "built-in", ""])
         dim = QColor("#999999")
         leaf.setForeground(0, dim)
         leaf.setForeground(1, dim)
         f = QFont()
         f.setItalic(True)
         leaf.setFont(0, f)
-        self._set_node(leaf, {"node": self._N_BASE_OPTION})
+        self._set_node(leaf, {"node": self._N_BASE_OPTION, "value": str(value)})
+        if obj_type and prop:
+            self._bind_item_color(leaf, obj_type, prop, str(value), context)
         return leaf
 
     def _make_ext_leaf(
@@ -789,13 +942,15 @@ class PropertyEditorDialog(QDialog):
         value: str,
         obj_type: str,
         ext_key: str,
+        prop_name: str | None = None,
+        context: dict | None = None,
         label_override: str | None = None,
         info_override:  str | None = None,
         extra:          dict | None = None,
     ) -> QTreeWidgetItem:
         lbl  = label_override or f"          {value}"
         info = info_override  or "\u270e user-added  \u2014  select + \u2715 Remove to delete"
-        leaf = QTreeWidgetItem([lbl, info])
+        leaf = QTreeWidgetItem([lbl, info, ""])
         leaf.setForeground(0, QColor("#1a5276"))
         leaf.setForeground(1, QColor("#7f8c8d"))
         f = QFont()
@@ -810,6 +965,8 @@ class PropertyEditorDialog(QDialog):
         if extra:
             data.update(extra)
         self._set_node(leaf, data)
+        if prop_name:
+            self._bind_item_color(leaf, obj_type, prop_name, str(value), context)
         return leaf
 
     # ── Tree construction ─────────────────────────────────────────────────────
@@ -824,7 +981,7 @@ class PropertyEditorDialog(QDialog):
 
         for obj_type in property_catalog.OBJECT_TYPES:
             # ── Object-type root ──────────────────────────────────────────────
-            type_item = QTreeWidgetItem([self._TYPE_LABELS.get(obj_type, obj_type), ""])
+            type_item = QTreeWidgetItem([self._TYPE_LABELS.get(obj_type, obj_type), "", ""])
             f = QFont()
             f.setBold(True)
             f.setPointSize(10)
@@ -833,7 +990,7 @@ class PropertyEditorDialog(QDialog):
             self._tree.addTopLevelItem(type_item)
 
             # ── Fixed Properties group ────────────────────────────────────────
-            fixed_grp = QTreeWidgetItem(["  \u25b8 Fixed Properties", "built-in, cannot rename or delete"])
+            fixed_grp = QTreeWidgetItem(["  \u25b8 Fixed Properties", "built-in, cannot rename or delete", ""])
             fixed_grp.setForeground(0, grey)
             fixed_grp.setForeground(1, dim)
             self._set_node(fixed_grp, {"node": self._N_FIXED_GROUP, "obj_type": obj_type})
@@ -858,7 +1015,7 @@ class PropertyEditorDialog(QDialog):
                     summary = f"{len(variants)} sub-categories"
                     if total_ext:
                         summary += f"  \u2022  {total_ext} user-added option(s)"
-                    prop_item = QTreeWidgetItem([f"    {prop_name}", summary])
+                    prop_item = QTreeWidgetItem([f"    {prop_name}", summary, ""])
                     pf = QFont()
                     pf.setBold(True)
                     prop_item.setFont(0, pf)
@@ -877,7 +1034,7 @@ class PropertyEditorDialog(QDialog):
                         var_desc  = f"{total} option(s)"
                         if ext_vals:
                             var_desc += f"  \u2022  {len(ext_vals)} user-added"
-                        var_item = QTreeWidgetItem([f"      {disp}", var_desc])
+                        var_item = QTreeWidgetItem([f"      {disp}", var_desc, ""])
                         vf = QFont()
                         vf.setBold(True)
                         var_item.setFont(0, vf)
@@ -889,10 +1046,52 @@ class PropertyEditorDialog(QDialog):
                             "ext_key": ext_key,
                         })
                         prop_item.addChild(var_item)
+                        if prop_name == "height":
+                            pole_type2 = ext_key.split("__", 1)[1]
+                            self._bind_item_color(var_item, obj_type, "height", "*", {"pole_type2": pole_type2})
                         for bv in base_vals:
-                            var_item.addChild(self._make_base_leaf(str(bv)))
+                            if prop_name == "height":
+                                if obj_type == "SmartPole":
+                                    var_item.addChild(self._make_base_leaf(
+                                        str(bv),
+                                        obj_type,
+                                        prop_name,
+                                        {"pole_type": "LT", "pole_type2": ext_key.split("__", 1)[1]},
+                                        label_override=f"          {bv} [LT]",
+                                    ))
+                                    var_item.addChild(self._make_base_leaf(
+                                        str(bv),
+                                        obj_type,
+                                        prop_name,
+                                        {"pole_type": "HT", "pole_type2": ext_key.split("__", 1)[1]},
+                                        label_override=f"          {bv} [HT]",
+                                    ))
+                                else:
+                                    var_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name, {"pole_type2": ext_key.split("__", 1)[1]}))
+                            else:
+                                var_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name, {"variant": ext_key.split("__", 1)[1]}))
                         for ev in ext_vals:
-                            var_item.addChild(self._make_ext_leaf(ev, obj_type, ext_key))
+                            if prop_name == "height" and obj_type == "SmartPole":
+                                lt_leaf = self._make_ext_leaf(
+                                    ev, obj_type, ext_key, prop_name=prop_name,
+                                    context={"pole_type": "LT", "pole_type2": ext_key.split("__", 1)[1]},
+                                    label_override=f"          {ev} [LT]",
+                                )
+                                ht_leaf = self._make_ext_leaf(
+                                    ev, obj_type, ext_key, prop_name=prop_name,
+                                    context={"pole_type": "HT", "pole_type2": ext_key.split("__", 1)[1]},
+                                    label_override=f"          {ev} [HT]",
+                                )
+                                var_item.addChild(lt_leaf)
+                                var_item.addChild(ht_leaf)
+                            else:
+                                var_item.addChild(self._make_ext_leaf(
+                                    ev,
+                                    obj_type,
+                                    ext_key,
+                                    prop_name=prop_name,
+                                    context={"variant": ext_key.split("__", 1)[1]},
+                                ))
                         var_item.setExpanded(bool(ext_vals))
 
                     prop_item.setExpanded(True)
@@ -904,7 +1103,7 @@ class PropertyEditorDialog(QDialog):
                     summary = f"{len(prop_val)} option(s)"
                     if ext:
                         summary += f"  \u2022  {len(ext)} user-added"
-                    prop_item = QTreeWidgetItem([f"    {prop_name}", summary])
+                    prop_item = QTreeWidgetItem([f"    {prop_name}", summary, ""])
                     self._set_node(prop_item, {
                         "node": self._N_FIXED_PROP,
                         "obj_type": obj_type,
@@ -913,28 +1112,74 @@ class PropertyEditorDialog(QDialog):
                         "is_variant": False,
                     })
                     fixed_grp.addChild(prop_item)
+                    if obj_type == "SmartStructure" and prop_name == "structure_type":
+                        self._bind_item_color(prop_item, obj_type, prop_name, "*")
+                    if obj_type == "SmartSpan" and prop_name == "conductor":
+                        self._bind_item_color(prop_item, obj_type, prop_name, "*")
+                    if obj_type == "SmartConsumer" and prop_name == "agency_supply":
+                        self._bind_item_color(prop_item, obj_type, prop_name, "*")
                     for bv in prop_val:
-                        prop_item.addChild(self._make_base_leaf(str(bv)))
+                        if obj_type == "SmartSpan" and prop_name == "conductor" and str(bv) != "Service Drop":
+                            prop_item.addChild(self._make_base_leaf(
+                                str(bv),
+                                obj_type,
+                                prop_name,
+                                {"voltage": "LT"},
+                                label_override=f"          {bv} [LT]",
+                            ))
+                            prop_item.addChild(self._make_base_leaf(
+                                str(bv),
+                                obj_type,
+                                prop_name,
+                                {"voltage": "HT"},
+                                label_override=f"          {bv} [HT]",
+                            ))
+                        elif obj_type == "SmartSpan" and prop_name == "conductor":
+                            prop_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name, {"voltage": "LT"}))
+                        elif obj_type == "SmartStructure" and prop_name == "structure_type":
+                            prop_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name))
+                        elif obj_type == "SmartConsumer" and prop_name == "agency_supply":
+                            prop_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name))
+                        else:
+                            prop_item.addChild(self._make_base_leaf(str(bv), obj_type, prop_name))
                     for ev in ext:
                         if is_cond:
                             meta    = property_catalog.get_conductor_meta(ev)
                             voltage = meta.get("voltage", "Both")
-                            vtag    = {"LT": " [LT only]", "HT": " [HT only]", "Both": " [LT + HT]"}.get(voltage, "")
-                            prop_item.addChild(self._make_ext_leaf(
-                                ev, obj_type, prop_name,
-                                label_override=f"          {ev}{vtag}",
-                                info_override="\u270e user conductor \u2014 \u2715 Remove | Edit to change voltage",
-                                extra={"is_conductor": True},
-                            ))
+                            if voltage in ("LT", "Both"):
+                                prop_item.addChild(self._make_ext_leaf(
+                                    ev,
+                                    obj_type,
+                                    prop_name,
+                                    prop_name=prop_name,
+                                    context={"voltage": "LT"},
+                                    label_override=f"          {ev} [LT]",
+                                    info_override="\u270e user conductor \u2014 \u2715 Remove | Edit to change voltage",
+                                    extra={"is_conductor": True},
+                                ))
+                            if voltage in ("HT", "Both"):
+                                prop_item.addChild(self._make_ext_leaf(
+                                    ev,
+                                    obj_type,
+                                    prop_name,
+                                    prop_name=prop_name,
+                                    context={"voltage": "HT"},
+                                    label_override=f"          {ev} [HT]",
+                                    info_override="\u270e user conductor \u2014 \u2715 Remove | Edit to change voltage",
+                                    extra={"is_conductor": True},
+                                ))
                         else:
-                            prop_item.addChild(self._make_ext_leaf(ev, obj_type, prop_name))
+                            if obj_type == "SmartStructure" and prop_name == "structure_type":
+                                prop_item.addChild(self._make_ext_leaf(ev, obj_type, prop_name, prop_name=prop_name))
+                            else:
+                                prop_item.addChild(self._make_ext_leaf(ev, obj_type, prop_name, prop_name=prop_name))
                     if ext:
                         prop_item.setExpanded(True)
 
                 else:
                     # ── Non-list prop (int / text) ────────────────────────────
                     type_str  = "numeric (integer)" if prop_val == "int" else "free text"
-                    prop_item = QTreeWidgetItem([f"    {prop_name}", f"[{type_str}]"])
+                    prop_item = QTreeWidgetItem([f"    {prop_name}", f"[{type_str}]", ""])
                     prop_item.setForeground(1, dim)
                     self._set_node(prop_item, {
                         "node": self._N_FIXED_PROP,
@@ -949,6 +1194,7 @@ class PropertyEditorDialog(QDialog):
             custom_grp = QTreeWidgetItem([
                 "  \u25b8 Custom Properties",
                 "user-defined \u2014 appear in the object editor on the canvas",
+                "",
             ])
             custom_grp.setForeground(0, grey)
             custom_grp.setForeground(1, dim)
@@ -964,7 +1210,7 @@ class PropertyEditorDialog(QDialog):
                     f"  [used in {len(hits)} rule(s)]" if hits
                     else "  [not referenced in any rule]"
                 )
-                custom_item = QTreeWidgetItem([f"    {label}", opts_str + usage_str])
+                custom_item = QTreeWidgetItem([f"    {label}", opts_str + usage_str, ""])
                 cf = QFont()
                 cf.setBold(True)
                 custom_item.setFont(0, cf)
@@ -988,7 +1234,7 @@ class PropertyEditorDialog(QDialog):
         _previous,
     ) -> None:
         for btn in (self._btn_add_custom, self._btn_add_option, self._btn_remove_opt,
-                    self._btn_edit, self._btn_delete):
+                    self._btn_edit, self._btn_delete, self._btn_edit_color, self._btn_reset_color):
             btn.setEnabled(False)
 
         if current_item is None:
@@ -1025,6 +1271,56 @@ class PropertyEditorDialog(QDialog):
             self._btn_edit.setEnabled(True)
             self._btn_delete.setEnabled(True)
 
+        if isinstance(self._node_data(current_item).get("color_binding"), dict):
+            self._btn_edit_color.setEnabled(True)
+            self._btn_reset_color.setEnabled(True)
+
+    def _on_tree_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        if column == 2:
+            self._edit_selected_color(item)
+
+    def _edit_selected_color(self, item: QTreeWidgetItem | None = None) -> None:
+        if isinstance(item, bool):
+            item = None
+        if item is None:
+            item = self._tree.currentItem()
+        if item is None:
+            return
+        nd = self._node_data(item)
+        binding = nd.get("color_binding")
+        if not isinstance(binding, dict):
+            return
+
+        obj_type = binding.get("obj_type", "")
+        prop = binding.get("prop", "")
+        value = binding.get("value", "")
+        ctx = binding.get("context", {}) or {}
+        fallback = self._color_fallback_for(obj_type, prop, value, ctx)
+        rec = option_colors.get_record(obj_type, prop, value, ctx)
+        start_hex = rec.get("user_color") or rec.get("default_color") or fallback
+        chosen = QColorDialog.getColor(QColor(start_hex), self, "Pick item color")
+        if not chosen.isValid():
+            return
+        option_colors.ensure_default(obj_type, prop, value, fallback, ctx)
+        option_colors.set_user(obj_type, prop, value, chosen.name(), fallback, ctx)
+        self._apply_item_color_chip(item)
+
+    def _reset_selected_color(self) -> None:
+        item = self._tree.currentItem()
+        if item is None:
+            return
+        nd = self._node_data(item)
+        binding = nd.get("color_binding")
+        if not isinstance(binding, dict):
+            return
+        option_colors.reset_user(
+            binding.get("obj_type", ""),
+            binding.get("prop", ""),
+            binding.get("value", ""),
+            binding.get("context", {}) or {},
+        )
+        self._apply_item_color_chip(item)
+
     # ── Resolve add-target from current selection ─────────────────────────────
 
     def _resolve_add_target(self) -> "tuple[str, str] | None":
@@ -1036,7 +1332,9 @@ class PropertyEditorDialog(QDialog):
         node = nd.get("node", "")
 
         if node == self._N_FIXED_VARIANT:
-            return nd.get("obj_type"), nd.get("ext_key")
+            ot = nd.get("obj_type")
+            ek = nd.get("ext_key")
+            return (ot, ek) if isinstance(ot, str) and isinstance(ek, str) else None
 
         if node in (self._N_BASE_OPTION, self._N_EXT_OPTION):
             parent = item.parent()
@@ -1045,12 +1343,18 @@ class PropertyEditorDialog(QDialog):
             pnd   = self._node_data(parent)
             pnode = pnd.get("node", "")
             if pnode == self._N_FIXED_VARIANT:
-                return pnd.get("obj_type"), pnd.get("ext_key")
+                ot = pnd.get("obj_type")
+                ek = pnd.get("ext_key")
+                return (ot, ek) if isinstance(ot, str) and isinstance(ek, str) else None
             if pnode == self._N_FIXED_PROP and not pnd.get("is_variant"):
-                return pnd.get("obj_type"), pnd.get("prop")
+                ot = pnd.get("obj_type")
+                pp = pnd.get("prop")
+                return (ot, pp) if isinstance(ot, str) and isinstance(pp, str) else None
 
         if node == self._N_FIXED_PROP and nd.get("is_list") and not nd.get("is_variant"):
-            return nd.get("obj_type"), nd.get("prop")
+            ot = nd.get("obj_type")
+            pp = nd.get("prop")
+            return (ot, pp) if isinstance(ot, str) and isinstance(pp, str) else None
 
         return None
 
@@ -1119,6 +1423,9 @@ class PropertyEditorDialog(QDialog):
                     property_catalog.update_custom_entry(
                         obj_type, label, label, entry["options"] + [option]
                     )
+                    start = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {label} → {option}")
+                    if start.isValid():
+                        option_colors.ensure_default(obj_type, label, option, start.name())
                     break
             self._build_tree()
             return
@@ -1156,6 +1463,21 @@ class PropertyEditorDialog(QDialog):
                 f"'{option.strip()}' already exists in this property.",
             )
         else:
+            prop_name = ext_key.split("__", 1)[0]
+            context: dict[str, str] = {}
+            if ext_key.startswith("height__"):
+                context = {"pole_type2": ext_key.split("__", 1)[1]}
+            elif ext_key.startswith("conductor_size__"):
+                context = {"variant": ext_key.split("__", 1)[1]}
+            if obj_type == "SmartSpan" and prop_name == "conductor":
+                start = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {option.strip()} (LT)")
+                if start.isValid():
+                    option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), {"voltage": "LT"})
+                    option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), {"voltage": "HT"})
+            else:
+                start = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {option.strip()}")
+                if start.isValid():
+                    option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), context)
             self._build_tree()
 
     def _remove_user_option(self) -> None:
@@ -1317,6 +1639,14 @@ class PropertyEditorDialog(QDialog):
             return
         property_catalog.add_extended_option("SmartSpan", "conductor", name)
         property_catalog.set_conductor_meta(name, voltage)
+        if voltage in ("LT", "Both"):
+            c_lt = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {name} (LT)")
+            if c_lt.isValid():
+                option_colors.ensure_default("SmartSpan", "conductor", name, c_lt.name(), {"voltage": "LT"})
+        if voltage in ("HT", "Both"):
+            c_ht = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {name} (HT)")
+            if c_ht.isValid():
+                option_colors.ensure_default("SmartSpan", "conductor", name, c_ht.name(), {"voltage": "HT"})
         for sz in sizes:
             if voltage in ("LT", "Both"):
                 property_catalog.add_extended_option("SmartSpan", f"conductor_size__lt_{name}", sz)
