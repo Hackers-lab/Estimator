@@ -108,4 +108,4 @@ with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
 
 print("=== Build complete ===\n")
 print(f"  Deliverable : {zip_path}")
-print(f"  Size        : {zip_size_mb:.1f} MB")
+print(f"  Size        : {os.path.getsize(zip_path) / (1024 * 1024):.1f} MB")
