@@ -33,8 +33,15 @@ TOOLS = {
 
 # Display labels shown in the Project Setup Wizard dropdown
 
+# List of available project types
+PROJECT_TYPES = ["NSC", "FDS / TURNKEY"]
+
 # Supervision charge rate keyed by project type string
 # NSC = 10%, all others = 15%
+SUPERVISION_RATES = {
+    "NSC": 0.10,
+    "FDS / TURNKEY": 0.15,
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  POLE / STRUCTURE HEIGHT OPTIONS  (keyed by pole_type2)
