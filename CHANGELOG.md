@@ -2,6 +2,38 @@
 
 ---
 
+## v7.1 — April 11, 2026
+
+### What's New
+
+#### ✅ Rule Enable / Disable Toggle
+Every rule card in the Ruleset Manager now shows a checkbox.  Un-checking a rule disables it — it is excluded from all estimates and Excel exports — but stays in the database so you can re-enable it at any time.  Disabled rules appear dimmed with strikethrough text.
+
+#### ⚠️ Live Rule Validation
+The rule editor now checks the syntax of the **condition** and **formula** fields in real time.  A red warning banner appears beneath the formula field if the expression has a syntax error.  On save, if an error is detected you are asked to confirm before proceeding.
+
+#### 🗂 Heights & Sizes Manager
+A new **"Heights & Sizes"** tab in the Property Editor lets you manage pole heights and conductor sizes directly:
+- **Pole Heights** — add or remove height values per pole type (PCC / STP / H-BEAM).  Built-in values are protected; user-added values (shown in blue) can be removed.
+- **Conductor Sizes** — add or remove size options per conductor type and voltage class (LT / HT).
+
+#### 🗄 Fully Database-Driven Heights & Conductors
+`_height_options()` and `_conductor_sizes()` in the canvas editor now read directly from the database instead of hardcoded constants, so any value you add in the new manager is instantly available when placing or editing canvas objects.
+
+#### 📦 Build Now Ships Pre-Seeded Database
+`build.py` packages a pre-seeded `erp_master.db` alongside the EXE so distributed users get all rules, settings, heights, and conductor sizes on first launch without any JSON-seeding delay.
+
+---
+
+## v7.0 — April 11, 2026
+
+### What's New
+
+#### 🗄 Full Database-Driven Architecture
+All configuration (rules, settings, property options, heights, conductor sizes, custom properties) is now stored in `erp_master.db`.  A new `core/db_gateway.py` module provides a unified read/write API.  JSON files are kept only as emergency backups.
+
+---
+
 ## v6.9 — April 10, 2026
 
 ### Bug Fixes

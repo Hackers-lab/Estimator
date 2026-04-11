@@ -92,7 +92,8 @@ print("  Copied erp_master.db")
 final_dir = os.path.join(ROOT, DIST_DIR, FOLDER)
 if os.path.exists(final_dir):
     shutil.rmtree(final_dir)
-os.rename(exe_dir, final_dir)
+# shutil.move is more robust than os.rename on Windows (avoids AV lock errors)
+shutil.move(exe_dir, final_dir)
 
 # ── 5. Create ZIP ───────────────────────────────────────────────────────────
 zip_path = os.path.join(ROOT, DIST_DIR, f"{FOLDER}.zip")
