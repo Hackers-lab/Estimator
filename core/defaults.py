@@ -73,6 +73,22 @@ _FACTORY: dict = {
     "sd_length":          20,
     "sd_phase":           "3 Phase",
 
+    # Canvas symbol colours  (hex strings; customisable via Property Editor → Canvas Symbols)
+    "canvas_lt_pole":         "#2980b9",   # LT pole fill
+    "canvas_ht_pole":         "#c0392b",   # HT pole fill
+    "canvas_ex_pole":         "#cccccc",   # Existing pole fill
+    "canvas_ex_aug_dtr":      "#f7b267",   # Existing augmented-DTR fill
+    "canvas_dp":              "#27ae60",   # DP structure fill
+    "canvas_tp":              "#1abc9c",   # TP structure fill
+    "canvas_4p":              "#16a085",   # 4P structure fill
+    "canvas_dtr":             "#e67e22",   # DTR structure fill
+    "canvas_consumer":        "#f1c40f",   # Consumer fill (WBSEDCL)
+    "canvas_consumer_agency": "#f39c12",   # Consumer fill (Agency)
+    "canvas_acsr":            "#222222",   # ACSR span pen
+    "canvas_ab_cable":        "#1a5276",   # AB Cable span pen
+    "canvas_pvc_cable":       "#107C41",   # PVC Cable span pen
+    "canvas_svc_drop":        "#d35400",   # Service Drop span pen
+
     # Export settings
     "export_last_dir":    "",
 

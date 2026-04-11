@@ -498,22 +498,23 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
             # Colours
             black_pen = QPen(Qt.GlobalColor.black, 1)
+            _c = defaults.current
             if self.is_existing:
                 is_aug_dtr = (
                     self.existing_subtype == "DTR"
                     and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
                 )
                 if is_aug_dtr:
-                    self.setBrush(QBrush(QColor("#f7b267")))
+                    self.setBrush(QBrush(QColor(_c.get("canvas_ex_aug_dtr", "#f7b267"))))
                     self.setPen(QPen(QColor("#7a4000"), 1.6, Qt.PenStyle.DashLine))
                 else:
-                    self.setBrush(QBrush(QColor("#cccccc")))
+                    self.setBrush(QBrush(QColor(_c.get("canvas_ex_pole", "#cccccc"))))
                     self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
             elif self.pole_type == "LT":
-                self.setBrush(QBrush(QColor("#2980b9")))   # blue
+                self.setBrush(QBrush(QColor(_c.get("canvas_lt_pole", "#2980b9"))))
                 self.setPen(black_pen)
             else:  # HT
-                self.setBrush(QBrush(QColor("#c0392b")))   # red
+                self.setBrush(QBrush(QColor(_c.get("canvas_ht_pole", "#c0392b"))))
                 self.setPen(black_pen)
 
             # Label text

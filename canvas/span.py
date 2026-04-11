@@ -293,7 +293,14 @@ class SmartSpan(QGraphicsPathItem):
 
     def update_visuals(self) -> None:
         # ── Pen style ─────────────────────────────────────────────────────
-        color = self._PEN_COLORS.get(self.conductor, QColor("#222222"))
+        _span_color_keys = {
+            "ACSR":         "canvas_acsr",
+            "AB Cable":     "canvas_ab_cable",
+            "PVC Cable":    "canvas_pvc_cable",
+            "Service Drop": "canvas_svc_drop",
+        }
+        _ck  = _span_color_keys.get(self.conductor, "canvas_acsr")
+        color = QColor(defaults.current.get(_ck, self._PEN_COLORS.get(self.conductor, QColor("#222222"))))
         pen   = QPen(color, 1.8)
         aug_overlay_pair = (
             bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))
@@ -388,7 +395,7 @@ class SmartSpan(QGraphicsPathItem):
             total_w = (n_wires - 1) * spacing
             mx = (x1 + x2) / 2
             my = (y1 + y2) / 2
-            tick_color = self._PEN_COLORS.get("ACSR", QColor("#222222"))
+            tick_color = QColor(defaults.current.get("canvas_acsr", "#222222"))
             painter.save()
             painter.setPen(QPen(tick_color, 0.8))
             for k in range(n_wires):

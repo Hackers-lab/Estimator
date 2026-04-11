@@ -70,14 +70,13 @@ class PlacementDefaultsDialog(QDialog):
     Changes are persisted to ``defaults.json`` immediately on Save.
     """
 
-    _HEIGHT_OPTIONS = {
+    # Static fallback maps — augmented dynamically in _refresh_heights/_refresh_sizes
+    _HEIGHT_BASES = {
         "PCC":    ["8MTR", "9MTR"],
         "STP":    ["9MTR", "9.5MTR", "11MTR"],
         "H-BEAM": ["13MTR"],
     }
-    _LT_CONDUCTORS = ["AB Cable", "ACSR", "PVC Cable"]
-    _HT_CONDUCTORS = ["ACSR", "AB Cable"]
-    _CONDUCTOR_SIZES = {
+    _CONDUCTOR_SIZES_BASE = {
         ("AB Cable",  "LT"): ["3CX50+1CX35", "3CX50+1CX16+1CX35", "3CX70+1CX16+1CX50"],
         ("AB Cable",  "HT"): ["3CX50+1CX150", "3CX95+1CX70"],
         ("ACSR",      "LT"): ["30SQMM", "50SQMM"],
@@ -86,6 +85,27 @@ class PlacementDefaultsDialog(QDialog):
         ("PVC Cable", "HT"): ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM", "95 SQMM", "120 SQMM"],
     }
     _SD_SIZES = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+
+    @staticmethod
+    def _pole_type2_opts(obj_type: str = "SmartPole") -> list:
+        base = ["PCC", "STP", "H-BEAM"]
+        ext  = property_catalog.get_extended_options(obj_type, "pole_type2")
+        seen = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in seen]
+
+    @staticmethod
+    def _lt_conductors() -> list:
+        base = ["AB Cable", "ACSR", "PVC Cable"]
+        user = [c["name"] for c in property_catalog.get_user_conductors()
+                if c["voltage"] in ("LT", "Both")]
+        return base + user
+
+    @staticmethod
+    def _ht_conductors() -> list:
+        base = ["ACSR", "AB Cable", "PVC Cable"]
+        user = [c["name"] for c in property_catalog.get_user_conductors()
+                if c["voltage"] in ("HT", "Both")]
+        return base + user
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -180,14 +200,15 @@ class PlacementDefaultsDialog(QDialog):
         lt_frm = QFormLayout(lt_grp)
 
         self.lt_type2 = QComboBox()
-        self.lt_type2.addItems(["PCC", "STP", "H-BEAM"])
+        _lt_pt2 = self._pole_type2_opts("SmartPole")
+        self.lt_type2.addItems(_lt_pt2)
         self.lt_type2.setCurrentText(d["lt_pole_type2"])
         lt_frm.addRow("Material:", self.lt_type2)
 
         self.lt_height = QComboBox()
-        self._refresh_heights(self.lt_type2, self.lt_height, d["lt_height"])
+        self._refresh_heights(self.lt_type2, self.lt_height, d["lt_height"], "SmartPole")
         self.lt_type2.currentTextChanged.connect(
-            lambda: self._refresh_heights(self.lt_type2, self.lt_height)
+            lambda: self._refresh_heights(self.lt_type2, self.lt_height, obj_type="SmartPole")
         )
         lt_frm.addRow("Height:", self.lt_height)
 
@@ -212,14 +233,15 @@ class PlacementDefaultsDialog(QDialog):
         ht_frm = QFormLayout(ht_grp)
 
         self.ht_type2 = QComboBox()
-        self.ht_type2.addItems(["PCC", "STP", "H-BEAM"])
+        _ht_pt2 = self._pole_type2_opts("SmartPole")
+        self.ht_type2.addItems(_ht_pt2)
         self.ht_type2.setCurrentText(d["ht_pole_type2"])
         ht_frm.addRow("Material:", self.ht_type2)
 
         self.ht_height = QComboBox()
-        self._refresh_heights(self.ht_type2, self.ht_height, d["ht_height"])
+        self._refresh_heights(self.ht_type2, self.ht_height, d["ht_height"], "SmartPole")
         self.ht_type2.currentTextChanged.connect(
-            lambda: self._refresh_heights(self.ht_type2, self.ht_height)
+            lambda: self._refresh_heights(self.ht_type2, self.ht_height, obj_type="SmartPole")
         )
         ht_frm.addRow("Height:", self.ht_height)
 
@@ -240,14 +262,15 @@ class PlacementDefaultsDialog(QDialog):
         st_frm = QFormLayout(st_grp)
 
         self.st_type2 = QComboBox()
-        self.st_type2.addItems(["PCC", "STP", "H-BEAM"])
+        _st_pt2 = self._pole_type2_opts("SmartStructure")
+        self.st_type2.addItems(_st_pt2)
         self.st_type2.setCurrentText(d["struct_pole_type2"])
         st_frm.addRow("Material:", self.st_type2)
 
         self.st_height = QComboBox()
-        self._refresh_heights(self.st_type2, self.st_height, d["struct_height"])
+        self._refresh_heights(self.st_type2, self.st_height, d["struct_height"], "SmartStructure")
         self.st_type2.currentTextChanged.connect(
-            lambda: self._refresh_heights(self.st_type2, self.st_height)
+            lambda: self._refresh_heights(self.st_type2, self.st_height, obj_type="SmartStructure")
         )
         st_frm.addRow("Height:", self.st_height)
 
@@ -310,7 +333,10 @@ class PlacementDefaultsDialog(QDialog):
         lt_frm = QFormLayout(lt_grp)
 
         self.lt_cond = QComboBox()
-        self.lt_cond.addItems(self._LT_CONDUCTORS)
+        _lt_conds = self._lt_conductors()
+        self.lt_cond.addItems(_lt_conds)
+        if d["lt_conductor"] not in _lt_conds:
+            self.lt_cond.addItem(d["lt_conductor"])
         self.lt_cond.setCurrentText(d["lt_conductor"])
         lt_frm.addRow("Conductor:", self.lt_cond)
 
@@ -340,7 +366,10 @@ class PlacementDefaultsDialog(QDialog):
         ht_frm = QFormLayout(ht_grp)
 
         self.ht_cond = QComboBox()
-        self.ht_cond.addItems(self._HT_CONDUCTORS)
+        _ht_conds = self._ht_conductors()
+        self.ht_cond.addItems(_ht_conds)
+        if d["ht_conductor"] not in _ht_conds:
+            self.ht_cond.addItem(d["ht_conductor"])
         self.ht_cond.setCurrentText(d["ht_conductor"])
         ht_frm.addRow("Conductor:", self.ht_cond)
 
@@ -451,9 +480,18 @@ class PlacementDefaultsDialog(QDialog):
         lay.addStretch()
         return w
 
-    def _refresh_heights(self, type2_cb: QComboBox, height_cb: QComboBox,
-                         current_val: str = "") -> None:
-        opts = self._HEIGHT_OPTIONS.get(type2_cb.currentText(), ["8MTR", "9MTR"])
+    def _refresh_heights(
+        self,
+        type2_cb: QComboBox,
+        height_cb: QComboBox,
+        current_val: str = "",
+        obj_type: str = "SmartPole",
+    ) -> None:
+        pt2  = type2_cb.currentText()
+        base = self._HEIGHT_BASES.get(pt2, ["8MTR", "9MTR"])
+        ext  = property_catalog.get_extended_options(obj_type, f"height__{pt2}")
+        seen = {v.casefold() for v in base}
+        opts = base + [o for o in ext if o.casefold() not in seen]
         height_cb.blockSignals(True)
         height_cb.clear()
         height_cb.addItems(opts)
@@ -461,15 +499,29 @@ class PlacementDefaultsDialog(QDialog):
             height_cb.setCurrentText(current_val)
         height_cb.blockSignals(False)
 
-    def _refresh_sizes(self, cond_cb: QComboBox, size_cb: QComboBox,
-                       voltage: str, current_val: str = "") -> None:
-        key  = (cond_cb.currentText(), voltage)
-        opts = self._CONDUCTOR_SIZES.get(key, ["10 SQMM"])
+    def _refresh_sizes(
+        self,
+        cond_cb: QComboBox,
+        size_cb: QComboBox,
+        voltage: str,
+        current_val: str = "",
+    ) -> None:
+        conductor = cond_cb.currentText()
+        key       = (conductor, voltage)
+        base      = self._CONDUCTOR_SIZES_BASE.get(key, [])
+        vlt       = "lt" if voltage == "LT" else "ht"
+        ext       = property_catalog.get_extended_options(
+            "SmartSpan", f"conductor_size__{vlt}_{conductor}"
+        )
+        seen = {v.casefold() for v in base}
+        opts = base + [o for o in ext if o.casefold() not in seen]
+        if not opts:
+            opts = ["10 SQMM"]
         size_cb.blockSignals(True)
         size_cb.clear()
         size_cb.addItems(opts)
         if current_val and current_val not in opts:
-            size_cb.addItem(current_val)   # preserve user-typed custom size
+            size_cb.addItem(current_val)
         if current_val:
             size_cb.setCurrentText(current_val)
         size_cb.blockSignals(False)
@@ -542,16 +594,16 @@ class PlacementDefaultsDialog(QDialog):
         f = _FACTORY
         if idx == 0:   # Poles & Structures
             self.lt_type2.setCurrentText(f["lt_pole_type2"])
-            self._refresh_heights(self.lt_type2, self.lt_height, f["lt_height"])
+            self._refresh_heights(self.lt_type2, self.lt_height, f["lt_height"], "SmartPole")
             self.lt_earth.setValue(f["lt_earth_count"])
             self.lt_stay.setValue(f["lt_stay_count"])
             self.lt_dist_box.setChecked(bool(f["lt_dist_box_required"]))
             self.ht_type2.setCurrentText(f["ht_pole_type2"])
-            self._refresh_heights(self.ht_type2, self.ht_height, f["ht_height"])
+            self._refresh_heights(self.ht_type2, self.ht_height, f["ht_height"], "SmartPole")
             self.ht_earth.setValue(f["ht_earth_count"])
             self.ht_stay.setValue(f["ht_stay_count"])
             self.st_type2.setCurrentText(f["struct_pole_type2"])
-            self._refresh_heights(self.st_type2, self.st_height, f["struct_height"])
+            self._refresh_heights(self.st_type2, self.st_height, f["struct_height"], "SmartStructure")
             self.st_stay.setValue(f["struct_stay_count"])
             self.st_orient.setCurrentText(f["struct_orientation"])
             self.st_kiosk.setChecked(bool(f["dtr_kiosk_required"]))

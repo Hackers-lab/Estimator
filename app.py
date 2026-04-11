@@ -1599,10 +1599,12 @@ class EstimateApp(QMainWindow):
 
             if subtype == "DTR":
                 dtr_cb = QComboBox()
-                dtr_cb.addItems(
-                    ["None", "10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
-                )
-                dtr_cb.setCurrentText(getattr(item, "existing_dtr_size", "None"))
+                _xdtr = self._dtr_size_options("SmartPole", "existing_dtr_size")
+                dtr_cb.addItems(_xdtr)
+                _xval = getattr(item, "existing_dtr_size", "None")
+                if _xval not in _xdtr:
+                    dtr_cb.addItem(_xval)
+                dtr_cb.setCurrentText(_xval)
                 dtr_cb.currentTextChanged.connect(
                     lambda t, i=item: self._update_pole(i, "existing_dtr_size", t)
                 )
@@ -1611,7 +1613,9 @@ class EstimateApp(QMainWindow):
 
         # Pole type 2 (material)
         pt2_cb = QComboBox()
-        pt2_cb.addItems(["PCC", "STP", "H-BEAM"])
+        pt2_cb.addItems(self._pole_type2_options())
+        if item.pole_type2 not in self._pole_type2_options():
+            pt2_cb.addItem(item.pole_type2)   # preserve loaded value
         pt2_cb.setCurrentText(item.pole_type2)
         pt2_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_pole_type2(i, t)
@@ -1785,9 +1789,10 @@ class EstimateApp(QMainWindow):
         # DTR size (only when DTR)
         if item.structure_type == "DTR":
             dtr_cb = QComboBox()
-            dtr_cb.addItems(
-                ["None", "10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
-            )
+            _sdtr = self._dtr_size_options("SmartStructure", "dtr_size")
+            dtr_cb.addItems(_sdtr)
+            if item.dtr_size not in _sdtr:
+                dtr_cb.addItem(item.dtr_size)
             dtr_cb.setCurrentText(item.dtr_size)
             dtr_cb.currentTextChanged.connect(
                 lambda t, i=item: self._update_structure(i, "dtr_size", t)
@@ -1805,7 +1810,10 @@ class EstimateApp(QMainWindow):
 
         # Pole material
         pt2_cb = QComboBox()
-        pt2_cb.addItems(["PCC", "STP", "H-BEAM"])
+        _spt2 = self._pole_type2_options("SmartStructure")
+        pt2_cb.addItems(_spt2)
+        if item.pole_type2 not in _spt2:
+            pt2_cb.addItem(item.pole_type2)
         pt2_cb.setCurrentText(item.pole_type2)
         pt2_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_struct_type2(i, t)
@@ -1814,7 +1822,7 @@ class EstimateApp(QMainWindow):
 
         # Height (cascading)
         ht_cb = QComboBox()
-        ht_cb.addItems(self._height_options(item.pole_type2))
+        ht_cb.addItems(self._height_options(item.pole_type2, "SmartStructure"))
         ht_cb.setCurrentText(item.height)
         self._bind_property_widget(item, "height", ht_cb)
         self.editor_layout.addRow("Height:", ht_cb)
@@ -1907,9 +1915,12 @@ class EstimateApp(QMainWindow):
         )
         self.editor_layout.addRow("Length (m):", len_sp)
 
-        # Conductor type — filtered by voltage level
-        _LT_CONDUCTORS = ["AB Cable", "ACSR", "PVC Cable"]
-        _HT_CONDUCTORS = ["ACSR", "AB Cable"]
+        # Conductor type — filtered by voltage level (built-in + user-added)
+        _user = property_catalog.get_user_conductors()
+        _user_lt = [c["name"] for c in _user if c["voltage"] in ("LT", "Both")]
+        _user_ht = [c["name"] for c in _user if c["voltage"] in ("HT", "Both")]
+        _LT_CONDUCTORS = ["AB Cable", "ACSR", "PVC Cable"] + _user_lt
+        _HT_CONDUCTORS = ["ACSR", "AB Cable", "PVC Cable"] + _user_ht
         cond_list = _LT_CONDUCTORS if item.is_lt_span else _HT_CONDUCTORS
         cond_cb = QComboBox()
         cond_cb.addItems(cond_list)
@@ -2008,34 +2019,63 @@ class EstimateApp(QMainWindow):
 
     # ── Editor helpers ────────────────────────────────────────────────────────
 
-    def _height_options(self, pole_type2):
-        return {
+    def _height_options(self, pole_type2: str, obj_type: str = "SmartPole") -> list[str]:
+        """Return height option strings for the given pole_type2, merged with any
+        user-added values stored in property_catalog extended_options."""
+        base: list[str] = {
             "PCC":    ["8MTR", "9MTR"],
             "STP":    ["9MTR", "9.5MTR", "11MTR"],
             "H-BEAM": ["13MTR"],
         }.get(pole_type2, ["8MTR", "9MTR"])
+        from core import property_catalog as _pc
+        ext = _pc.get_extended_options(obj_type, f"height__{pole_type2}")
+        base_fold = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in base_fold]
 
-    def _conductor_sizes(self, conductor, is_lt):
+    def _conductor_sizes(self, conductor: str, is_lt: bool) -> list[str]:
+        """Return conductor-size option strings, merged with any user-added values."""
         if conductor == "ACSR":
-            return ["30SQMM", "50SQMM"]
-        if conductor == "AB Cable":
-            if is_lt:
-                return [
-                    "3CX50+1CX35",
-                    "3CX50+1CX16+1CX35",
-                    "3CX70+1CX16+1CX50",
-                ]
-            else:
-                return ["3CX50+1CX150", "3CX95+1CX70"]
-        if conductor == "PVC Cable":
-            return ["10 SQMM", "16 SQMM", "25 SQMM",
-                    "50 SQMM", "95 SQMM", "120 SQMM"]
-        return ["10 SQMM"]
+            base = ["30SQMM", "50SQMM"]
+        elif conductor == "AB Cable":
+            base = (
+                ["3CX50+1CX35", "3CX50+1CX16+1CX35", "3CX70+1CX16+1CX50"]
+                if is_lt else ["3CX50+1CX150", "3CX95+1CX70"]
+            )
+        elif conductor == "PVC Cable":
+            base = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM", "95 SQMM", "120 SQMM"]
+        else:
+            base = ["10 SQMM"]
+        from core import property_catalog as _pc
+        vlt = "lt" if is_lt else "ht"
+        ext = _pc.get_extended_options("SmartSpan", f"conductor_size__{vlt}_{conductor}")
+        base_fold = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in base_fold]
 
-    def _service_cable_sizes(self, phase):
+    def _service_cable_sizes(self, phase: str) -> list[str]:
+        """Cable sizes for consumer, merged with user-added values."""
         if phase == "1 Phase":
-            return ["10 SQMM", "16 SQMM"]
-        return ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+            base = ["10 SQMM", "16 SQMM"]
+        else:
+            base = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+        ext = property_catalog.get_extended_options("SmartConsumer", "cable_size")
+        base_fold = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in base_fold]
+
+    def _pole_type2_options(self, obj_type: str = "SmartPole") -> list[str]:
+        """Pole material options (PCC/STP/H-BEAM) merged with user-added values."""
+        base = ["PCC", "STP", "H-BEAM"]
+        ext  = property_catalog.get_extended_options(obj_type, "pole_type2")
+        base_fold = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in base_fold]
+
+    def _dtr_size_options(
+        self, obj_type: str = "SmartStructure", prop: str = "dtr_size"
+    ) -> list[str]:
+        """DTR kVA size options merged with user-added values."""
+        base = ["None", "10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
+        ext  = property_catalog.get_extended_options(obj_type, prop)
+        base_fold = {v.casefold() for v in base}
+        return base + [o for o in ext if o.casefold() not in base_fold]
 
     def _add_section_separator(self, title: str) -> None:
         sep = QFrame()
@@ -2103,7 +2143,7 @@ class EstimateApp(QMainWindow):
         self.editor_layout.addRow("Existing:", ex_lbl)
 
         new_dtr = QComboBox()
-        dtr_sizes = ["10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
+        dtr_sizes = [s for s in self._dtr_size_options("SmartStructure", "dtr_size") if s != "None"]
         new_dtr.addItems(dtr_sizes)
         new_dtr_val = str(props.get("dtr_new_size", existing_size))
         if new_dtr_val not in dtr_sizes:
@@ -2135,9 +2175,10 @@ class EstimateApp(QMainWindow):
             self._set_dynamic_prop(item, "dtr_return_old_pole", True)
 
             new_pt2 = QComboBox()
-            new_pt2.addItems(["PCC", "STP", "H-BEAM"])
+            _npt2 = self._pole_type2_options("SmartStructure")
+            new_pt2.addItems(_npt2)
             new_pt2_val = str(props.get("dtr_new_pole_type2", existing_pt2))
-            if new_pt2_val not in ["PCC", "STP", "H-BEAM"]:
+            if new_pt2_val not in _npt2:
                 new_pt2.addItem(new_pt2_val)
             new_pt2.setCurrentText(new_pt2_val)
             new_pt2.currentTextChanged.connect(
@@ -2146,7 +2187,7 @@ class EstimateApp(QMainWindow):
             self.editor_layout.addRow("New Pole Type:", new_pt2)
 
             new_ht = QComboBox()
-            new_ht_opts = self._height_options(new_pt2.currentText())
+            new_ht_opts = self._height_options(new_pt2.currentText(), "SmartStructure")
             new_ht.addItems(new_ht_opts)
             new_ht_val = str(props.get("dtr_new_height", existing_h))
             if new_ht_val not in new_ht_opts:
@@ -2161,7 +2202,7 @@ class EstimateApp(QMainWindow):
                 old = new_ht.currentText()
                 new_ht.blockSignals(True)
                 new_ht.clear()
-                opts = self._height_options(pt2)
+                opts = self._height_options(pt2, "SmartStructure")
                 new_ht.addItems(opts)
                 if old in opts:
                     new_ht.setCurrentText(old)
@@ -2315,7 +2356,7 @@ class EstimateApp(QMainWindow):
                 lambda v, i=item: self._update_struct_type2(i, v)
             )
             _choice_submenu(
-                "Height", self._height_options(item.pole_type2), item.height,
+                "Height", self._height_options(item.pole_type2, "SmartStructure"), item.height,
                 lambda v, i=item: self._update_structure(i, "height", v)
             )
             _input_action(
@@ -2586,7 +2627,7 @@ class EstimateApp(QMainWindow):
 
     def _update_struct_type2(self, item, value):
         item.pole_type2 = value
-        options = self._height_options(value)
+        options = self._height_options(value, "SmartStructure")
         if item.height not in options:
             item.height = options[0]
         item.update_visuals()

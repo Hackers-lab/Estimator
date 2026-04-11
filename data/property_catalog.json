@@ -1,18 +1,40 @@
 {
   "SmartPole": {
     "custom_entries": [],
-    "extended_options": {}
+    "extended_options": {
+      "height__H-BEAM": [
+        "12"
+      ],
+      "pole_type2": [
+        "test"
+      ]
+    },
+    "conductor_meta": {}
   },
   "SmartStructure": {
     "custom_entries": [],
-    "extended_options": {}
+    "extended_options": {},
+    "conductor_meta": {}
   },
   "SmartSpan": {
     "custom_entries": [],
-    "extended_options": {}
+    "extended_options": {
+      "conductor": [
+        "UG_CABLE"
+      ],
+      "conductor_size__ht_UG_CABLE": [
+        "120SQMM"
+      ]
+    },
+    "conductor_meta": {
+      "UG_CABLE": {
+        "voltage": "HT"
+      }
+    }
   },
   "SmartConsumer": {
     "custom_entries": [],
-    "extended_options": {}
+    "extended_options": {},
+    "conductor_meta": {}
   }
 }

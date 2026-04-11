@@ -182,8 +182,14 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.setPath(path)
 
         # Colour
-        color = self._COLORS.get(st, QColor("#27ae60"))
-        self.setBrush(QBrush(color))
+        _struct_color_keys = {
+            "DP":  "canvas_dp",
+            "TP":  "canvas_tp",
+            "4P":  "canvas_4p",
+            "DTR": "canvas_dtr",
+        }
+        _color_hex = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
+        self.setBrush(QBrush(QColor(_color_hex)))
         self.setPen(QPen(Qt.GlobalColor.black, 1.5))
 
         # Label
@@ -298,7 +304,7 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         house.lineTo(0, -14)                 # roof left
         house.lineTo(14, 0)                  # roof right
         self.setPath(house)
-        self.setBrush(QBrush(QColor("#f1c40f")))   # yellow
+        self.setBrush(QBrush(QColor(defaults.current.get("canvas_consumer", "#f1c40f"))))
         self.setPen(QPen(Qt.GlobalColor.black, 1))
 
         self.label = DraggableLabel(self)
@@ -334,9 +340,9 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
 
         # Colour hint for agency vs WBSEDCL
         if self.agency_supply:
-            self.setBrush(QBrush(QColor("#f39c12")))   # darker amber = agency
+            self.setBrush(QBrush(QColor(defaults.current.get("canvas_consumer_agency", "#f39c12"))))
         else:
-            self.setBrush(QBrush(QColor("#f1c40f")))   # bright yellow = WBSEDCL
+            self.setBrush(QBrush(QColor(defaults.current.get("canvas_consumer", "#f1c40f"))))
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
 

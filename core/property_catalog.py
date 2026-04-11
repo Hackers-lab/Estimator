@@ -18,7 +18,7 @@ _CATALOG_FILE = get_data_path("property_catalog.json")
 
 
 def _empty_type_data() -> dict:
-    return {"custom_entries": [], "extended_options": {}}
+    return {"custom_entries": [], "extended_options": {}, "conductor_meta": {}}
 
 
 _FACTORY: dict = {obj_type: _empty_type_data() for obj_type in OBJECT_TYPES}
@@ -99,6 +99,20 @@ def load() -> None:
                 if clean_opts:
                     extended[str(prop_name)] = clean_opts
         merged[obj_type]["extended_options"] = extended
+
+        # Conductor metadata (SmartSpan only) — stores voltage affinity of user-added conductors
+        if obj_type == "SmartSpan":
+            raw_meta = type_data.get("conductor_meta", {})
+            c_meta: dict = {}
+            if isinstance(raw_meta, dict):
+                for cname, cm in raw_meta.items():
+                    if not isinstance(cm, dict):
+                        continue
+                    voltage = cm.get("voltage", "Both")
+                    if voltage not in ("LT", "HT", "Both"):
+                        voltage = "Both"
+                    c_meta[str(cname)] = {"voltage": voltage}
+            merged[obj_type]["conductor_meta"] = c_meta
 
     current = merged
 
@@ -188,6 +202,36 @@ def remove_extended_option(obj_type: str, prop_name: str, option: str) -> None:
         ext[prop_name] = filtered
     else:
         ext.pop(prop_name, None)
+    save()
+
+
+# ── User conductor metadata (SmartSpan only) ──────────────────────────────────
+
+def get_user_conductors() -> list[dict]:
+    """Return [{name, voltage}] for all user-added conductors."""
+    meta = current.get("SmartSpan", {}).get("conductor_meta", {})
+    return [{"name": n, "voltage": m.get("voltage", "Both")} for n, m in meta.items()]
+
+
+def get_conductor_meta(conductor_name: str) -> dict:
+    """Return {voltage} for a user-added conductor, or {} if not found."""
+    return dict(current.get("SmartSpan", {}).get("conductor_meta", {}).get(conductor_name, {}))
+
+
+def set_conductor_meta(conductor_name: str, voltage: str) -> None:
+    """Store or update the voltage affinity for a user-added conductor."""
+    current["SmartSpan"].setdefault("conductor_meta", {})[conductor_name] = {"voltage": voltage}
+    save()
+
+
+def delete_user_conductor(conductor_name: str) -> None:
+    """Remove a user-added conductor and ALL its associated catalog data."""
+    remove_extended_option("SmartSpan", "conductor", conductor_name)
+    current.get("SmartSpan", {}).get("conductor_meta", {}).pop(conductor_name, None)
+    ext = current.get("SmartSpan", {}).get("extended_options", {})
+    for key in [f"conductor_size__lt_{conductor_name}",
+                f"conductor_size__ht_{conductor_name}"]:
+        ext.pop(key, None)
     save()
 
 
