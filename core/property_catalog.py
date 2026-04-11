@@ -282,60 +282,16 @@ def delete_user_conductor(conductor_name: str) -> None:
 
 # ── Build helpers for Ruleset Manager ─────────────────────────────────────────
 
-def build_property_data(base_property_data: dict) -> dict:
-    """Return a deep copy of PROPERTY_DATA with extended + custom entries injected per object type."""
-    merged = deepcopy(base_property_data)
-    for obj_type in OBJECT_TYPES:
-        if obj_type not in merged:
-            continue
-        type_cur = current.get(obj_type, {})
-
-        for prop_name, extra_opts in type_cur.get("extended_options", {}).items():
-            if prop_name in merged[obj_type] and isinstance(merged[obj_type][prop_name], list):
-                existing = list(merged[obj_type][prop_name])
-                existing_fold = {str(o).casefold() for o in existing}
-                for opt in extra_opts:
-                    if opt.casefold() not in existing_fold:
-                        existing.append(opt)
-                        existing_fold.add(opt.casefold())
-                merged[obj_type][prop_name] = existing
-
-        for entry in type_cur.get("custom_entries", []):
-            label = entry["label"]
-            options = entry.get("options", [])
-            merged[obj_type][label] = (["None"] + options) if options else "text"
-
-    return merged
+def build_property_data(base_property_data: dict = None) -> dict:
+    """Return a deep copy of PROPERTY_DATA using the global PropertyRegistry."""
+    from core.property_registry import get_registry
+    return get_registry().get_all_property_data()
 
 
-def build_sim_defaults(base_sim_defaults: dict) -> dict:
-    """Return a deep copy of SIM_DEFAULTS with extended + custom entries injected per object type."""
-    merged = deepcopy(base_sim_defaults)
-    for obj_type in OBJECT_TYPES:
-        if obj_type not in merged:
-            continue
-        type_cur = current.get(obj_type, {})
-
-        for prop_name, extra_opts in type_cur.get("extended_options", {}).items():
-            if prop_name in merged[obj_type]:
-                sim_entry = merged[obj_type][prop_name]
-                if isinstance(sim_entry, tuple) and sim_entry[0] == "combo":
-                    wtype, existing_opts, default = sim_entry
-                    existing_fold = {str(o).casefold() for o in existing_opts}
-                    new_opts = list(existing_opts)
-                    for opt in extra_opts:
-                        if opt.casefold() not in existing_fold:
-                            new_opts.append(opt)
-                            existing_fold.add(opt.casefold())
-                    merged[obj_type][prop_name] = (wtype, new_opts, default)
-
-        for entry in type_cur.get("custom_entries", []):
-            label = entry["label"]
-            options = entry.get("options", [])
-            opts_list = ["None"] + options if options else ["None"]
-            merged[obj_type][label] = ("combo", opts_list, "None")
-
-    return merged
+def build_sim_defaults(base_sim_defaults: dict = None) -> dict:
+    """Return a deep copy of SIM_DEFAULTS using the global PropertyRegistry."""
+    from core.property_registry import get_registry
+    return get_registry().get_all_sim_defaults()
 
 
 def usage_details(rules: list[dict], obj_type: str | None = None) -> dict[str, list[str]]:

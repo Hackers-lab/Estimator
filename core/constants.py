@@ -145,6 +145,7 @@ PROPERTY_DATA = {
         "extension_height": "int",
         "earth_count":      "int",
         "stay_count":       "int",
+        "has_cg":           [True, False],
         "dtr_size":         [
             "None", "10KVA", "16KVA", "25KVA",
             "63KVA", "100KVA", "160KVA"
@@ -250,6 +251,7 @@ SIM_DEFAULTS = {
         "extension_height": ("spin",  (1, 10),                           3),
         "earth_count":      ("spin",  (0, 20),                           2),
         "stay_count":       ("spin",  (0, 20),                           4),
+        "has_cg":           ("combo", ["False", "True"],                 "False"),
         "dtr_size":         ("combo",
                              ["None","10KVA","16KVA","25KVA",
                               "63KVA","100KVA","160KVA"],                "None"),
@@ -342,6 +344,7 @@ TREE_DEF = [
             ("Always (True)", "SmartStructure", {"condition_true": True}, []),
             ("With Earth",    "SmartStructure", {"earth_count_gt": 0}, []),
             ("With Stay",     "SmartStructure", {"stay_count_gt": 0}, []),
+            ("With CG",       "SmartStructure", {"has_cg": True}, []),
         ]),
         ("DTR / Sub-Stn", "SmartStructure", {"structure_type": "DTR"}, [
             ("10 KVA",  "SmartStructure", {"structure_type": "DTR", "dtr_size": "10KVA"},  []),
@@ -399,6 +402,7 @@ FILTER_CHIPS = {
     "SmartStructure": [
         ("With DTR",      "dtr_size_ne",    "None"),
         ("Has Extension", "has_extension",  True),
+        ("Has CG",        "has_cg",         True),
         ("With Earth",    "earth_count_gt", 0),
         ("With Stay",     "stay_count_gt",  0),
     ],

@@ -29,7 +29,7 @@ SmartPole
 SmartStructure
     object_type, structure_type, pole_type2, height (int metres),
     has_extension, extension_height (float), earth_count, stay_count,
-    dtr_size, use_uh, project_type
+    dtr_size, has_cg, use_uh, project_type
 
 SmartSpan
     object_type, conductor, conductor_size, is_service_drop,
@@ -308,6 +308,13 @@ class DynamicRuleEngine:
             "use_uh":           use_uh,
             "project_type":     project_type,
         }
+
+        # has_cg — True if any connected span has cattle guard
+        ctx["has_cg"] = any(
+            getattr(s, "has_cg", False)
+            for s in getattr(item, "connected_spans", [])
+        )
+
         ctx.update(dyn)
         return ctx
 
