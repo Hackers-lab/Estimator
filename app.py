@@ -1858,10 +1858,11 @@ class EstimateApp(QMainWindow, EditorMixin):
                 row = self._db_lookup(cursor, item_type, name)
                 if row:
                     code, rate, unit = row
+                    qty_rounded = round(qty, 3)
                     self.live_bom_data.append({
                         "type": item_type, "code": code, "name": name,
-                        "qty": qty, "unit": unit, "rate": rate,
-                        "amt": qty * rate
+                        "qty": qty_rounded, "unit": unit, "rate": rate,
+                        "amt": qty_rounded * rate
                     })
                 processed.add(name)
 
@@ -1872,10 +1873,11 @@ class EstimateApp(QMainWindow, EditorMixin):
                     if row:
                         code, rate, unit = row
                         qty = override["qty"]
+                        qty_rounded = round(qty, 3)
                         self.live_bom_data.append({
                             "type": override["type"], "code": code, "name": name,
-                            "qty": qty, "unit": unit, "rate": rate,
-                            "amt": qty * rate
+                            "qty": qty_rounded, "unit": unit, "rate": rate,
+                            "amt": qty_rounded * rate
                         })
 
             conn.close()

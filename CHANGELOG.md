@@ -2,6 +2,20 @@
 
 ---
 
+## v7.2 — April 12, 2026
+
+### Fixes & Improvements
+
+#### ✅ Excel / App Total Match Fix
+The app now rounds every material and labour quantity to **3 decimal places before calculating the amount**, exactly matching Excel's quantity precision. This resolves the issue where the app and exported Excel workbook showed different grand totals due to hidden extra decimal precision in internal Python calculations.
+
+#### 🔍 User Impact
+- Estimates in the app now align with Excel exports for all itemized totals.
+- Iron and cable quantities are handled consistently between the table display and the amount calculation.
+- The final `GRAND TOTAL` no longer diverges from the worksheet total because of floating-point carryover.
+
+---
+
 ## v7.1 — April 11, 2026
 
 ### What's New
