@@ -42,7 +42,7 @@ def get_data_path(filename: str = "") -> str:
 
 APP_DISPLAY_NAME = "ERP Estimate Generator"
 APP_NAME = "ERP_Estimate"
-APP_VERSION = "6.9"
+APP_VERSION = "7.0"
 APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.

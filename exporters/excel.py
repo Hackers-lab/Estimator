@@ -352,9 +352,9 @@ class ExcelExporter:
         UW  = self._IRON_UNIT_WEIGHTS
 
         try:
-            with open(get_data_path("rules.json"), "r") as f:
-                rules = _json.load(f)
-        except (FileNotFoundError, _json.JSONDecodeError):
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            rules = _dbg.get_rules()
+        except Exception:
             rules = []
 
         steel_rules = [

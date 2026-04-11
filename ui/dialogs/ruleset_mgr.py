@@ -1874,15 +1874,19 @@ class RulesetManagerDialog(QDialog):
 
     def load_rules(self):
         try:
-            with open(get_data_path("rules.json"), "r", encoding="utf-8") as f:
-                self.rules = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            self.rules = _dbg.get_rules(enabled_only=False)
+        except Exception:
             self.rules = []
 
     def save_rules(self):
         try:
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            _dbg.save_rules(self.rules)
+            # Also keep a JSON backup alongside the DB
             path = get_data_path("rules.json")
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            import os as _os
+            _os.makedirs(_os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.rules, f, indent=2)
         except Exception as exc:

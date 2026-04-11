@@ -107,34 +107,85 @@ _FACTORY: dict = {
 current: dict = dict(_FACTORY)
 
 
+def _cast(value_str: str, factory_default):
+    """Cast a string value from DB to the Python type matching the factory default."""
+    if isinstance(factory_default, bool):
+        return value_str.lower() in ("true", "1", "yes")
+    if isinstance(factory_default, int):
+        try:
+            return int(value_str)
+        except (ValueError, TypeError):
+            return factory_default
+    if isinstance(factory_default, float):
+        try:
+            return float(value_str)
+        except (ValueError, TypeError):
+            return factory_default
+    return value_str
+
+
 def load() -> None:
-    """Load from JSON file; fall back silently to factory values."""
+    """Load settings from DB (primary) with JSON file and factory as fallbacks."""
     global current
+    merged = dict(_FACTORY)
+
+    # ── Primary: DB settings table ──────────────────────────────────────────
+    try:
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        db_settings = _dbg.get_all_settings()
+        for k, v_str in db_settings.items():
+            if k in _FACTORY:
+                merged[k] = _cast(v_str, _FACTORY[k])
+            # Accept unknown keys (future additions) as strings too
+        current = merged
+        return
+    except Exception:
+        pass  # DB not ready yet (e.g. first-launch before setup_database)
+
+    # ── Fallback: JSON file ────────────────────────────────────────────────
     try:
         with open(_DEFAULTS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        merged = dict(_FACTORY)
         merged.update({k: v for k, v in data.items() if k in _FACTORY})
-        current = merged
     except (FileNotFoundError, json.JSONDecodeError):
-        current = dict(_FACTORY)
+        pass
+
+    current = merged
 
 
 def save(values: dict) -> None:
-    """Persist *values* and update ``current`` in-place."""
+    """Persist *values*, update ``current`` in-place, write to DB and JSON."""
     current.update({k: v for k, v in values.items() if k in _FACTORY})
+
+    # ── DB (primary) ───────────────────────────────────────────────────────
+    try:
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        _dbg.save_settings({k: str(v) for k, v in current.items()})
+    except Exception:
+        pass
+
+    # ── JSON (legacy fallback, keep for backward compat) ──────────────────
     try:
         os.makedirs(os.path.dirname(_DEFAULTS_FILE), exist_ok=True)
         with open(_DEFAULTS_FILE, "w", encoding="utf-8") as f:
             json.dump(current, f, indent=2)
     except OSError:
-        pass  # Silently ignore write failures (read-only fs, permissions, etc)
+        pass
 
 
 def reset_to_factory() -> None:
-    """Reset ``current`` to factory values and delete the JSON file."""
+    """Reset ``current`` to factory values and clear from DB + JSON."""
     global current
     current = dict(_FACTORY)
+
+    # Reset DB settings to factory
+    try:
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        _dbg.save_settings({k: str(v) for k, v in _FACTORY.items()})
+    except Exception:
+        pass
+
+    # Remove JSON file
     try:
         os.remove(_DEFAULTS_FILE)
     except FileNotFoundError:

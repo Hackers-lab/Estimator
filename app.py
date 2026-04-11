@@ -2968,13 +2968,9 @@ class EstimateApp(QMainWindow):
             project_type  = self.project_meta.get("project_type", "NSC")
             sup_rate      = self.project_meta.get("supervision_rate", 0.10)
 
-            # Load rules
-            rules = []
-            try:
-                with open(get_data_path("rules.json"), "r", encoding="utf-8") as f:
-                    rules = json.load(f)
-            except (FileNotFoundError, json.JSONDecodeError):
-                pass
+            # Load rules from database (falls back to empty list on failure)
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            rules = _dbg.get_rules()
 
             canvas_items = [
                 i for i in self.scene.items()
