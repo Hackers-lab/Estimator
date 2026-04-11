@@ -54,6 +54,10 @@ _FACTORY: dict = {
     "struct_stay_count":  4,
     "struct_orientation": "Horizontal",
     "dtr_kiosk_required": True,
+    "earth_default_dp":   2,
+    "earth_default_tp":   3,
+    "earth_default_4p":   4,
+    "earth_default_dtr":  5,
 
     # LT Span
     "lt_conductor":       "AB Cable",

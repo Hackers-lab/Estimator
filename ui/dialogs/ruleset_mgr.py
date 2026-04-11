@@ -1,3 +1,4 @@
+from core.property_registry import get_registry
 """
 ui_dialogs.py
 =============
@@ -20,7 +21,7 @@ DatabaseManagerDialog   — view, import, export the SQLite master DB.
                           Unchanged from v4.
 
 RulesetManagerDialog    — full rule builder / simulator / editor.
-                          Updated: TREE_DEF, FILTER_CHIPS, SIM_DEFAULTS
+                          Updated:   SIM_DEFAULTS
                           now imported from constants.py instead of being
                           hardcoded in the class body. SmartStructure and
                           SmartConsumer added throughout.
@@ -32,7 +33,7 @@ import json
 import re
 
 from core import defaults
-from core import property_catalog
+
 from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
 
 from PyQt6.QtWidgets import (
@@ -47,19 +48,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
-from core.constants import (
-    PROPERTY_DATA, FORMULA_VARS,
-    PROJECT_TYPES, SUPERVISION_RATES,
-    SIM_DEFAULTS, TREE_DEF, FILTER_CHIPS,
-)
 
 
-def _runtime_property_data() -> dict:
-    return property_catalog.build_property_data(PROPERTY_DATA)
 
 
-def _runtime_sim_defaults() -> dict:
-    return property_catalog.build_sim_defaults(SIM_DEFAULTS)
 
 
 from ui.dialogs._shared import ClickableCard
@@ -168,29 +160,44 @@ class RulesetManagerDialog(QDialog):
 
     def _populate_tree(self):
         self._tree.clear()
-        self._tree_items = []   # (QTreeWidgetItem, obj_type, filter_dict)
+        self._tree_items = []
 
-        # Overview dashboard node — always at the top of the tree
+        # Overview dashboard node
         ov_item = QTreeWidgetItem(self._tree, ["\U0001f4ca  Overview"])
         ov_item.setData(0, Qt.ItemDataRole.UserRole, ("__dashboard__", {}))
         ov_item.setToolTip(0, "Rule count summary across all object types")
         self._tree_items.append((ov_item, "__dashboard__", {}))
 
-        def add_node(parent, label, obj_type, fdict, children):
-            item = QTreeWidgetItem(
-                parent if parent else self._tree, [label]
-            )
-            item.setData(0, Qt.ItemDataRole.UserRole, (obj_type, fdict))
-            self._tree_items.append((item, obj_type, fdict))
-            for ch in children:
-                add_node(item, ch[0], ch[1], ch[2], ch[3])
-            return item
+        # Dynamically build categories
+        obj_types = ["SmartPole", "SmartStructure", "SmartSpan", "SmartConsumer"]
+        for r in self.rules:
+            ot = r.get("object", "")
+            if ot and ot not in obj_types:
+                obj_types.append(ot)
 
-        for entry in TREE_DEF:
-            add_node(None, entry[0], entry[1], entry[2], entry[3])
+        # Build dynamic folders per property dynamically to replace hardcoded TREE_DEF
+        all_props = get_registry().get_all_property_data()
+        for ot in obj_types:
+            root_item = QTreeWidgetItem(self._tree, [ot])
+            root_item.setData(0, Qt.ItemDataRole.UserRole, (ot, {}))
+            self._tree_items.append((root_item, ot, {}))
+            
+            ot_props = all_props.get(ot, {})
+            for prop_key, options in ot_props.items():
+                if isinstance(options, list) and len(options) > 1:
+                    prop_folder = QTreeWidgetItem(root_item, [f"By {prop_key}"])
+                    prop_folder.setData(0, Qt.ItemDataRole.UserRole, (ot, {}))
+                    self._tree_items.append((prop_folder, ot, {}))
+                    
+                    for opt in options:
+                        opt_str = str(opt)
+                        opt_item = QTreeWidgetItem(prop_folder, [opt_str])
+                        opt_item.setData(0, Qt.ItemDataRole.UserRole, (ot, {prop_key: opt_str}))
+                        self._tree_items.append((opt_item, ot, {prop_key: opt_str}))
 
         self._update_tree_counts()
-        self._tree.expandToDepth(1)
+        # Tree closed by default
+        self._tree.collapseAll()
 
     def _update_tree_counts(self):
         for item, obj_type, fdict in self._tree_items:
@@ -202,8 +209,48 @@ class RulesetManagerDialog(QDialog):
 
     def _filter_tree(self, text: str):
         text = text.lower()
-        for item, *_ in self._tree_items:
-            item.setHidden(bool(text) and text not in item.text(0).lower())
+        
+        # Reset visibility if search is cleared
+        if not text:
+            for i in range(self._tree.topLevelItemCount()):
+                self._show_all_recursive(self._tree.topLevelItem(i))
+            return
+
+        # Hide all first, then selectively show based on matches
+        for i in range(self._tree.topLevelItemCount()):
+            self._filter_item_recursive(self._tree.topLevelItem(i), text)
+
+    def _show_all_recursive(self, item: QTreeWidgetItem):
+        item.setHidden(False)
+        for i in range(item.childCount()):
+            self._show_all_recursive(item.child(i))
+
+    def _filter_item_recursive(self, item: QTreeWidgetItem, text: str) -> bool:
+        """
+        Recursively filters items. Returns True if the item or any descendant matches.
+        """
+        # Check if the current item matches
+        item_text = item.text(0).lower()
+        match = text in item_text
+        
+        # Recursively check children
+        child_match = False
+        for i in range(item.childCount()):
+            if self._filter_item_recursive(item.child(i), text):
+                child_match = True
+        
+        # This item should be visible if it matches OR if any child matches
+        visible = match or child_match
+        item.setHidden(not visible)
+        
+        # If a child matches, we must expand this item to show the path
+        if child_match and text:
+            item.setExpanded(True)
+        elif not text:
+            # Re-collapse everything when text is cleared (matching _populate_tree state)
+            item.setExpanded(False)
+            
+        return visible
 
     def _select_tree_root(self, obj_type: str):
         for item, ot, fd in self._tree_items:
@@ -347,7 +394,7 @@ class RulesetManagerDialog(QDialog):
             if w is not None:
                 w.deleteLater()
 
-        chips = FILTER_CHIPS.get(self.active_obj_type, [])
+        chips = get_registry().get_filter_chips().get(self.active_obj_type, [])
         self._chip_bar.setVisible(bool(chips))
         if not chips:
             return
@@ -931,7 +978,7 @@ class RulesetManagerDialog(QDialog):
             "SmartSpan":      ("\U0001f539", "#1a6b2a", "#e8f4ea"),
             "SmartConsumer":  ("\U0001f536", "#a04000", "#fff3e0"),
         }
-        top_types = [e[1] for e in TREE_DEF]
+        top_types = [e[1] for e in get_registry().get_tree_def()]
         for obj_type in top_types:
             obj_rules = [(i, r) for i, r in enumerate(self.rules)
                          if r.get("object") == obj_type]
@@ -1091,7 +1138,7 @@ class RulesetManagerDialog(QDialog):
                 w.deleteLater()
         self.sim_widgets = {}
 
-        defaults = _runtime_sim_defaults().get(self.active_obj_type, {})
+        defaults = get_registry().get_sim_defaults(self.active_obj_type)
         for prop, (wtype, options, default) in defaults.items():
             col = QWidget()
             cl  = QVBoxLayout(col)
@@ -1434,109 +1481,31 @@ class RulesetManagerDialog(QDialog):
         self._cond_rows_l.setSpacing(3)
         self._editor_body_l.addWidget(self._cond_container)
 
-        add_cond_btn = QPushButton("+ add condition row")
-        add_cond_btn.setStyleSheet(
+        self._add_cond_btn = QPushButton("+ add condition logic block")
+        self._add_cond_btn.setStyleSheet(
             "color:#185FA5; background:none; border:none; "
             "font-size:11px; text-align:left;"
         )
-        add_cond_btn.clicked.connect(self.add_condition_row)
-        self._editor_body_l.addWidget(add_cond_btn)
+        self._add_cond_btn.clicked.connect(self.add_condition_row)
+        self._editor_body_l.addWidget(self._add_cond_btn)
 
-        # Preview
-        self._editor_body_l.addWidget(self._sec_lbl("Condition preview"))
-        self._preview_lbl = QLabel("")
-        self._preview_lbl.setWordWrap(True)
-        self._preview_lbl.setStyleSheet(
-            "background:#f0f0f0; border-radius:4px; padding:5px 8px;"
-            "font-family:monospace; font-size:11px; color:#333;"
-        )
-        self._editor_body_l.addWidget(self._preview_lbl)
-
-        # Exact raw condition string (authoritative on save)
-        self._editor_body_l.addWidget(self._sec_lbl("Raw condition (exact)"))
+        # Advanced Logic Editor
+        from PyQt6.QtWidgets import QCheckBox
+        self._adv_cb = QCheckBox("Advanced Mode (Manually edit raw logic string)")
+        self._adv_cb.setStyleSheet("font-size: 11px; color:#555;")
+        self._adv_cb.toggled.connect(self._toggle_advanced_mode)
+        self._editor_body_l.addWidget(self._adv_cb)
+        
         self._raw_cond_input = QLineEdit(rule.get("condition", ""))
         self._raw_cond_input.setStyleSheet(
-            "font-family:monospace; font-size:12px;"
+            "font-family:monospace; font-size:12px; background:#f5f5f5;"
         )
+        self._raw_cond_input.setReadOnly(True)
         self._editor_body_l.addWidget(self._raw_cond_input)
-        self._raw_cond_input.textChanged.connect(self._update_preview)
-
-        apply_builder_btn = QPushButton("Use builder preview as raw condition")
-        apply_builder_btn.setStyleSheet(
-            "font-size:11px; color:#185FA5; background:none; border:none; text-align:left;"
-        )
-        apply_builder_btn.clicked.connect(
-            lambda: self._raw_cond_input.setText(" ".join(self._build_condition_parts()))
-        )
-        self._editor_body_l.addWidget(apply_builder_btn)
-
-        self._cond_sync_hint = QLabel("")
-        self._cond_sync_hint.setWordWrap(True)
-        self._cond_sync_hint.setStyleSheet("font-size:10px; color:#a15c00;")
-        self._editor_body_l.addWidget(self._cond_sync_hint)
-
-        # Guided raw-condition composer
-        self._editor_body_l.addWidget(self._sec_lbl("Guided condition composer"))
-
-        helper_row = QWidget()
-        hr = QHBoxLayout(helper_row)
-        hr.setContentsMargins(0, 0, 0, 0)
-        hr.setSpacing(4)
-
-        obj_props = list(_runtime_property_data().get(rule.get("object", self.active_obj_type), {}).keys())
-        self._expr_prop_cb = QComboBox()
-        self._expr_prop_cb.addItems(obj_props)
-        self._expr_prop_cb.setToolTip("Available condition keys for this object")
-        self._expr_prop_cb.setStyleSheet(self._combo_box_stylesheet())
-
-        self._expr_op_cb = QComboBox()
-        self._expr_op_cb.addItems(["==", "!=", ">", "<", ">=", "<=", "in", "not in"])
-        self._expr_op_cb.setFixedWidth(70)
-        self._expr_op_cb.setStyleSheet(self._combo_box_stylesheet())
-
-        self._expr_val_w = QLineEdit()
-        self._expr_val_w.setPlaceholderText("value")
-
-        ins_clause_btn = QPushButton("Insert clause")
-        ins_clause_btn.setStyleSheet("font-size:11px; padding:3px 8px;")
-        ins_clause_btn.clicked.connect(self._insert_clause_from_helper)
-
-        hr.addWidget(self._expr_prop_cb, 2)
-        hr.addWidget(self._expr_op_cb)
-        hr.addWidget(self._expr_val_w, 2)
-        hr.addWidget(ins_clause_btn)
-        self._editor_body_l.addWidget(helper_row)
-
-        token_row = QWidget()
-        tr = QHBoxLayout(token_row)
-        tr.setContentsMargins(0, 0, 0, 0)
-        tr.setSpacing(4)
-
-        for lbl, token in [
-            ("AND", " and "),
-            ("OR", " or "),
-            ("NOT", "not "),
-            ("(", "("),
-            (")", ")"),
-        ]:
-            b = QPushButton(lbl)
-            b.setStyleSheet("font-size:10px; padding:2px 6px;")
-            b.clicked.connect(lambda _, t=token: self._insert_raw_text(t))
-            tr.addWidget(b)
-
-        clear_btn = QPushButton("Clear raw")
-        clear_btn.setStyleSheet("font-size:10px; padding:2px 6px; color:#a00;")
-        clear_btn.clicked.connect(lambda: self._raw_cond_input.setText(""))
-        tr.addWidget(clear_btn)
-        tr.addStretch()
-        self._editor_body_l.addWidget(token_row)
-
-        self._expr_prop_cb.currentTextChanged.connect(self._sync_expr_value_widget)
-        self._sync_expr_value_widget(self._expr_prop_cb.currentText())
 
         # Formula
         self._editor_body_l.addWidget(self._sec_lbl("Quantity formula"))
-        avail = FORMULA_VARS.get(rule.get("object", ""), [])
+        avail = get_registry().get_formula_vars().get(rule.get("object", ""), [])
         hint  = QLabel(
             f"vars: {', '.join(avail)}" if avail else "no numeric vars"
         )
@@ -1579,7 +1548,7 @@ class RulesetManagerDialog(QDialog):
 
     def add_condition_row(self, logical_op=None, expression=None):
         obj   = self.active_obj_type
-        props = list(_runtime_property_data().get(obj, {}).keys())
+        props = list(get_registry().get_all_property_data().get(obj, {}).keys())
 
         row_w = QWidget()
         rl    = QHBoxLayout(row_w)
@@ -1643,7 +1612,7 @@ class RulesetManagerDialog(QDialog):
 
     def _on_prop_change(self, prop: str, wm: dict):
         obj       = self.active_obj_type
-        prop_info = _runtime_property_data().get(obj, {}).get(prop)
+        prop_info = get_registry().get_all_property_data().get(obj, {}).get(prop)
         cur       = wm["value"]
 
         if isinstance(prop_info, list):
@@ -1744,32 +1713,36 @@ class RulesetManagerDialog(QDialog):
             if i > 0:
                 parts.append(wm["logic"].currentText().lower())
 
+            # Numeric and boolean values should not be quoted in the rule condition string
             is_numeric = re.match(r"^-?\d+(\.\d+)?$", val)
-            is_bool    = val.lower() in ("true", "false")
+            is_bool    = val.lower() in ("true", "false", "none")
+
             if is_numeric or is_bool:
                 parts.append(f"{prop} {op} {val}")
             else:
                 parts.append(f"{prop} {op} '{val}'")
         return parts
 
+    def _toggle_advanced_mode(self, checked):
+        self._raw_cond_input.setReadOnly(not checked)
+        if hasattr(self, "_cond_container"):
+            self._cond_container.setVisible(not checked)
+            
+        if checked:
+            self._raw_cond_input.setStyleSheet("font-family:monospace; font-size:12px; background:#ffffff;")
+        else:
+            self._raw_cond_input.setStyleSheet("font-family:monospace; font-size:12px; background:#f5f5f5;")
+            self._update_preview()
+
     def _update_preview(self):
         parts = self._build_condition_parts()
-        text  = " ".join(parts) if parts else "(no conditions)"
-        if hasattr(self, "_preview_lbl"):
-            self._preview_lbl.setText(text)
-        if hasattr(self, "_cond_sync_hint") and hasattr(self, "_raw_cond_input"):
-            raw = self._raw_cond_input.text().strip()
-            builder = " ".join(parts).strip()
-            # Normalise empty/no-condition variants for comparison
-            if raw in ("", "True") and builder in ("", "(no conditions)"):
-                self._cond_sync_hint.setText("")
-            elif raw == builder:
-                self._cond_sync_hint.setText("")
-            else:
-                self._cond_sync_hint.setText(
-                    "Builder preview differs from raw condition. "
-                    "For complex rules (groups/in/not), edit Raw condition directly."
-                )
+        builder = " ".join(parts).strip() if parts else "True"
+        
+        # Keep raw input accurately reflecting builder when not in advanced mode
+        if hasattr(self, "_adv_cb") and not self._adv_cb.isChecked():
+            if hasattr(self, "_raw_cond_input"):
+                self._raw_cond_input.setText(builder)
+
         # C4: real-time syntax validation
         if hasattr(self, "_validation_lbl") and hasattr(self, "_formula_input"):
             raw_cond = getattr(self, "_raw_cond_input", None)
@@ -1791,7 +1764,7 @@ class RulesetManagerDialog(QDialog):
 
     def _sync_expr_value_widget(self, prop: str):
         obj = self.active_obj_type
-        pinfo = _runtime_property_data().get(obj, {}).get(prop)
+        pinfo = get_registry().get_all_property_data().get(obj, {}).get(prop)
 
         new_w = None
         if isinstance(pinfo, list):

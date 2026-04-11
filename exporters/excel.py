@@ -104,6 +104,17 @@ class ExcelExporter:
     def _write_estimate_sheet(self, wb: Any, m: dict) -> None:
         openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
         app = self._app
+        escalation_count = len(getattr(app, 'escalations', [])) if hasattr(app, 'escalations') else 0
+
+        # Find the actual cell for TOTAL MATERIAL COST (A)
+        # This is always the last material summary row, which is after all escalations and sundries
+        mat_total_row = 5 + len([x for x in app.live_bom_data if x["type"] == "Material"]) + 1 + escalation_count + 1  # +1 for 'Material Base Total', +escalation_count, +1 for sundries
+        mat_total_cell = f'G{mat_total_row}'
+
+        # Find the actual cell for TOTAL LABOR COST (B)
+        lab_start_row = mat_total_row + 4  # 3 rows for blank, section header, then labor starts
+        lab_total_row = lab_start_row + len([x for x in app.live_bom_data if x["type"] == "Labor"])  # after all labor rows
+        lab_total_cell = f'G{lab_total_row}'
         ws  = wb.active
         assert ws is not None
         ws.title = "Estimate"
@@ -144,73 +155,128 @@ class ExcelExporter:
         # ── Materials ──
         ws.cell(row, 3, "A. MATERIALS").font = Font(bold=True)
         row += 1
+
+        mat_start_row = 6
+        mat_end_row = mat_start_row + len(mat_items) - 1
         for i, item in enumerate(mat_items, 1):
             ws.append([
                 i, item["code"], item["name"],
                 round(item["qty"], 3), item["unit"],
-                item["rate"], round(item["amt"], 2),
+                item["rate"], f'=D{row}*F{row}'
             ])
             row += 1
 
+        # Calculate mat_base for further calculations, but write formula to Excel
         mat_base = sum(x["amt"] for x in mat_items)
-        ws.append(["", "", "Material Base Total", "", "", "", round(mat_base, 2)])
+        ws.append(["", "", "Material Base Total", "", "", "", f'=SUM(G{mat_start_row}:G{mat_end_row})'])
         row += 1
 
-        cur = mat_base
-        for fy, esc in app.escalations:
+
+        # Escalation rows (formulas)
+        esc_rows = []
+        mat_base_cell = f'G{row-1}'
+        subtotal_formula = mat_base_cell
+        for i, (fy, esc) in enumerate(app.escalations):
+            # Each escalation is 5% of (mat_base + all previous escalations)
+            if i == 0:
+                esc_formula = f'=({mat_base_cell})*0.05'
+            else:
+                prev_esc_cells = '+'.join(esc_rows)
+                esc_formula = f'=({mat_base_cell}+{prev_esc_cells})*0.05'
             ws.append([
-                "", "", f"Add: Escalation @ 5% for FY {fy}",
-                "", "", "", round(esc, 2),
+                "", "", f"Add: Escalation @ 5% for FY {fy}", "", "", "", esc_formula
             ])
             row += 1
-            cur += esc
+            esc_cell = f'G{row-1}'
+            esc_rows.append(esc_cell)
 
-        sun     = cur * 0.05
-        mat_sub = cur + sun
-        ws.append(["", "", "Add: Sundries @ 5%", "", "", "", round(sun, 2)])
+        # Sundries (formula) - 5% of (mat_base + all escalations)
+        if esc_rows:
+            subtotal_formula = f'{mat_base_cell}+' + '+'.join(esc_rows)
+        else:
+            subtotal_formula = mat_base_cell
+        sun_formula = f'=({subtotal_formula})*0.05'
+        ws.append(["", "", "Add: Sundries @ 5%", "", "", "", sun_formula])
         row += 1
-        ws.append(["", "", "TOTAL MATERIAL COST (A)", "", "", "", round(mat_sub, 2)])
+        sun_row = row-1
+
+        # TOTAL MATERIAL COST (A) (formula)
+        # Grand total = mat_base + all escalations + sundries
+        if esc_rows:
+            grand_total_formula = f'=({mat_base_cell}+' + '+'.join(esc_rows) + f'+G{sun_row})'
+        else:
+            grand_total_formula = f'=({mat_base_cell}+G{sun_row})'
+        ws.append(["", "", "TOTAL MATERIAL COST (A)", "", "", "", grand_total_formula])
         ws.cell(row, 3).font = Font(bold=True)
         ws.cell(row, 7).font = Font(bold=True)
+        mat_total_row = row  # Track the row where TOTAL MATERIAL COST (A) is written
         row += 2
 
         # ── Labor ──
         ws.cell(row, 3, "B. ERECTION / LABOR").font = Font(bold=True)
         row += 1
+
+        lab_start_row = row
+        lab_end_row = lab_start_row + len(lab_items) - 1
         for i, item in enumerate(lab_items, 1):
             ws.append([
                 i, "", item["name"],
                 round(item["qty"], 3), item["unit"],
-                item["rate"], round(item["amt"], 2),
+                item["rate"], f'=D{row}*F{row}'
             ])
             row += 1
 
-        lab_sub = sum(x["amt"] for x in lab_items)
-        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", round(lab_sub, 2)])
+
+        # Formula for labor total
+        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", f'=SUM(G{lab_start_row}:G{lab_end_row})'])
         ws.cell(row, 3).font = Font(bold=True)
         ws.cell(row, 7).font = Font(bold=True)
+        lab_total_row = row  # Track the row where TOTAL LABOR COST (B) is written
         row += 2
 
         # ── Taxes ──
-        sup   = (mat_sub + lab_sub) * sup_rate
-        gst   = lab_sub * 0.18
-        cess  = (mat_sub + lab_sub + sup) * 0.01
-        sub_c = mat_sub + lab_sub + sup + gst
-        g_tot = sub_c + cess
 
+        # Use the exact rows where totals were written
+        mat_total_cell = f'G{mat_total_row}'
+        lab_total_cell = f'G{lab_total_row}'
+
+        # Supervision on (A+B)
         ws.cell(row, 3, "C. OVERHEADS & TAXES").font = Font(bold=True)
         row += 1
-        for label, val in [
-            (f"Supervision @ {sup_pct}% on (A+B)", sup),
-            ("GST @ 18% on Labour only",            gst),
-            ("Sub-Total",                           sub_c),
-            ("Add: Cess @ 1% on (Mat+Lab+Sup)",     cess),
-            ("GRAND TOTAL",                         g_tot),
-        ]:
-            ws.append(["", "", label, "", "", "", round(val, 2)])
-            row += 1
-        ws.cell(row - 1, 3).font = Font(bold=True, size=12)
-        ws.cell(row - 1, 7).font = Font(bold=True, size=12, color="FF0000")
+
+        # Supervision
+        sup_formula = f'=({mat_total_cell}+G{lab_total_row})*{sup_rate}'
+        ws.append(["", "", f"Supervision @ {sup_pct}% on (A+B)", "", "", "", sup_formula])
+        sup_row = row
+        sup_cell = f'G{sup_row}'
+        row += 1
+
+        # GST on labor only
+        gst_formula = f'=G{lab_total_row}*0.18'
+        ws.append(["", "", "GST @ 18% on Labour only", "", "", "", gst_formula])
+        gst_row = row
+        gst_cell = f'G{gst_row}'
+        row += 1
+
+        # Sub-Total (A+B+Supervision+GST)
+        sub_total_formula = f'={mat_total_cell}+G{lab_total_row}+{sup_cell}+{gst_cell}'
+        ws.append(["", "", "Sub-Total", "", "", "", sub_total_formula])
+        sub_total_row = row
+        sub_total_cell = f'G{sub_total_row}'
+        row += 1
+
+        # Cess on (A+B+Supervision)
+        cess_formula = f'=({mat_total_cell}+G{lab_total_row}+{sup_cell})*0.01'
+        ws.append(["", "", "Add: Cess @ 1% on (Mat+Lab+Sup)", "", "", "", cess_formula])
+        cess_row = row
+        cess_cell = f'G{cess_row}'
+        row += 1
+
+        # GRAND TOTAL (Sub-Total + Cess)
+        grand_total_formula = f'={sub_total_cell}+{cess_cell}'
+        ws.append(["", "", "GRAND TOTAL", "", "", "", grand_total_formula])
+        ws.cell(row, 3).font = Font(bold=True, size=12)
+        ws.cell(row, 7).font = Font(bold=True, size=12, color="FF0000")
 
     # ── Iron breakup sheet ───────────────────────────────────────────────────
 

@@ -6,8 +6,8 @@ ERP Estimate Generator.
 
 Consumers of this module
 ------------------------
-app.py          — TOOLS, PROJECT_TYPES, SUPERVISION_RATES
-ui_dialogs.py   — PROPERTY_DATA, FORMULA_VARS, PROJECT_TYPES,
+app.py          — TOOLS, ["NSC", "FDS / TURNKEY"], SUPERVISION_RATES
+ui_dialogs.py   — PROPERTY_DATA, FORMULA_VARS, ["NSC", "FDS / TURNKEY"],
                   SUPERVISION_RATES, HEIGHT_OPTIONS, CONDUCTOR_SIZES,
                   SERVICE_CABLE_SIZES, SIM_DEFAULTS
 rule_engine.py  — (no direct import; context keys documented here)
@@ -32,20 +32,9 @@ TOOLS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Display labels shown in the Project Setup Wizard dropdown
-PROJECT_TYPES = [
-    "NSC",
-    "FDS / TURNKEY",
-]
 
 # Supervision charge rate keyed by project type string
 # NSC = 10%, all others = 15%
-SUPERVISION_RATES = {
-    "NSC":              0.10,
-    "FDS / TURNKEY":    0.15,
-    "MAINTENANCE":      0.15,
-    "SHIFTING":         0.15,
-    "AUGMENTATION":     0.15,
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  POLE / STRUCTURE HEIGHT OPTIONS  (keyed by pole_type2)
@@ -57,10 +46,6 @@ HEIGHT_OPTIONS = {
 }
 
 # Default heights per pole voltage type when pole_type2 == PCC
-DEFAULT_HEIGHT = {
-    "LT": "8MTR",
-    "HT": "9MTR",
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONDUCTOR SIZE OPTIONS
@@ -103,12 +88,6 @@ SERVICE_CABLE_SIZES = {
 # ─────────────────────────────────────────────────────────────────────────────
 #  STRUCTURE EARTH COUNT DEFAULTS  (keyed by structure_type)
 # ─────────────────────────────────────────────────────────────────────────────
-STRUCTURE_EARTH_DEFAULTS = {
-    "DP":  2,
-    "TP":  3,
-    "4P":  4,
-    "DTR": 5,
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  RULE BUILDER — PROPERTY_DATA
@@ -135,7 +114,7 @@ PROPERTY_DATA = {
         "ab_needs_dead_end": [True, False],
         "ab_needs_suspension": [True, False],
         "use_uh":           [True, False],
-        "project_type":     PROJECT_TYPES,
+        "project_type":     ["NSC", "FDS / TURNKEY"],
     },
     "SmartStructure": {
         "structure_type":   ["DP", "TP", "4P", "DTR"],
@@ -158,7 +137,7 @@ PROPERTY_DATA = {
         "dtr_return_old_pole": [True, False],
         "dtr_return_old_iron": [True, False],
         "use_uh":           [True, False],
-        "project_type":     PROJECT_TYPES,
+        "project_type":     ["NSC", "FDS / TURNKEY"],
     },
     "SmartSpan": {
         "conductor":        ["ACSR", "AB Cable", "PVC Cable", "Service Drop"],
@@ -177,7 +156,7 @@ PROPERTY_DATA = {
         "length":           "int",
         "wire_count":       "int",
         "use_uh":           [True, False],
-        "project_type":     PROJECT_TYPES,
+        "project_type":     ["NSC", "FDS / TURNKEY"],
     },
     "SmartConsumer": {
         "phase":            ["1 Phase", "3 Phase"],
@@ -188,7 +167,7 @@ PROPERTY_DATA = {
         "consider_cable":   [True, False],
         "service_length":   "int",
         "use_uh":           [True, False],
-        "project_type":     PROJECT_TYPES,
+        "project_type":     ["NSC", "FDS / TURNKEY"],
     },
 }
 
@@ -196,25 +175,6 @@ PROPERTY_DATA = {
 #  RULE BUILDER — FORMULA_VARS
 #  Numeric variables available inside qty formula strings.
 # ─────────────────────────────────────────────────────────────────────────────
-FORMULA_VARS = {
-    "SmartPole": [
-        "height",           # int metres  e.g. 8 or 9
-        "extension_height", # float metres e.g. 3.0
-        "earth_count",
-        "stay_count",
-    ],
-    "SmartStructure": [
-        "height",
-        "extension_height",
-        "earth_count",
-        "stay_count",
-    ],
-    "SmartSpan": [
-        "length",           # metres
-        "wire_count",       # int
-    ],
-    "SmartConsumer": [],
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  RULE BUILDER SIMULATOR — DEFAULT VALUES
@@ -241,7 +201,7 @@ SIM_DEFAULTS = {
         "ab_needs_dead_end": ("combo", ["False", "True"],                "False"),
         "ab_needs_suspension": ("combo", ["False", "True"],              "False"),
         "use_uh":           ("combo", ["False", "True"],                 "False"),
-        "project_type":     ("combo", PROJECT_TYPES,                     "NSC"),
+        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
     },
     "SmartStructure": {
         "structure_type":   ("combo", ["DP", "TP", "4P", "DTR"],        "DP"),
@@ -263,7 +223,7 @@ SIM_DEFAULTS = {
         "dtr_return_old_pole": ("combo", ["False", "True"],               "True"),
         "dtr_return_old_iron": ("combo", ["False", "True"],               "False"),
         "use_uh":           ("combo", ["False", "True"],                 "False"),
-        "project_type":     ("combo", PROJECT_TYPES,                     "NSC"),
+        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
     },
     "SmartSpan": {
         "conductor":        ("combo",
@@ -291,7 +251,7 @@ SIM_DEFAULTS = {
         "aug_to_conductor": ("combo", ["ACSR", "AB Cable"],               "ACSR"),
         "consider_cable":   ("combo", ["False", "True"],                 "False"),
         "use_uh":           ("combo", ["False", "True"],                 "False"),
-        "project_type":     ("combo", PROJECT_TYPES,                     "NSC"),
+        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
     },
     "SmartConsumer": {
         "phase":            ("combo", ["1 Phase", "3 Phase"],            "3 Phase"),
@@ -301,7 +261,7 @@ SIM_DEFAULTS = {
         "agency_supply":    ("combo", ["False", "True"],                 "False"),
         "consider_cable":   ("combo", ["False", "True"],                 "False"),
         "service_length":   ("spin",  (0, 200),                           20),
-        "project_type":     ("combo", PROJECT_TYPES,                     "NSC"),
+        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
     },
 }
 
@@ -310,114 +270,12 @@ SIM_DEFAULTS = {
 #  Hierarchy shown in the left panel of RulesetManagerDialog.
 #  Format per entry: (display_label, obj_type, filter_dict, children)
 # ─────────────────────────────────────────────────────────────────────────────
-TREE_DEF = [
-    ("SmartPole", "SmartPole", {}, [
-        ("LT Pole",       "SmartPole", {"pole_type": "LT"}, [
-            ("PCC 8m",  "SmartPole", {"pole_type": "LT", "height": 8,  "pole_type2": "PCC"}, []),
-            ("PCC 9m",  "SmartPole", {"pole_type": "LT", "height": 9,  "pole_type2": "PCC"}, []),
-            ("STP",     "SmartPole", {"pole_type": "LT", "pole_type2": "STP"},               []),
-        ]),
-        ("HT Pole",       "SmartPole", {"pole_type": "HT"}, [
-            ("PCC 8m",  "SmartPole", {"pole_type": "HT", "height": 8,  "pole_type2": "PCC"}, []),
-            ("PCC 9m",  "SmartPole", {"pole_type": "HT", "height": 9,  "pole_type2": "PCC"}, []),
-            ("STP",     "SmartPole", {"pole_type": "HT", "pole_type2": "STP"},               []),
-            ("H-BEAM",  "SmartPole", {"pole_type": "HT", "pole_type2": "H-BEAM"},            []),
-        ]),
-        ("Common Conditions", "SmartPole", {}, [
-            ("New Pole Rules", "SmartPole", {"is_existing": False}, []),
-            ("With Earth",     "SmartPole", {"earth_count_gt": 0}, []),
-            ("With Stay",      "SmartPole", {"stay_count_gt": 0}, []),
-            ("With CG",        "SmartPole", {"has_cg": True}, []),
-        ]),
-        ("AB Cable Accessories", "SmartPole", {"ab_cable_count_gt": 0}, [
-            ("Distribution Box / IPC", "SmartPole", {"ab_cable_count_gt": 0}, []),
-            ("Dead End",              "SmartPole", {"ab_needs_dead_end": True}, []),
-            ("Suspension",            "SmartPole", {"ab_needs_suspension": True}, []),
-        ]),
-        ("Existing Pole", "SmartPole", {"is_existing": True}, []),
-    ]),
-    ("SmartStructure", "SmartStructure", {}, [
-        ("DP Structure",  "SmartStructure", {"structure_type": "DP"},  []),
-        ("TP Structure",  "SmartStructure", {"structure_type": "TP"},  []),
-        ("4P Structure",  "SmartStructure", {"structure_type": "4P"},  []),
-        ("Common Conditions", "SmartStructure", {}, [
-            ("Always (True)", "SmartStructure", {"condition_true": True}, []),
-            ("With Earth",    "SmartStructure", {"earth_count_gt": 0}, []),
-            ("With Stay",     "SmartStructure", {"stay_count_gt": 0}, []),
-            ("With CG",       "SmartStructure", {"has_cg": True}, []),
-        ]),
-        ("DTR / Sub-Stn", "SmartStructure", {"structure_type": "DTR"}, [
-            ("10 KVA",  "SmartStructure", {"structure_type": "DTR", "dtr_size": "10KVA"},  []),
-            ("16 KVA",  "SmartStructure", {"structure_type": "DTR", "dtr_size": "16KVA"},  []),
-            ("25 KVA",  "SmartStructure", {"structure_type": "DTR", "dtr_size": "25KVA"},  []),
-            ("63 KVA",  "SmartStructure", {"structure_type": "DTR", "dtr_size": "63KVA"},  []),
-            ("100 KVA", "SmartStructure", {"structure_type": "DTR", "dtr_size": "100KVA"}, []),
-            ("160 KVA", "SmartStructure", {"structure_type": "DTR", "dtr_size": "160KVA"}, []),
-        ]),
-    ]),
-    ("SmartSpan", "SmartSpan", {}, [
-        ("AB Cable LT",   "SmartSpan", {"conductor": "AB Cable",  "is_lt_span": True},  [
-            ("New",           "SmartSpan", {"conductor": "AB Cable", "aug_type": "New"},              []),
-            ("Replace 2W→4W", "SmartSpan", {"conductor": "AB Cable", "aug_type": "Replace 2W->4W"},   []),
-            ("Add-on 2W",     "SmartSpan", {"conductor": "AB Cable", "aug_type": "Add-on 2W"},        []),
-        ]),
-        ("AB Cable HT",   "SmartSpan", {"conductor": "AB Cable",  "is_lt_span": False}, []),
-        ("ACSR",          "SmartSpan", {"conductor": "ACSR"},  [
-            ("3 Wire", "SmartSpan", {"conductor": "ACSR", "wire_count": "3"}, []),
-            ("4 Wire", "SmartSpan", {"conductor": "ACSR", "wire_count": "4"}, []),
-        ]),
-        ("PVC Cable",     "SmartSpan", {"conductor": "PVC Cable"}, [
-            ("10 SQMM",  "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "10 SQMM"},  []),
-            ("16 SQMM",  "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "16 SQMM"},  []),
-            ("25 SQMM",  "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "25 SQMM"},  []),
-            ("50 SQMM",  "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "50 SQMM"},  []),
-            ("95 SQMM",  "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "95 SQMM"},  []),
-            ("120 SQMM", "SmartSpan", {"conductor": "PVC Cable", "conductor_size": "120 SQMM"}, []),
-        ]),
-        ("Service Drop",  "SmartSpan", {"is_service_drop": True},  [
-            ("1 Phase", "SmartSpan", {"is_service_drop": True, "phase": "1 Phase"}, []),
-            ("3 Phase", "SmartSpan", {"is_service_drop": True, "phase": "3 Phase"}, []),
-        ]),
-    ]),
-    ("SmartConsumer", "SmartConsumer", {}, [
-        ("1 Phase", "SmartConsumer", {"phase": "1 Phase"}, []),
-        ("3 Phase", "SmartConsumer", {"phase": "3 Phase"}, []),
-    ]),
-]
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  RULE BUILDER — FILTER CHIPS
 #  Context-aware checkbox filters shown above the card list per object type.
 #  Format: (display_label, context_key, match_value)
 # ─────────────────────────────────────────────────────────────────────────────
-FILTER_CHIPS = {
-    "SmartPole": [
-        ("New Pole",      "is_existing",    False),
-        ("Existing",      "is_existing",    True),
-        ("Has Extension", "has_extension",  True),
-        ("Has CG",        "has_cg",         True),
-        ("With Earth",    "earth_count_gt", 0),
-        ("With Stay",     "stay_count_gt",  0),
-    ],
-    "SmartStructure": [
-        ("With DTR",      "dtr_size_ne",    "None"),
-        ("Has Extension", "has_extension",  True),
-        ("Has CG",        "has_cg",         True),
-        ("With Earth",    "earth_count_gt", 0),
-        ("With Stay",     "stay_count_gt",  0),
-    ],
-    "SmartSpan": [
-        ("New Span",      "is_existing_span", False),
-        ("Existing Span", "is_existing_span", True),
-        ("Service Drop",  "is_service_drop",  True),
-        ("Has CG",        "has_cg",           True),
-        ("New Work",      "aug_type",          "New"),
-    ],
-    "SmartConsumer": [
-        ("Agency Supply", "agency_supply", True),
-        ("WBSEDCL",       "agency_supply", False),
-    ],
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  IRON BREAKUP — UNIT WEIGHTS  (kg per metre)

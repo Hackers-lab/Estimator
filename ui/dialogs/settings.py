@@ -20,7 +20,7 @@ DatabaseManagerDialog   — view, import, export the SQLite master DB.
                           Unchanged from v4.
 
 RulesetManagerDialog    — full rule builder / simulator / editor.
-                          Updated: TREE_DEF, FILTER_CHIPS, SIM_DEFAULTS
+                          Updated:   SIM_DEFAULTS
                           now imported from constants.py instead of being
                           hardcoded in the class body. SmartStructure and
                           SmartConsumer added throughout.
@@ -47,9 +47,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from core.constants import (
-    PROPERTY_DATA, FORMULA_VARS,
-    PROJECT_TYPES, SUPERVISION_RATES,
-    SIM_DEFAULTS, TREE_DEF, FILTER_CHIPS,
+    PROPERTY_DATA, 
+     
+    SIM_DEFAULTS,  
 )
 
 

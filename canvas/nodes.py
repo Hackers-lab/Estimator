@@ -35,7 +35,6 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     Stay default  : 4 for all types
     """
 
-    _EARTH_DEFAULTS = {"DP": 2, "TP": 3, "4P": 4, "DTR": 5}
     _COLORS = {
         "DP":  QColor("#27ae60"),   # green
         "TP":  QColor("#1abc9c"),   # teal
@@ -69,7 +68,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.orientation      = _d.get("struct_orientation", "Horizontal")
         self.has_extension    = False
         self.extension_height = _d["extension_height"]
-        self.earth_count      = self._EARTH_DEFAULTS["DP"]
+        self.earth_count      = _d.get("earth_default_dp", 2)
         self.stay_count       = _d["struct_stay_count"]
         self.dtr_size         = "None"
         self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))

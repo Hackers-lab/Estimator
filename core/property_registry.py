@@ -6,7 +6,10 @@ Replaces the hardcoded PROPERTY_DATA and SIM_DEFAULTS from constants.py.
 """
 
 from core import db_gateway
-from core.constants import PROPERTY_DATA as FALLBACK_PD, SIM_DEFAULTS as FALLBACK_SD
+from core.constants import (
+    PROPERTY_DATA as FALLBACK_PD, 
+    SIM_DEFAULTS as FALLBACK_SD
+)
 
 class PropertyRegistry:
     _instance = None
@@ -20,6 +23,9 @@ class PropertyRegistry:
     def __init__(self):
         self._property_data: dict[str, dict] = {}
         self._sim_defaults: dict[str, dict] = {}
+        self._tree_def: list = []
+        self._filter_chips: dict[str, list] = {}
+        self._formula_vars: dict[str, list] = {}
         self.reload()
 
     def reload(self):
@@ -100,6 +106,25 @@ class PropertyRegistry:
             self._property_data[ot] = pd
             self._sim_defaults[ot] = sd
 
+        # 4. Reload Structural Hierarchies (Tree, Filters, Formula Vars)
+        try:
+            td = db_gateway.get_tree_def()
+            self._tree_def = td if td else []
+        except Exception:
+            self._tree_def = []
+
+        try:
+            fc = db_gateway.get_filter_chips()
+            self._filter_chips = fc if fc else {}
+        except Exception:
+            self._filter_chips = {}
+
+        try:
+            fv = db_gateway.get_formula_vars()
+            self._formula_vars = fv if fv else {}
+        except Exception:
+            self._formula_vars = {}
+
     def get_property_data(self, obj_type: str) -> dict:
         """Get PROPERTY_DATA dict for an object type."""
         return self._property_data.get(obj_type, {})
@@ -115,6 +140,19 @@ class PropertyRegistry:
     def get_all_sim_defaults(self) -> dict:
         """Get the full dictionary of all SIM_DEFAULTS."""
         return self._sim_defaults
+
+    def get_tree_def(self) -> list:
+        return self._tree_def
+
+    def get_filter_chips(self, obj_type: str = None) -> dict | list:
+        if obj_type:
+            return self._filter_chips.get(obj_type, [])
+        return self._filter_chips
+
+    def get_formula_vars(self, obj_type: str = None) -> dict | list:
+        if obj_type:
+            return self._formula_vars.get(obj_type, [])
+        return self._formula_vars
 
 # Global registry instance retriever
 def get_registry() -> PropertyRegistry:

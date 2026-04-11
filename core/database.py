@@ -159,6 +159,7 @@ def _create_config_tables(cursor) -> None:
             sim_default  TEXT NOT NULL DEFAULT '',
             sim_min      REAL DEFAULT NULL,
             sim_max      REAL DEFAULT NULL,
+            is_formula_var BOOLEAN DEFAULT 0,
             sort_order   INTEGER NOT NULL DEFAULT 0,
             UNIQUE(object_type, prop_name)
         )
@@ -241,6 +242,37 @@ def _create_config_tables(cursor) -> None:
         )
     """)
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS project_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type_name TEXT UNIQUE,
+            supervision_rate REAL NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS rule_tree_nodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            parent_id INTEGER,
+            label TEXT NOT NULL,
+            object_type TEXT NOT NULL,
+            filter_dict_json TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(parent_id) REFERENCES rule_tree_nodes(id) ON DELETE CASCADE
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS rule_filter_chips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            object_type TEXT NOT NULL,
+            label TEXT NOT NULL,
+            prop_name TEXT NOT NULL,
+            match_value TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        )
+    ''')
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS option_color_overrides (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,6 +303,52 @@ def _create_config_tables(cursor) -> None:
 
 def _seed_config_tables(cursor) -> None:
     """Seed all config tables from existing JSON / constants.  Called once on fresh DB or schema migration."""
+
+    # ── Project Types, Tree Def, Filter Chips, Formula Vars (Phase 3) ──────────
+    try:
+        from core.constants import PROJECT_TYPES, SUPERVISION_RATES, TREE_DEF, FILTER_CHIPS, FORMULA_VARS
+        
+        # Project Types
+        for pt in PROJECT_TYPES:
+            rate = SUPERVISION_RATES.get(pt, 0.10)
+            cursor.execute("INSERT OR IGNORE INTO project_types (type_name, supervision_rate) VALUES (?, ?)", (pt, rate))
+
+        # Formula Vars
+        for obj_type, vars_list in FORMULA_VARS.items():
+            for v in vars_list:
+                cursor.execute("UPDATE properties SET is_formula_var=1 WHERE object_type=? AND prop_name=?", (obj_type, v))
+
+        # Rule Tree Nodes
+        cursor.execute("SELECT COUNT(*) FROM rule_tree_nodes")
+        if cursor.fetchone()[0] == 0:
+            def _insert_tree_node(parent_id, node, order):
+                label, obj, filter_dict, children = node
+                filter_json = json.dumps(filter_dict)
+                cursor.execute(
+                    "INSERT INTO rule_tree_nodes (parent_id, label, object_type, filter_dict_json, sort_order) VALUES (?, ?, ?, ?, ?)",
+                    (parent_id, label, obj, filter_json, order)
+                )
+                node_id = cursor.lastrowid
+                for idx, child in enumerate(children):
+                    _insert_tree_node(node_id, child, idx)
+
+            for idx, root in enumerate(TREE_DEF):
+                _insert_tree_node(None, root, idx)
+
+        # Filter Chips
+        cursor.execute("SELECT COUNT(*) FROM rule_filter_chips")
+        if cursor.fetchone()[0] == 0:
+            for obj_type, chips in FILTER_CHIPS.items():
+                for idx, chip in enumerate(chips):
+                    label = chip[0]
+                    prop_name = chip[1]
+                    match_val = str(chip[2])
+                    cursor.execute(
+                        "INSERT INTO rule_filter_chips (object_type, label, prop_name, match_value, sort_order) VALUES (?, ?, ?, ?, ?)",
+                        (obj_type, label, prop_name, match_val, idx)
+                    )
+    except ImportError:
+        pass
 
     # ── Rules ──────────────────────────────────────────────────────────────────
     rules_data: list = []

@@ -20,7 +20,7 @@ DatabaseManagerDialog   — view, import, export the SQLite master DB.
                           Unchanged from v4.
 
 RulesetManagerDialog    — full rule builder / simulator / editor.
-                          Updated: TREE_DEF, FILTER_CHIPS, SIM_DEFAULTS
+                          Updated:   SIM_DEFAULTS
                           now imported from constants.py instead of being
                           hardcoded in the class body. SmartStructure and
                           SmartConsumer added throughout.
@@ -49,9 +49,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from core.constants import (
-    PROPERTY_DATA, FORMULA_VARS,
-    PROJECT_TYPES, SUPERVISION_RATES,
-    SIM_DEFAULTS, TREE_DEF, FILTER_CHIPS,
+    PROPERTY_DATA, 
+     
+    SIM_DEFAULTS,  
 )
 from core import defaults as _defaults_mod
 
@@ -729,7 +729,11 @@ class PropertyEditorDialog(QDialog):
             val += "MTR"
 
         added = _dbg.add_height_option(pole_type, val)
-        if not added:
+        if added:
+            # Also add to property catalog extended options for sync
+            from core import property_catalog as _pc
+            _pc.add_extended_option("SmartPole", f"height__{pole_type}", val)
+        else:
             QMessageBox.information(self, "Duplicate",
                                     f"'{val}' already exists for {pole_type}.")
         self._refresh_heights_tree()
@@ -753,6 +757,9 @@ class PropertyEditorDialog(QDialog):
             return
         from core import db_gateway as _dbg  # noqa: PLC0415
         _dbg.remove_height_option(pt2, val)
+        # Also remove from property catalog extended options for sync
+        from core import property_catalog as _pc
+        _pc.remove_extended_option("SmartPole", f"height__{pt2}", val)
         self._refresh_heights_tree()
 
     def _refresh_conductors_tree(self) -> None:
@@ -1481,6 +1488,14 @@ class PropertyEditorDialog(QDialog):
                         option_colors.ensure_default(obj_type, label, option, start.name())
                     break
             self._build_tree()
+            # Force UI refresh for all top-level widgets with refresh_all_visuals
+            from PyQt6.QtWidgets import QApplication
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, "refresh_all_visuals"):
+                    try:
+                        w.refresh_all_visuals()
+                    except Exception as e:
+                        print("Refresh error:", e)
             return
 
         # ── Fixed property or variant — add via extended_options ──────────────
@@ -1510,6 +1525,10 @@ class PropertyEditorDialog(QDialog):
             return
 
         added = property_catalog.add_extended_option(obj_type, ext_key, option.strip())
+        if added and ext_key.startswith("height__") and obj_type == "SmartPole":
+            # Also add to DB for sync
+            from core import db_gateway as _dbg
+            _dbg.add_height_option(ext_key.split("__", 1)[1], option.strip())
         if not added:
             QMessageBox.information(
                 self, "Duplicate",
@@ -1526,11 +1545,14 @@ class PropertyEditorDialog(QDialog):
                 start = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {option.strip()} (LT)")
                 if start.isValid():
                     option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), {"voltage": "LT"})
+                    option_colors.set_user(obj_type, prop_name, option.strip(), start.name(), start.name(), {"voltage": "LT"})
                     option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), {"voltage": "HT"})
+                    option_colors.set_user(obj_type, prop_name, option.strip(), start.name(), start.name(), {"voltage": "HT"})
             else:
                 start = QColorDialog.getColor(QColor("#888888"), self, f"Default color for {option.strip()}")
                 if start.isValid():
                     option_colors.ensure_default(obj_type, prop_name, option.strip(), start.name(), context)
+                    option_colors.set_user(obj_type, prop_name, option.strip(), start.name(), start.name(), context)
             self._build_tree()
 
     def _remove_user_option(self) -> None:

@@ -115,17 +115,17 @@ class DynamicRuleEngine:
 
     # ── Context builders ──────────────────────────────────────────────────────
 
-    @staticmethod
-    def _height_int(height_str: str) -> int:
+    def _height_int(self, height_p) -> int:
         """
-        Convert height string to integer metres.
-        "8MTR" → 8,  "9.5MTR" → 9,  "11MTR" → 11, "13MTR" → 13
-        Uses int() truncation so 9.5MTR → 9 for backward compat with
-        old rules that check ``height == 9``.
+        Convert height value to integer metres.
+        Handles: "8MTR" -> 8,  8.0 -> 8, "9.5" -> 9, None -> 8
         """
+        if height_p is None:
+            return 8
         try:
-            return int(float(height_str.replace("MTR", "").strip()))
-        except ValueError:
+            s = str(height_p).upper().replace("MTR", "").strip()
+            return int(float(s))
+        except (ValueError, TypeError):
             return 8
 
     def _build_pole_context(

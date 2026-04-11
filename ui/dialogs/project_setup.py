@@ -1,3 +1,4 @@
+from core import db_gateway
 """
 ui_dialogs.py
 =============
@@ -20,7 +21,7 @@ DatabaseManagerDialog   — view, import, export the SQLite master DB.
                           Unchanged from v4.
 
 RulesetManagerDialog    — full rule builder / simulator / editor.
-                          Updated: TREE_DEF, FILTER_CHIPS, SIM_DEFAULTS
+                          Updated:   SIM_DEFAULTS
                           now imported from constants.py instead of being
                           hardcoded in the class body. SmartStructure and
                           SmartConsumer added throughout.
@@ -47,9 +48,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from core.constants import (
-    PROPERTY_DATA, FORMULA_VARS,
-    PROJECT_TYPES, SUPERVISION_RATES,
-    SIM_DEFAULTS, TREE_DEF, FILTER_CHIPS,
+    PROPERTY_DATA, 
+     
+    SIM_DEFAULTS,  
 )
 
 
@@ -73,7 +74,7 @@ class ProjectSetupDialog(QDialog):
     lat, long     : GPS coordinates
     division      : utility division name
     circle        : utility circle name
-    project_type  : one of PROJECT_TYPES (drives supervision rate)
+    project_type  : one of db_gateway.get_project_types() (drives supervision rate)
     use_uh        : bool — use UH (readymade) materials instead of raw steel
     supervision_rate : float — auto-derived from project_type
 
@@ -167,9 +168,9 @@ class ProjectSetupDialog(QDialog):
 
         # Project type (Shifting / Maintenance / Augmentation disabled — NSC only)
         self._proj_type = QComboBox()
-        self._proj_type.addItems(PROJECT_TYPES)
+        self._proj_type.addItems(db_gateway.get_project_types())
         current_type = self._meta.get("project_type", "NSC")
-        if current_type in PROJECT_TYPES:
+        if current_type in db_gateway.get_project_types():
             self._proj_type.setCurrentText(current_type)
         else:
             self._proj_type.setCurrentText("NSC")
@@ -218,7 +219,7 @@ class ProjectSetupDialog(QDialog):
     # ── Slots ─────────────────────────────────────────────────────────────────
 
     def _on_type_changed(self, proj_type: str):
-        rate = SUPERVISION_RATES.get(proj_type, 0.10)
+        rate = db_gateway.get_supervision_rates().get(proj_type, 0.10)
         self._sup_lbl.setText(f"{int(rate * 100)}%")
         self._meta["project_type"]     = proj_type
         self._meta["supervision_rate"] = rate
@@ -243,7 +244,7 @@ class ProjectSetupDialog(QDialog):
         self._meta["use_uh"]   = self._uh.isChecked()
         proj_type = self._proj_type.currentText()
         self._meta["project_type"]     = proj_type
-        self._meta["supervision_rate"] = SUPERVISION_RATES.get(proj_type, 0.10)
+        self._meta["supervision_rate"] = db_gateway.get_supervision_rates().get(proj_type, 0.10)
         self.accept()
 
     def get_meta(self) -> dict:

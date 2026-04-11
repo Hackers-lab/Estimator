@@ -1120,7 +1120,8 @@ class EditorMixin:
     def _update_structure_type(self, item, value):
         item.structure_type = value
         # Reset earth defaults
-        earth_defaults = {"DP": 2, "TP": 3, "4P": 4, "DTR": 5}
+        d = defaults.current
+        earth_defaults = {"DP": d.get("earth_default_dp", 2), "TP": d.get("earth_default_tp", 3), "4P": d.get("earth_default_4p", 4), "DTR": d.get("earth_default_dtr", 5)}
         item.earth_count = earth_defaults.get(value, 2)
         if value != "DTR":
             item.dtr_size = "None"

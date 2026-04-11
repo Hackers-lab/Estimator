@@ -16,6 +16,7 @@ Design: every function opens its own connection and closes it on exit.
 Mirrors the existing materials/labour read pattern in database.py.
 """
 from __future__ import annotations
+import json
 
 import sqlite3
 from core.database import DB_PATH
@@ -295,7 +296,7 @@ def remove_extended_option(object_type: str, prop_name: str, option: str) -> Non
 # ─── Height Options ───────────────────────────────────────────────────────────
 
 def get_height_options(pole_type2: str) -> list[str]:
-    """Return height strings like ['8MTR', '9.5MTR'] for a pole_type2."""
+    """Return height strings like ['8', '9.5'] for a pole_type2."""
     con = _conn()
     try:
         rows = con.execute(
@@ -306,9 +307,9 @@ def get_height_options(pole_type2: str) -> list[str]:
         for (hval,) in rows:
             hval = float(hval)
             if hval == int(hval):
-                result.append(f"{int(hval)}MTR")
+                result.append(f"{int(hval)}")
             else:
-                result.append(f"{hval}MTR")
+                result.append(f"{hval}")
         return result
     finally:
         con.close()
@@ -692,22 +693,49 @@ def get_properties_for_simulator(object_type: str) -> list[dict]:
         ).fetchall()
         result = []
         for prop_id, prop_name, display_name, widget_type, sim_default, sim_min, sim_max in rows:
+            # 1. Start with built-in options from property_options
             opts = cur.execute(
                 "SELECT option_val FROM property_options WHERE property_id=? ORDER BY sort_order, id",
                 (prop_id,),
             ).fetchall()
-            # Merge extended (user) options
+            options = [r[0] for r in opts]
+            seen = {o.casefold() for o in options}
+
+            # 2. Merge extended (user-added generic) options
             ext = cur.execute(
                 "SELECT option_val FROM extended_options "
                 "WHERE object_type=? AND prop_name=? ORDER BY sort_order, id",
                 (object_type, prop_name),
             ).fetchall()
-            options = [r[0] for r in opts]
-            seen = {o.casefold() for o in options}
             for (ev,) in ext:
                 if ev.casefold() not in seen:
                     options.append(ev)
                     seen.add(ev.casefold())
+
+            # 3. Merge specialized dynamic options (heights, conductors, pole types)
+            if prop_name in ("height", "dtr_new_height", "extension_height"):
+                h_rows = cur.execute("SELECT DISTINCT height_val FROM height_options").fetchall()
+                for (hval,) in h_rows:
+                    try:
+                        fv = float(hval)
+                        s = f"{int(fv)}" if fv == int(fv) else f"{fv}"
+                        if s.casefold() not in seen:
+                            options.append(s)
+                            seen.add(s.casefold())
+                    except: pass
+            elif prop_name in ("pole_type2", "dtr_new_pole_type2"):
+                p_rows = cur.execute("SELECT DISTINCT pole_type2 FROM height_options").fetchall()
+                for (pt,) in p_rows:
+                    if pt and pt.casefold() not in seen:
+                        options.append(pt)
+                        seen.add(pt.casefold())
+            elif prop_name in ("conductor_size", "cable_size", "aug_to_conductor", "aug_to_config"):
+                c_rows = cur.execute("SELECT DISTINCT size_value FROM conductor_options").fetchall()
+                for (cv,) in c_rows:
+                    if cv and cv.casefold() not in seen:
+                        options.append(cv)
+                        seen.add(cv.casefold())
+            
             result.append({
                 "prop_name":    prop_name,
                 "display_name": display_name,
@@ -919,5 +947,132 @@ def get_user_color_only(
             return _norm_color(row[0])
 
         return None
+    finally:
+        con.close()
+
+
+# ── Dynamic Structural Hierarchies (Phase 3 Expansion) ─────────────────────────
+
+def get_project_types() -> list[str]:
+    """Return list of project type names from the database."""
+    con = _conn()
+    try:
+        cur = con.cursor()
+        rows = cur.execute("SELECT type_name FROM project_types ORDER BY id").fetchall()
+        return [r[0] for r in rows]
+    finally:
+        con.close()
+
+def get_supervision_rates() -> dict[str, float]:
+    """Return dict mapping project_type to supervision_rate from DB."""
+    con = _conn()
+    try:
+        cur = con.cursor()
+        rows = cur.execute("SELECT type_name, supervision_rate FROM project_types").fetchall()
+        return {r[0]: float(r[1]) for r in rows}
+    finally:
+        con.close()
+
+def get_tree_def() -> list:
+    """Reconstruct the nested rule tree definition from the DB."""
+    con = _conn()
+    try:
+        cur = con.cursor()
+        rows = cur.execute("SELECT id, parent_id, label, object_type, filter_dict_json, sort_order FROM rule_tree_nodes ORDER BY sort_order, id").fetchall()
+        
+        # Build node dictionaries
+        nodes = {}
+        for r in rows:
+            node_id, parent_id, label, obj_type, filter_json, sort_order = r
+            filter_dict = {}
+            if filter_json:
+                try:
+                    filter_dict = json.loads(filter_json)
+                except json.JSONDecodeError:
+                    pass
+            # node record format tracking tree_def structure: (label, obj_type, filter_dict, [children])
+            nodes[node_id] = {
+                "parent_id": parent_id,
+                "data": (label, obj_type, filter_dict, []),
+                "sort_order": sort_order
+            }
+            
+        tree = []
+        # Populate children
+        for n_id, n_data in nodes.items():
+            pid = n_data["parent_id"]
+            if pid is None:
+                tree.append(n_data)
+            else:
+                if pid in nodes:
+                    nodes[pid]["data"][3].append(n_data)
+                    
+        # Sort function
+        def _sort_tree(n_list):
+            n_list.sort(key=lambda x: x["sort_order"])
+            for item in n_list:
+                _sort_tree(item["data"][3])
+                
+        _sort_tree(tree)
+        
+        # Recursively strip wrapper dict mapping
+        def _strip_wrap(n_list):
+            res = []
+            for item in n_list:
+                child_data = item["data"]
+                # data is a tuple right now as (label, obj_type, filter_dict, [children wrappers])
+                stripped_children = _strip_wrap(child_data[3])
+                res.append((child_data[0], child_data[1], child_data[2], stripped_children))
+            return res
+            
+        return _strip_wrap(tree)
+    finally:
+        con.close()
+
+def get_filter_chips() -> dict[str, list]:
+    """Return filter chips structured by object type."""
+    con = _conn()
+    try:
+        cur = con.cursor()
+        rows = cur.execute("SELECT object_type, label, prop_name, match_value FROM rule_filter_chips ORDER BY sort_order, id").fetchall()
+        chips = {}
+        for r in rows:
+            obj_type, label, prop_name, match_val = r
+            
+            # Cast match_val correctly (True/False or text)
+            if match_val == "True":
+                val = True
+            elif match_val == "False":
+                val = False
+            else:
+                try:
+                    val = int(match_val)
+                except ValueError:
+                    val = match_val
+                    
+            if obj_type not in chips:
+                chips[obj_type] = []
+            chips[obj_type].append((label, prop_name, val))
+        return chips
+    finally:
+        con.close()
+
+def get_formula_vars() -> dict[str, list[str]]:
+    """Get all formula permitted variables by object type."""
+    con = _conn()
+    try:
+        cur = con.cursor()
+        rows = cur.execute("SELECT object_type, prop_name FROM properties WHERE is_formula_var=1").fetchall()
+        f_vars = {}
+        for r in rows:
+            obj, prop = r
+            if obj not in f_vars:
+                f_vars[obj] = []
+            f_vars[obj].append(prop)
+        # Ensure default empty lists if objects don't have formula vars yet
+        for base in ["SmartPole", "SmartStructure", "SmartSpan", "SmartConsumer"]:
+            if base not in f_vars:
+                f_vars[base] = []
+        return f_vars
     finally:
         con.close()
