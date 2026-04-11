@@ -779,13 +779,30 @@ class EstimateApp(QMainWindow):
                 Qt.AspectRatioMode.KeepAspectRatio
             )
 
-    def _toggle_detail_view(self, checked=None):
-        self.detail_view = self.detail_chk.isChecked()
-        # Redraw all canvas items
+    def refresh_all_visuals(self):
+        """Force an immediate visual update for all canvas objects.
+
+        Uses vp.repaint() (synchronous) rather than update() (deferred) so
+        the canvas re-draws even while a modal PropertyEditorDialog sits on top.
+        """
         for item in self.scene.items():
             if isinstance(item, (SmartPole, SmartStructure, SmartSpan, SmartConsumer)):
                 item.detail_view = self.detail_view
                 item.update_visuals()
+            else:
+                item.update()
+        self.scene.update()
+        if hasattr(self, "view") and self.view:
+            vp = self.view.viewport()
+            if vp is not None:
+                vp.repaint()
+
+
+
+    def _toggle_detail_view(self, checked=None):
+        self.detail_view = self.detail_chk.isChecked()
+        self.refresh_all_visuals()
+
 
     def _toggle_page_grid(self, checked):
         self.show_page_grid = checked

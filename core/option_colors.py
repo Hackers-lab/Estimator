@@ -76,6 +76,26 @@ def resolve(
     )
 
 
+def resolve_user_only(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    context: dict[str, str] | None = None,
+) -> str | None:
+    """Return *only* the user-set colour override, or None if no user override exists.
+
+    Unlike ``resolve()``, this ignores the stored ``default_color`` in the DB so
+    that canvas-symbol defaults (stored in ``core.defaults``) always win unless
+    the user has explicitly picked a per-option colour via the Properties panel.
+    """
+    return db_gateway.get_user_color_only(
+        object_type,
+        prop_name,
+        option_val,
+        make_context_key(context),
+    )
+
+
 def get_record(
     object_type: str,
     prop_name: str,

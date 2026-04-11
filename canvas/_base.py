@@ -513,32 +513,18 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                     self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
             elif self.pole_type == "LT":
                 _hk = "canvas_lt_pole_" + self.height.lower().replace(".", "_")
-                _fallback = _c.get(_hk, _c.get("canvas_lt_pole", "#2980b9"))
-                _col = option_colors.resolve(
-                    "SmartPole",
-                    "height",
-                    str(self.height),
-                    _fallback,
-                    {
-                        "pole_type": "LT",
-                        "pole_type2": str(self.pole_type2),
-                    },
-                )
+                _default_col = _c.get(_hk, _c.get("canvas_lt_pole", "#2980b9"))
+                _ctx = {"pole_type": "LT", "pole_type2": str(self.pole_type2)}
+                _user_col = option_colors.resolve_user_only("SmartPole", "height", str(self.height), _ctx)
+                _col = _user_col if _user_col else _default_col
                 self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
             else:  # HT
                 _hk = "canvas_ht_pole_" + self.height.lower().replace(".", "_")
-                _fallback = _c.get(_hk, _c.get("canvas_ht_pole", "#c0392b"))
-                _col = option_colors.resolve(
-                    "SmartPole",
-                    "height",
-                    str(self.height),
-                    _fallback,
-                    {
-                        "pole_type": "HT",
-                        "pole_type2": str(self.pole_type2),
-                    },
-                )
+                _default_col = _c.get(_hk, _c.get("canvas_ht_pole", "#c0392b"))
+                _ctx = {"pole_type": "HT", "pole_type2": str(self.pole_type2)}
+                _user_col = option_colors.resolve_user_only("SmartPole", "height", str(self.height), _ctx)
+                _col = _user_col if _user_col else _default_col
                 self.setBrush(QBrush(QColor(_col)))
                 self.setPen(black_pen)
 

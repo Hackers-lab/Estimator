@@ -311,18 +311,17 @@ class SmartSpan(QGraphicsPathItem):
         _fallback_color = self._PEN_COLORS.get(self.conductor, QColor("#888888"))
         _fallback_hex   = (_fallback_color.name()
                            if isinstance(_fallback_color, QColor) else _fallback_color)
-        _legacy_color = defaults.current.get(
+        _default_col = defaults.current.get(
             _ck_primary,
             defaults.current.get(_ck_fallback, _fallback_hex)
         )
-        _resolved = option_colors.resolve(
+        _user_col = option_colors.resolve_user_only(
             "SmartSpan",
             "conductor",
             str(self.conductor),
-            _legacy_color,
             {"voltage": _vt.upper()},
         )
-        color = QColor(_resolved)
+        color = QColor(_user_col if _user_col else _default_col)
         pen   = QPen(color, 1.8)
         aug_overlay_pair = (
             bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))

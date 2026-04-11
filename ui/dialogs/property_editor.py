@@ -526,6 +526,13 @@ class PropertyEditorDialog(QDialog):
         _defaults_mod.current[key] = new_hex
         _defaults_mod.save(_defaults_mod.current)
         self._apply_color_btn_style(btn, new_hex)
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "refresh_all_visuals"):
+                try:
+                    w.refresh_all_visuals()
+                except Exception as e:
+                    print("Refresh error:", e)
 
     def _reset_symbol_colors(self) -> None:
         ans = QMessageBox.question(
@@ -545,6 +552,13 @@ class PropertyEditorDialog(QDialog):
             if k.startswith("canvas_") and k not in _FACTORY:
                 del _defaults_mod.current[k]
         _defaults_mod.save(_defaults_mod.current)
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "refresh_all_visuals"):
+                try:
+                    w.refresh_all_visuals()
+                except Exception as e:
+                    print("Refresh error:", e)
         # Refresh the Canvas Symbols tab
         self._main_tabs.removeTab(1)
         self._main_tabs.addTab(self._build_symbols_tab(), "Canvas Symbols")
@@ -1304,6 +1318,13 @@ class PropertyEditorDialog(QDialog):
         option_colors.ensure_default(obj_type, prop, value, fallback, ctx)
         option_colors.set_user(obj_type, prop, value, chosen.name(), fallback, ctx)
         self._apply_item_color_chip(item)
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "refresh_all_visuals"):
+                try:
+                    w.refresh_all_visuals()
+                except Exception as e:
+                    print("Refresh error:", e)
 
     def _reset_selected_color(self) -> None:
         item = self._tree.currentItem()
@@ -1320,6 +1341,13 @@ class PropertyEditorDialog(QDialog):
             binding.get("context", {}) or {},
         )
         self._apply_item_color_chip(item)
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "refresh_all_visuals"):
+                try:
+                    w.refresh_all_visuals()
+                except Exception as e:
+                    print("Refresh error:", e)
 
     # ── Resolve add-target from current selection ─────────────────────────────
 

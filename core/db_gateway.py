@@ -881,3 +881,43 @@ def resolve_option_color(
         return _norm_color(fallback_color)
     finally:
         con.close()
+
+
+def get_user_color_only(
+    object_type: str,
+    prop_name: str,
+    option_val: str,
+    context_key: str = "",
+) -> str | None:
+    """Return the user-set color override only — None if no explicit user choice.
+
+    Unlike resolve_option_color(), this ignores the stored default_color so that
+    canvas-symbol defaults (from core.defaults) always win unless the user has
+    explicitly chosen a per-option color via the Properties panel.
+    """
+    con = _conn()
+    try:
+        if context_key:
+            row = con.execute(
+                """
+                SELECT user_color FROM option_color_overrides
+                WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=?
+                """,
+                (object_type, prop_name, option_val, context_key),
+            ).fetchone()
+            if row and row[0]:
+                return _norm_color(row[0])
+
+        row = con.execute(
+            """
+            SELECT user_color FROM option_color_overrides
+            WHERE object_type=? AND prop_name=? AND option_val=? AND context_key=''
+            """,
+            (object_type, prop_name, option_val),
+        ).fetchone()
+        if row and row[0]:
+            return _norm_color(row[0])
+
+        return None
+    finally:
+        con.close()

@@ -189,13 +189,9 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             "4P":  "canvas_4p",
             "DTR": "canvas_dtr",
         }
-        _fallback = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
-        _color_hex = option_colors.resolve(
-            "SmartStructure",
-            "structure_type",
-            str(st),
-            _fallback,
-        )
+        _default_col = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
+        _user_col = option_colors.resolve_user_only("SmartStructure", "structure_type", str(st))
+        _color_hex = _user_col if _user_col else _default_col
         self.setBrush(QBrush(QColor(_color_hex)))
         self.setPen(QPen(Qt.GlobalColor.black, 1.5))
 
@@ -347,13 +343,13 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
 
         # Colour hint for agency vs WBSEDCL
         if self.agency_supply:
-            _fallback = defaults.current.get("canvas_consumer_agency", "#f39c12")
-            _col = option_colors.resolve("SmartConsumer", "agency_supply", "True", _fallback)
-            self.setBrush(QBrush(QColor(_col)))
+            _default_col = defaults.current.get("canvas_consumer_agency", "#f39c12")
+            _user_col = option_colors.resolve_user_only("SmartConsumer", "agency_supply", "True")
+            self.setBrush(QBrush(QColor(_user_col if _user_col else _default_col)))
         else:
-            _fallback = defaults.current.get("canvas_consumer", "#f1c40f")
-            _col = option_colors.resolve("SmartConsumer", "agency_supply", "False", _fallback)
-            self.setBrush(QBrush(QColor(_col)))
+            _default_col = defaults.current.get("canvas_consumer", "#f1c40f")
+            _user_col = option_colors.resolve_user_only("SmartConsumer", "agency_supply", "False")
+            self.setBrush(QBrush(QColor(_user_col if _user_col else _default_col)))
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
 
