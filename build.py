@@ -12,8 +12,8 @@ import sys
 import os
 import zipfile
 
-from app_config import APP_NAME
-APP_VERSION = "7.1"   # override to lock release label independently of app_config
+
+from app_config import APP_NAME, APP_VERSION
 
 DIST_DIR = "dist"
 FOLDER   = f"{APP_NAME}_v{APP_VERSION}"

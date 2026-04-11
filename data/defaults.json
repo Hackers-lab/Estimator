@@ -70,8 +70,5 @@
   "label_tp": "TP",
   "label_4p": "4P",
   "label_dtr": "DTR",
-  "label_consumer": "SC",
-  "canvas_conductor_ug_cable_ht": "#888888",
-  "canvas_lt_pole_10mtr": "#2980b9",
-  "canvas_ht_pole_10mtr": "#c0392b"
+  "label_consumer": "SC"
 }
