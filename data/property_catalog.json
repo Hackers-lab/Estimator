@@ -1,14 +1,7 @@
 {
   "SmartPole": {
     "custom_entries": [],
-    "extended_options": {
-      "height__H-BEAM": [
-        "12"
-      ],
-      "pole_type2": [
-        "test"
-      ]
-    },
+    "extended_options": {},
     "conductor_meta": {}
   },
   "SmartStructure": {

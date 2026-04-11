@@ -2020,8 +2020,17 @@ class EstimateApp(QMainWindow):
     # ── Editor helpers ────────────────────────────────────────────────────────
 
     def _height_options(self, pole_type2: str, obj_type: str = "SmartPole") -> list[str]:
-        """Return height option strings for the given pole_type2, merged with any
-        user-added values stored in property_catalog extended_options."""
+        """Return height option strings for the given pole_type2 from DB.
+        Falls back to hardcoded + extended_options if DB not available.
+        """
+        try:
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            opts = _dbg.get_height_options(pole_type2)
+            if opts:
+                return opts
+        except Exception:
+            pass
+        # Fallback: hardcoded base + extended_options
         base: list[str] = {
             "PCC":    ["8MTR", "9MTR"],
             "STP":    ["9MTR", "9.5MTR", "11MTR"],
@@ -2033,7 +2042,18 @@ class EstimateApp(QMainWindow):
         return base + [o for o in ext if o.casefold() not in base_fold]
 
     def _conductor_sizes(self, conductor: str, is_lt: bool) -> list[str]:
-        """Return conductor-size option strings, merged with any user-added values."""
+        """Return conductor-size option strings from DB.
+        Falls back to hardcoded + extended_options if DB not available.
+        """
+        try:
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            vc   = "LT" if is_lt else "HT"
+            opts = _dbg.get_conductor_options(conductor, vc)
+            if opts:
+                return opts
+        except Exception:
+            pass
+        # Fallback: hardcoded base + extended_options
         if conductor == "ACSR":
             base = ["30SQMM", "50SQMM"]
         elif conductor == "AB Cable":

@@ -12,12 +12,14 @@ import sys
 import os
 import zipfile
 
-from app_config import APP_NAME, APP_VERSION
+from app_config import APP_NAME
+APP_VERSION = "7.1"   # override to lock release label independently of app_config
 
 DIST_DIR = "dist"
 FOLDER   = f"{APP_NAME}_v{APP_VERSION}"
 
-# Data files to copy next to the exe
+# Data files to copy next to the exe.
+# rules.json kept as emergency JSON backup; DB is now the primary config store.
 DATA_FILES = ["data/rules.json", "assets/logo.svg", "assets/HELP.html"]
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -74,6 +76,18 @@ for fname in DATA_FILES:
     else:
         print(f"  WARNING: {fname} not found, skipping")
 
+# ── 3b. Generate and copy erp_master.db (pre-seeded) ────────────────────────
+print("=== Packaging pre-seeded database ===")
+db_src = os.path.join(ROOT, "erp_master.db")
+if not os.path.exists(db_src):
+    print("  erp_master.db not found — generating a fresh seeded copy...")
+    sys.path.insert(0, ROOT)
+    from core.database import setup_database as _setup_db  # noqa: PLC0415
+    _setup_db(db_src)
+db_dst = os.path.join(exe_dir, "erp_master.db")
+shutil.copy2(db_src, db_dst)
+print("  Copied erp_master.db")
+
 # ── 4. Rename dist folder to versioned name ─────────────────────────────────
 final_dir = os.path.join(ROOT, DIST_DIR, FOLDER)
 if os.path.exists(final_dir):
@@ -91,5 +105,6 @@ with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             arc_name = os.path.join(FOLDER, os.path.relpath(abs_file, final_dir))
             zf.write(abs_file, arc_name)
 
-zip_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
-print(f"=== Done! {zip_path} ({zip_size_mb:.1f} MB) ===")
+print("=== Build complete ===\n")
+print(f"  Deliverable : {zip_path}")
+print(f"  Size        : {zip_size_mb:.1f} MB")

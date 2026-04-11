@@ -30,13 +30,13 @@ def _conn() -> sqlite3.Connection:
 def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list[dict]:
     """Return list of rule dicts, ordered by sort_order.
 
-    Each dict has keys: id, object, condition, formula, type, item_code, item_name.
+    Each dict has keys: id, object, condition, formula, type, item_code, item_name, enabled.
     """
     con = _conn()
     try:
         cur = con.cursor()
         base = (
-            "SELECT id, object_type, condition, formula, type, item_code, item_name "
+            "SELECT id, object_type, condition, formula, type, item_code, item_name, enabled "
             "FROM rules"
         )
         where: list[str] = []
@@ -57,6 +57,7 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
                 "type":      r[4],
                 "item_code": r[5],
                 "item_name": r[6],
+                "enabled":   r[7],
             }
             for r in rows
         ]
@@ -68,7 +69,7 @@ def save_rules(rules: list[dict]) -> None:
     """Replace ALL rules in DB with the given list.
 
     Each dict must have: object, condition, formula, type, item_code, item_name.
-    Existing enabled flags and IDs are discarded — use for full save from editor.
+    The 'enabled' flag (0/1) is preserved when present, defaulting to 1.
     """
     con = _conn()
     try:
@@ -78,7 +79,7 @@ def save_rules(rules: list[dict]) -> None:
             cur.execute(
                 "INSERT INTO rules "
                 "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-                "VALUES (?,?,?,?,?,?,1,?)",
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (
                     r.get("object", ""),
                     r.get("condition", "True"),
@@ -86,6 +87,7 @@ def save_rules(rules: list[dict]) -> None:
                     r.get("type", "Material"),
                     r.get("item_code", ""),
                     r.get("item_name", ""),
+                    1 if r.get("enabled", 1) else 0,
                     i,
                 ),
             )
@@ -341,8 +343,16 @@ def get_all_pole_type2() -> list[str]:
         con.close()
 
 
-def add_height_option(pole_type2: str, height_val: float) -> bool:
-    """Add a new height for a pole_type2. Returns False if already exists."""
+def add_height_option(pole_type2: str, height_str: str) -> bool:
+    """Add a new height for a pole_type2.  Accepts strings like '8MTR', '9.5MTR'.
+    Returns False if already exists."""
+    try:
+        clean = height_str.strip().upper()
+        if clean.endswith("MTR"):
+            clean = clean[:-3].strip()
+        height_val = float(clean)
+    except (ValueError, AttributeError):
+        return False
     con = _conn()
     try:
         dup = con.execute(
@@ -367,15 +377,66 @@ def add_height_option(pole_type2: str, height_val: float) -> bool:
         con.close()
 
 
-def remove_height_option(pole_type2: str, height_val: float) -> None:
-    """Remove a height option for a pole_type2."""
+def remove_height_option(pole_type2: str, height_str: str) -> bool:
+    """Remove a user-added height for a pole_type2.  Accepts strings like '8MTR'.
+    Returns False if the value is built-in (protected) or not found."""
+    try:
+        clean = height_str.strip().upper()
+        if clean.endswith("MTR"):
+            clean = clean[:-3].strip()
+        height_val = float(clean)
+    except (ValueError, AttributeError):
+        return False
     con = _conn()
     try:
+        row = con.execute(
+            "SELECT is_builtin FROM height_options WHERE pole_type2=? AND height_val=?",
+            (pole_type2, height_val),
+        ).fetchone()
+        if row is None:
+            return False
+        if row[0]:  # built-in — refuse to delete
+            return False
         con.execute(
             "DELETE FROM height_options WHERE pole_type2=? AND height_val=?",
             (pole_type2, height_val),
         )
         con.commit()
+        return True
+    finally:
+        con.close()
+
+
+def get_all_height_options_detail() -> dict:
+    """Return {pole_type2: [{'val': '8MTR', 'builtin': True}, ...]} for the settings UI."""
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT pole_type2, height_val, is_builtin "
+            "FROM height_options ORDER BY pole_type2, sort_order, height_val"
+        ).fetchall()
+        result: dict = {}
+        for pt2, hval, builtin in rows:
+            hval = float(hval)
+            label = f"{int(hval)}MTR" if hval == int(hval) else f"{hval}MTR"
+            result.setdefault(pt2, []).append({"val": label, "builtin": bool(builtin)})
+        return result
+    finally:
+        con.close()
+
+
+def get_all_conductor_options_detail() -> dict:
+    """Return {(conductor_type, voltage_class): [{'val': str, 'builtin': bool}]} for the UI."""
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT conductor_type, voltage_class, size_value, is_builtin "
+            "FROM conductor_options ORDER BY conductor_type, voltage_class, sort_order, id"
+        ).fetchall()
+        result: dict = {}
+        for ct, vc, sv, builtin in rows:
+            result.setdefault((ct, vc), []).append({"val": sv, "builtin": bool(builtin)})
+        return result
     finally:
         con.close()
 

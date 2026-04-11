@@ -297,8 +297,9 @@ class PropertyEditorDialog(QDialog):
 
         # ── Tab container ─────────────────────────────────────────────────────
         self._main_tabs = QTabWidget()
-        self._main_tabs.addTab(self._build_properties_tab(), "Properties")
-        self._main_tabs.addTab(self._build_symbols_tab(),    "Canvas Symbols")
+        self._main_tabs.addTab(self._build_properties_tab(),          "Properties")
+        self._main_tabs.addTab(self._build_symbols_tab(),             "Canvas Symbols")
+        self._main_tabs.addTab(self._build_heights_conductors_tab(),  "Heights & Sizes")
         root.addWidget(self._main_tabs, 1)
 
         close_btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -488,6 +489,281 @@ class PropertyEditorDialog(QDialog):
         # Refresh the Canvas Symbols tab
         self._main_tabs.removeTab(1)
         self._main_tabs.addTab(self._build_symbols_tab(), "Canvas Symbols")
+
+    # ── Heights & Sizes tab (C1 + C2) ────────────────────────────────────────
+
+    def _build_heights_conductors_tab(self) -> QWidget:
+        """Dedicated manager for pole heights and conductor sizes stored in DB."""
+        outer = QWidget()
+        lay   = QVBoxLayout(outer)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(10)
+
+        intro = QLabel(
+            "\u2022 Grey = built-in (cannot be removed)   \u2022 Blue = user-added (select to remove)\n"
+            "\u2022 Changes apply immediately to the canvas object editors."
+        )
+        intro.setStyleSheet("font-size:11px; color:#555;")
+        lay.addWidget(intro)
+
+        splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # ── Heights section ─────────────────────────────────────────────────
+        ht_grp = QGroupBox("Pole Heights  (per pole type)")
+        ht_lay = QVBoxLayout(ht_grp)
+        ht_lay.setContentsMargins(8, 8, 8, 8)
+        ht_lay.setSpacing(6)
+
+        self._heights_tree = QTreeWidget()
+        self._heights_tree.setColumnCount(2)
+        self._heights_tree.setHeaderLabels(["Pole Type / Height", "Info"])
+        ht_hdr = self._heights_tree.header()
+        if ht_hdr is not None:
+            ht_hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            ht_hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._heights_tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
+        self._heights_tree.currentItemChanged.connect(self._on_ht_selection)
+        ht_lay.addWidget(self._heights_tree, 1)
+
+        ht_btns = QHBoxLayout()
+        self._ht_add_btn = QPushButton("+ Add Height")
+        self._ht_add_btn.setEnabled(False)
+        self._ht_rem_btn = QPushButton("\u2715 Remove")
+        self._ht_rem_btn.setEnabled(False)
+        self._ht_rem_btn.setStyleSheet(
+            "QPushButton{color:#c0392b;border:1px solid #c0392b;border-radius:3px;padding:2px 10px;}"
+            "QPushButton:hover{background:#fdecea;}"
+            "QPushButton:disabled{color:#ccc;border-color:#ccc;}"
+        )
+        self._ht_add_btn.clicked.connect(self._on_add_height)
+        self._ht_rem_btn.clicked.connect(self._on_remove_height)
+        ht_btns.addWidget(self._ht_add_btn)
+        ht_btns.addWidget(self._ht_rem_btn)
+        ht_btns.addStretch()
+        ht_lay.addLayout(ht_btns)
+        self._refresh_heights_tree()
+        splitter.addWidget(ht_grp)
+
+        # ── Conductor Sizes section ──────────────────────────────────────────
+        cd_grp = QGroupBox("Conductor Sizes  (per type and voltage class)")
+        cd_lay = QVBoxLayout(cd_grp)
+        cd_lay.setContentsMargins(8, 8, 8, 8)
+        cd_lay.setSpacing(6)
+
+        self._conductors_tree = QTreeWidget()
+        self._conductors_tree.setColumnCount(2)
+        self._conductors_tree.setHeaderLabels(["Conductor / Size", "Info"])
+        cd_hdr = self._conductors_tree.header()
+        if cd_hdr is not None:
+            cd_hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            cd_hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._conductors_tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
+        self._conductors_tree.currentItemChanged.connect(self._on_cd_selection)
+        cd_lay.addWidget(self._conductors_tree, 1)
+
+        cd_btns = QHBoxLayout()
+        self._cd_add_btn = QPushButton("+ Add Size")
+        self._cd_add_btn.setEnabled(False)
+        self._cd_rem_btn = QPushButton("\u2715 Remove")
+        self._cd_rem_btn.setEnabled(False)
+        self._cd_rem_btn.setStyleSheet(
+            "QPushButton{color:#c0392b;border:1px solid #c0392b;border-radius:3px;padding:2px 10px;}"
+            "QPushButton:hover{background:#fdecea;}"
+            "QPushButton:disabled{color:#ccc;border-color:#ccc;}"
+        )
+        self._cd_add_btn.clicked.connect(self._on_add_conductor_size)
+        self._cd_rem_btn.clicked.connect(self._on_remove_conductor_size)
+        cd_btns.addWidget(self._cd_add_btn)
+        cd_btns.addWidget(self._cd_rem_btn)
+        cd_btns.addStretch()
+        cd_lay.addLayout(cd_btns)
+        self._refresh_conductors_tree()
+        splitter.addWidget(cd_grp)
+
+        lay.addWidget(splitter, 1)
+        return outer
+
+    def _refresh_heights_tree(self) -> None:
+        self._heights_tree.clear()
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        detail = _dbg.get_all_height_options_detail()
+        for pt2, heights in sorted(detail.items()):
+            root = QTreeWidgetItem(self._heights_tree, [pt2, f"{len(heights)} value(s)"])
+            root.setData(0, Qt.ItemDataRole.UserRole, {"scope": "ht_pt2", "pt2": pt2})
+            root.setExpanded(True)
+            _font_bold = QFont(); _font_bold.setBold(True)
+            for h in heights:
+                child = QTreeWidgetItem(root, [h["val"],
+                                               "built-in" if h["builtin"] else "user-added"])
+                child.setData(0, Qt.ItemDataRole.UserRole,
+                              {"scope": "ht_val", "pt2": pt2,
+                               "val": h["val"], "builtin": h["builtin"]})
+                if h["builtin"]:
+                    child.setForeground(0, QColor("#888888"))
+                    child.setForeground(1, QColor("#888888"))
+                else:
+                    child.setForeground(0, QColor("#185FA5"))
+                    child.setFont(0, _font_bold)
+
+    def _on_ht_selection(self, current, _prev) -> None:
+        if current is None:
+            self._ht_add_btn.setEnabled(False)
+            self._ht_rem_btn.setEnabled(False)
+            return
+        nd = current.data(0, Qt.ItemDataRole.UserRole) or {}
+        scope = nd.get("scope", "")
+        self._ht_add_btn.setEnabled(scope in ("ht_pt2", "ht_val"))
+        self._ht_rem_btn.setEnabled(scope == "ht_val" and not nd.get("builtin", True))
+
+    def _on_add_height(self) -> None:
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        item = self._heights_tree.currentItem()
+        nd   = item.data(0, Qt.ItemDataRole.UserRole) if item else {}
+        pt2  = nd.get("pt2", "")
+
+        pole_types = list(_dbg.get_all_height_options_detail().keys())
+        if not pole_types:
+            pole_types = ["PCC", "STP", "H-BEAM"]
+
+        pole_type, ok1 = QInputDialog.getItem(
+            self, "Add Height — Step 1", "Pole type:", pole_types,
+            pole_types.index(pt2) if pt2 in pole_types else 0, False,
+        )
+        if not ok1:
+            return
+
+        val, ok2 = QInputDialog.getText(
+            self, "Add Height — Step 2",
+            f"Height value for  {pole_type}  (e.g. 15MTR, 20MTR):",
+        )
+        if not ok2 or not val.strip():
+            return
+        val = val.strip().upper()
+        if not val.endswith("MTR"):
+            val += "MTR"
+
+        added = _dbg.add_height_option(pole_type, val)
+        if not added:
+            QMessageBox.information(self, "Duplicate",
+                                    f"'{val}' already exists for {pole_type}.")
+        self._refresh_heights_tree()
+
+    def _on_remove_height(self) -> None:
+        item = self._heights_tree.currentItem()
+        if not item:
+            return
+        nd = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        if nd.get("scope") != "ht_val" or nd.get("builtin"):
+            return
+        pt2 = nd["pt2"]
+        val = nd["val"]
+        reply = QMessageBox.question(
+            self, "Remove Height",
+            f"Remove  '{val}'  from  {pt2}?\n\n"
+            "Canvas objects already using this value keep it until manually changed.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        _dbg.remove_height_option(pt2, val)
+        self._refresh_heights_tree()
+
+    def _refresh_conductors_tree(self) -> None:
+        self._conductors_tree.clear()
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        detail = _dbg.get_all_conductor_options_detail()
+        _font_bold = QFont(); _font_bold.setBold(True)
+        for (ct, vc), sizes in sorted(detail.items()):
+            label = f"{ct}  \u00b7  {vc}"
+            root  = QTreeWidgetItem(self._conductors_tree,
+                                    [label, f"{len(sizes)} size(s)"])
+            root.setData(0, Qt.ItemDataRole.UserRole,
+                         {"scope": "cd_group", "ct": ct, "vc": vc})
+            root.setExpanded(True)
+            for s in sizes:
+                child = QTreeWidgetItem(root, [s["val"],
+                                               "built-in" if s["builtin"] else "user-added"])
+                child.setData(0, Qt.ItemDataRole.UserRole,
+                              {"scope": "cd_val", "ct": ct, "vc": vc,
+                               "val": s["val"], "builtin": s["builtin"]})
+                if s["builtin"]:
+                    child.setForeground(0, QColor("#888888"))
+                    child.setForeground(1, QColor("#888888"))
+                else:
+                    child.setForeground(0, QColor("#185FA5"))
+                    child.setFont(0, _font_bold)
+
+    def _on_cd_selection(self, current, _prev) -> None:
+        if current is None:
+            self._cd_add_btn.setEnabled(False)
+            self._cd_rem_btn.setEnabled(False)
+            return
+        nd    = current.data(0, Qt.ItemDataRole.UserRole) or {}
+        scope = nd.get("scope", "")
+        self._cd_add_btn.setEnabled(scope in ("cd_group", "cd_val"))
+        self._cd_rem_btn.setEnabled(scope == "cd_val" and not nd.get("builtin", True))
+
+    def _on_add_conductor_size(self) -> None:
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        item = self._conductors_tree.currentItem()
+        nd   = item.data(0, Qt.ItemDataRole.UserRole) if item else {}
+
+        detail = _dbg.get_all_conductor_options_detail()
+        cond_types  = sorted({ct for ct, _vc in detail})
+        volt_classes = ["LT", "HT"]
+
+        default_ct = nd.get("ct", cond_types[0] if cond_types else "")
+        default_vc = nd.get("vc", "LT")
+
+        ct, ok1 = QInputDialog.getItem(
+            self, "Add Size — Step 1", "Conductor type:", cond_types,
+            cond_types.index(default_ct) if default_ct in cond_types else 0, False,
+        )
+        if not ok1:
+            return
+
+        vc, ok2 = QInputDialog.getItem(
+            self, "Add Size — Step 2", "Voltage class:", volt_classes,
+            volt_classes.index(default_vc) if default_vc in volt_classes else 0, False,
+        )
+        if not ok2:
+            return
+
+        val, ok3 = QInputDialog.getText(
+            self, "Add Size — Step 3",
+            f"Size value for  {ct} ({vc})  (e.g. 70SQMM, 3CX120+1CX70):",
+        )
+        if not ok3 or not val.strip():
+            return
+
+        added = _dbg.add_conductor_option(ct, vc, val.strip())
+        if not added:
+            QMessageBox.information(self, "Duplicate",
+                                    f"'{val.strip()}' already exists for {ct} ({vc}).")
+        self._refresh_conductors_tree()
+
+    def _on_remove_conductor_size(self) -> None:
+        item = self._conductors_tree.currentItem()
+        if not item:
+            return
+        nd = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        if nd.get("scope") != "cd_val" or nd.get("builtin"):
+            return
+        ct  = nd["ct"]
+        vc  = nd["vc"]
+        val = nd["val"]
+        reply = QMessageBox.question(
+            self, "Remove Size",
+            f"Remove  '{val}'  from  {ct} ({vc})?\n\n"
+            "Canvas objects already using this value keep it until manually changed.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from core import db_gateway as _dbg  # noqa: PLC0415
+        _dbg.remove_conductor_option(ct, vc, val)
+        self._refresh_conductors_tree()
 
     # ── Tree helpers ──────────────────────────────────────────────────────────
 
@@ -782,10 +1058,14 @@ class PropertyEditorDialog(QDialog):
 
     def _load_rules(self) -> list[dict]:
         try:
-            with open(get_data_path("rules.json"), "r", encoding="utf-8") as handle:
-                return json.load(handle)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return []
+            from core import db_gateway as _dbg  # noqa: PLC0415
+            return _dbg.get_rules(enabled_only=False)
+        except Exception:
+            try:
+                with open(get_data_path("rules.json"), "r", encoding="utf-8") as handle:
+                    return json.load(handle)
+            except (FileNotFoundError, json.JSONDecodeError):
+                return []
 
     def _selected_obj_type(self) -> str | None:
         item = self._tree.currentItem()

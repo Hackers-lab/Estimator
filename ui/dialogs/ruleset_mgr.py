@@ -507,10 +507,16 @@ class RulesetManagerDialog(QDialog):
     def _make_card(self, rule_index, rule, sim_hit=False):
         card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
         selected = rule_index == self.selected_rule_index
+        enabled  = bool(rule.get("enabled", 1))
 
-        bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#ddd")
-        bw = "1.5px"   if (selected or sim_hit) else "0.5px"
-        bg = "#eaf8f4" if sim_hit else "white"
+        if not enabled:
+            bc = "#378ADD" if selected else "#bbb"
+            bw = "1.5px" if selected else "0.5px"
+            bg = "#f5f5f5"
+        else:
+            bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#ddd")
+            bw = "1.5px"   if (selected or sim_hit) else "0.5px"
+            bg = "#eaf8f4" if sim_hit else "white"
         card.setStyleSheet(
             f"background:{bg}; border:{bw} solid {bc}; border-radius:6px;"
         )
@@ -538,15 +544,34 @@ class RulesetManagerDialog(QDialog):
         bl.setSpacing(1)
 
         name_l = QLabel(rule.get("item_name", "Unnamed"))
-        name_l.setStyleSheet("font-size:12px; font-weight:bold;")
+        name_style = "font-size:12px; font-weight:bold;"
+        if not enabled:
+            name_style += " color:#aaa; text-decoration:line-through;"
+        name_l.setStyleSheet(name_style)
+
         cond_l = QLabel(rule.get("condition", "") or "(no condition)")
-        cond_l.setStyleSheet("font-size:11px; color:#555; font-family:monospace;")
+        cond_l.setStyleSheet(
+            f"font-size:11px; color:{'#bbb' if not enabled else '#555'};"
+            " font-family:monospace;"
+        )
         form_l = QLabel(f"qty = {rule.get('formula','1')}")
-        form_l.setStyleSheet("font-size:10px; color:#999;")
+        form_l.setStyleSheet(
+            f"font-size:10px; color:{'#ccc' if not enabled else '#999'};"
+        )
         bl.addWidget(name_l)
         bl.addWidget(cond_l)
         bl.addWidget(form_l)
         lay.addWidget(body, 1)
+
+        toggle_cb = QCheckBox()
+        toggle_cb.setToolTip("Enable / disable this rule")
+        toggle_cb.setChecked(enabled)
+        toggle_cb.setStyleSheet("margin-left:4px;")
+        toggle_cb.stateChanged.connect(
+            lambda state, idx=rule_index, r=rule:
+                self._on_rule_toggle(idx, r, bool(state))
+        )
+        lay.addWidget(toggle_cb)
 
         return card
 
@@ -831,9 +856,12 @@ class RulesetManagerDialog(QDialog):
         """Build one item row inside a condition group."""
         card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
         selected = rule_index == self.selected_rule_index
+        enabled  = bool(rule.get("enabled", 1))
 
         bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#e8e8e8")
-        bg = "#eaf8f4" if sim_hit else ("#eef4fb" if selected else "#fafafa")
+        bg = "#eaf8f4" if sim_hit else (
+            "#eef4fb" if selected else ("#f5f5f5" if not enabled else "#fafafa")
+        )
         card.setStyleSheet(
             f"background:{bg}; border-left:2px solid {bc}; "
             "border-radius:0px;"
@@ -857,7 +885,10 @@ class RulesetManagerDialog(QDialog):
         lay.addWidget(badge)
 
         name_lbl = QLabel(rule.get("item_name", "Unnamed"))
-        name_lbl.setStyleSheet("font-size:12px;")
+        name_style = "font-size:12px;"
+        if not enabled:
+            name_style += " color:#aaa; text-decoration:line-through;"
+        name_lbl.setStyleSheet(name_style)
         lay.addWidget(name_lbl, 1)
 
         code_lbl = QLabel(rule.get("item_code", ""))
@@ -867,6 +898,16 @@ class RulesetManagerDialog(QDialog):
         form_lbl = QLabel(f"\u00d7{rule.get('formula', '1')}")
         form_lbl.setStyleSheet("font-size:10px; color:#bbb;")
         lay.addWidget(form_lbl)
+
+        toggle_cb = QCheckBox()
+        toggle_cb.setToolTip("Enable / disable this rule")
+        toggle_cb.setChecked(enabled)
+        toggle_cb.setStyleSheet("margin-left:4px;")
+        toggle_cb.stateChanged.connect(
+            lambda state, idx=rule_index, r=rule:
+                self._on_rule_toggle(idx, r, bool(state))
+        )
+        lay.addWidget(toggle_cb)
 
         return card
 
@@ -1506,6 +1547,17 @@ class RulesetManagerDialog(QDialog):
             "font-family:monospace; font-size:12px;"
         )
         self._editor_body_l.addWidget(self._formula_input)
+        self._formula_input.textChanged.connect(self._update_preview)
+
+        # C4: real-time validation label (hidden unless there is an error)
+        self._validation_lbl = QLabel("")
+        self._validation_lbl.setWordWrap(True)
+        self._validation_lbl.setStyleSheet(
+            "font-size:10px; color:#c0392b; background:#fff0f0; "
+            "border-radius:3px; padding:4px 6px;"
+        )
+        self._validation_lbl.setVisible(False)
+        self._editor_body_l.addWidget(self._validation_lbl)
 
         self._editor_body_l.addStretch()
         self._parse_conditions(rule)
@@ -1718,6 +1770,15 @@ class RulesetManagerDialog(QDialog):
                     "Builder preview differs from raw condition. "
                     "For complex rules (groups/in/not), edit Raw condition directly."
                 )
+        # C4: real-time syntax validation
+        if hasattr(self, "_validation_lbl") and hasattr(self, "_formula_input"):
+            raw_cond = getattr(self, "_raw_cond_input", None)
+            cond_text    = raw_cond.text().strip() if raw_cond else ""
+            formula_text = self._formula_input.text().strip() or "1"
+            ok, msg = self._validate_rule(cond_text, formula_text, self.active_obj_type)
+            self._validation_lbl.setVisible(not ok)
+            if not ok:
+                self._validation_lbl.setText(f"\u26a0  {msg}")
 
     def _insert_raw_text(self, token: str):
         if not hasattr(self, "_raw_cond_input"):
@@ -1817,9 +1878,24 @@ class RulesetManagerDialog(QDialog):
             return
         if self.selected_rule_index == -1:
             return
-        rule = self.rules[self.selected_rule_index]
+        rule    = self.rules[self.selected_rule_index]
+        cond    = self._raw_cond_input.text().strip()
+        formula = self._formula_input.text().strip() or "1"
+
+        # C4: validate syntax before committing
+        ok, msg = self._validate_rule(cond, formula, rule.get("object", self.active_obj_type))
+        if not ok:
+            reply = QMessageBox.question(
+                self, "Validation Warning",
+                f"{msg}\n\nSave anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+
         # Save the exact condition text so complex JSON conditions are preserved.
-        rule["condition"] = self._raw_cond_input.text().strip()
+        rule["condition"] = cond
         if self.selected_result_item:
             rule["type"]      = self.selected_result_item["type"]
             rule["item_code"] = self.selected_result_item.get("code", "")
@@ -1829,7 +1905,7 @@ class RulesetManagerDialog(QDialog):
             )
         else:
             rule["type"] = self._type_combo.currentText()
-        rule["formula"] = self._formula_input.text().strip() or "1"
+        rule["formula"] = formula
         self.save_rules()
         self._update_tree_counts()
         self._refresh_cards()
@@ -1883,6 +1959,8 @@ class RulesetManagerDialog(QDialog):
         try:
             from core import db_gateway as _dbg  # noqa: PLC0415
             _dbg.save_rules(self.rules)
+            # Reload to get fresh IDs from DB after the full replace
+            self.rules = _dbg.get_rules(enabled_only=False)
             # Also keep a JSON backup alongside the DB
             path = get_data_path("rules.json")
             import os as _os
@@ -1891,6 +1969,39 @@ class RulesetManagerDialog(QDialog):
                 json.dump(self.rules, f, indent=2)
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to save rules:\n{exc}")
+
+    # ── Rule toggle (C3) ─────────────────────────────────────────────────────
+
+    def _on_rule_toggle(self, rule_index: int, rule: dict, enabled: bool):
+        """Immediately enable/disable a rule via DB toggle, refresh cards."""
+        rule["enabled"] = 1 if enabled else 0
+        rule_id = rule.get("id")
+        if rule_id:
+            try:
+                from core import db_gateway as _dbg  # noqa: PLC0415
+                _dbg.toggle_rule(rule_id, enabled)
+            except Exception:
+                pass
+        self._refresh_cards()
+
+    # ── Rule validation (C4) ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _validate_rule(cond: str, formula: str, obj_type: str) -> tuple[bool, str]:
+        """Syntax-check condition and formula. Returns (ok, error_message)."""
+        cond_text    = cond.strip() or "True"
+        formula_text = formula.strip() or "1"
+        try:
+            compile(cond_text, "<condition>", "eval")
+        except SyntaxError as e:
+            col = f", col {e.offset}" if e.offset else ""
+            return False, f"Condition syntax error: {e.msg}{col}"
+        try:
+            compile(formula_text, "<formula>", "eval")
+        except SyntaxError as e:
+            col = f", col {e.offset}" if e.offset else ""
+            return False, f"Formula syntax error: {e.msg}{col}"
+        return True, ""
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
