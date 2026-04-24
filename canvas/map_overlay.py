@@ -38,8 +38,9 @@ class MapTileFetcher:
                 pass
         
         if self.pixmap is None:
+            from app_config import APP_VERSION
             req = QNetworkRequest(QUrl(self.url))
-            req.setRawHeader(b"User-Agent", b"Estimator_WBSEDCL/18.4")
+            req.setRawHeader(b"User-Agent", f"Estimator_WBSEDCL/{APP_VERSION}".encode('utf-8'))
             self.reply = manager.get(req)
             self.reply.finished.connect(self._on_download_finished)
 
