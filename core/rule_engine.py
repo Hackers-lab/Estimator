@@ -134,10 +134,7 @@ class DynamicRuleEngine:
     ) -> dict:
         # For existing poles use existing_subtype (e.g. "HT") as the
         # effective pole_type so stay/insulator rules fire correctly.
-        eff_pole_type = (
-            getattr(item, "existing_subtype", item.pole_type)
-            if item.is_existing else item.pole_type
-        )
+        eff_pole_type = item.pole_type
         dyn = dict(getattr(item, "dynamic_props", {}) or {})
         dtr_aug_required_pole = bool(dyn.get("dtr_aug_required", False))
         ctx: dict = {

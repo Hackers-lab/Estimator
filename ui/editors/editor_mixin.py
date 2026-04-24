@@ -1021,6 +1021,7 @@ class EditorMixin:
         # ── Select new item and refresh ───────────────────────────────────
         self.scene.clearSelection()
         new_item.setSelected(True)
+        self._renumber_labels()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)
 
@@ -1100,7 +1101,15 @@ class EditorMixin:
 
     def _update_existing_subtype(self, item, value):
         item.existing_subtype = value
+        
+        # Sync pole_type with the selected subtype's implied voltage
+        if value in ("HT", "DP", "TP", "4P", "DTR"):
+            item.pole_type = "HT"
+        elif value == "LT":
+            item.pole_type = "LT"
+            
         item.update_visuals()
+        self._renumber_labels()
         # Re-evaluate voltage level & conductor defaults on all connected spans
         for span in getattr(item, "connected_spans", []):
             was_lt = span.is_lt_span

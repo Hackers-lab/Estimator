@@ -454,23 +454,27 @@ class PlacementDefaultsDialog(QDialog):
 
         self.lbl_ex_pole = QLineEdit(d.get("label_ex_pole", "EP"))
         self.lbl_ex_pole.setMaxLength(8)
-        frm.addRow("Existing Pole prefix:", self.lbl_ex_pole)
+        frm.addRow("Ex LT Pole prefix:", self.lbl_ex_pole)
 
-        self.lbl_dp = QLineEdit(d.get("label_dp", "DP"))
-        self.lbl_dp.setMaxLength(8)
-        frm.addRow("DP Structure prefix:", self.lbl_dp)
+        self.lbl_ex_ht = QLineEdit(d.get("label_ex_ht", "EHT"))
+        self.lbl_ex_ht.setMaxLength(8)
+        frm.addRow("Ex HT Pole prefix:", self.lbl_ex_ht)
 
-        self.lbl_tp = QLineEdit(d.get("label_tp", "TP"))
-        self.lbl_tp.setMaxLength(8)
-        frm.addRow("TP Structure prefix:", self.lbl_tp)
+        self.lbl_ex_dp = QLineEdit(d.get("label_ex_dp", "EDP"))
+        self.lbl_ex_dp.setMaxLength(8)
+        frm.addRow("Ex DP prefix:", self.lbl_ex_dp)
 
-        self.lbl_4p = QLineEdit(d.get("label_4p", "4P"))
-        self.lbl_4p.setMaxLength(8)
-        frm.addRow("4P Structure prefix:", self.lbl_4p)
+        self.lbl_ex_tp = QLineEdit(d.get("label_ex_tp", "ETP"))
+        self.lbl_ex_tp.setMaxLength(8)
+        frm.addRow("Ex TP prefix:", self.lbl_ex_tp)
 
-        self.lbl_dtr = QLineEdit(d.get("label_dtr", "DTR"))
-        self.lbl_dtr.setMaxLength(8)
-        frm.addRow("DTR Sub-station prefix:", self.lbl_dtr)
+        self.lbl_ex_4p = QLineEdit(d.get("label_ex_4p", "E4P"))
+        self.lbl_ex_4p.setMaxLength(8)
+        frm.addRow("Ex 4P prefix:", self.lbl_ex_4p)
+
+        self.lbl_ex_dtr = QLineEdit(d.get("label_ex_dtr", "EDTR"))
+        self.lbl_ex_dtr.setMaxLength(8)
+        frm.addRow("Ex DTR prefix:", self.lbl_ex_dtr)
 
         self.lbl_consumer = QLineEdit(d.get("label_consumer", "SC"))
         self.lbl_consumer.setMaxLength(8)
@@ -563,10 +567,11 @@ class PlacementDefaultsDialog(QDialog):
             "label_new_lt":   self.lbl_new_lt.text().strip() or "PP",
             "label_new_ht":   self.lbl_new_ht.text().strip() or "HP",
             "label_ex_pole":  self.lbl_ex_pole.text().strip() or "EP",
-            "label_dp":       self.lbl_dp.text().strip() or "DP",
-            "label_tp":       self.lbl_tp.text().strip() or "TP",
-            "label_4p":       self.lbl_4p.text().strip() or "4P",
-            "label_dtr":      self.lbl_dtr.text().strip() or "DTR",
+            "label_ex_ht":    self.lbl_ex_ht.text().strip()   or "EHT",
+            "label_ex_dp":    self.lbl_ex_dp.text().strip()   or "EDP",
+            "label_ex_tp":    self.lbl_ex_tp.text().strip()   or "ETP",
+            "label_ex_4p":    self.lbl_ex_4p.text().strip()   or "E4P",
+            "label_ex_dtr":   self.lbl_ex_dtr.text().strip()  or "EDTR",
             "label_consumer": self.lbl_consumer.text().strip() or "SC",
         }
 
@@ -627,10 +632,11 @@ class PlacementDefaultsDialog(QDialog):
             self.lbl_new_lt.setText(f["label_new_lt"])
             self.lbl_new_ht.setText(f["label_new_ht"])
             self.lbl_ex_pole.setText(f["label_ex_pole"])
-            self.lbl_dp.setText(f["label_dp"])
-            self.lbl_tp.setText(f["label_tp"])
-            self.lbl_4p.setText(f["label_4p"])
-            self.lbl_dtr.setText(f["label_dtr"])
+            self.lbl_ex_ht.setText(f["label_ex_ht"])
+            self.lbl_ex_dp.setText(f["label_ex_dp"])
+            self.lbl_ex_tp.setText(f["label_ex_tp"])
+            self.lbl_ex_4p.setText(f["label_ex_4p"])
+            self.lbl_ex_dtr.setText(f["label_ex_dtr"])
             self.lbl_consumer.setText(f["label_consumer"])
 
     def _reset(self) -> None:

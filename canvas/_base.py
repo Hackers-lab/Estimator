@@ -241,27 +241,30 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
     _LABEL_MARGIN_Y: int = 8
 
     # ── Sequential label counters (per category) ──────────────────────────
-    _ex_seq: int = 0   # existing poles
     _lt_seq: int = 0   # new LT poles
     _ht_seq: int = 0   # new HT poles
+    
+    # Existing pole counters (partitioned by subtype)
+    _ex_type_seq: dict = {"LT": 0, "HT": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
 
     @classmethod
-    def _next_seq(cls, category: str) -> int:
-        if category == "ex":
-            cls._ex_seq += 1
-            return cls._ex_seq
-        elif category == "lt":
+    def _next_seq(cls, category: str, subtype: str = "LT") -> int:
+        if category == "lt":
             cls._lt_seq += 1
             return cls._lt_seq
-        else:
+        elif category == "ht":
             cls._ht_seq += 1
             return cls._ht_seq
+        else: # ex
+            cur = cls._ex_type_seq.get(subtype, 0) + 1
+            cls._ex_type_seq[subtype] = cur
+            return cur
 
     @classmethod
     def reset_counters(cls) -> None:
-        cls._ex_seq = 0
         cls._lt_seq = 0
         cls._ht_seq = 0
+        cls._ex_type_seq = {"LT": 0, "HT": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
 
     def __init__(
         self, x: float, y: float, refresh_signal: Any,
@@ -286,7 +289,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
         # Assign unique sequential label number for this pole category
         if is_existing:
-            self.seq_id = SmartPole._next_seq("ex")
+            self.seq_id = SmartPole._next_seq("ex", self.existing_subtype)
         elif pole_type == "LT":
             self.seq_id = SmartPole._next_seq("lt")
         else:
@@ -544,8 +547,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             _pfx_d = defaults.current
             if self.is_existing:
                 _sub = self.existing_subtype
-                _lbl = _pfx_d.get("label_ex_pole", "EP")
+                # e.g. label_ex_pole (for LT), label_ex_ht, label_ex_dp, etc.
+                _lbl_key = "label_ex_pole" if _sub == "LT" else f"label_ex_{_sub.lower()}"
+                _lbl = _pfx_d.get(_lbl_key, _pfx_d.get("label_ex_pole", "EP"))
                 txt = f"{_lbl}{self.seq_id}"
+                
                 if _sub == "DTR":
                     ex_kva = getattr(self, "existing_dtr_size", "None")
                     txt += f"\n{ex_kva}"

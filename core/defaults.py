@@ -117,11 +117,12 @@ _FACTORY: dict = {
     # Canvas label prefixes (prefix + sequential number shown on canvas objects)
     "label_new_lt":   "PP",    # New LT pole     e.g. PP1, PP2
     "label_new_ht":   "HP",    # New HT pole     e.g. HP1, HP2
-    "label_ex_pole":  "EP",    # Existing pole   e.g. EP1, EP2
-    "label_dp":       "DP",    # DP structure    e.g. DP1, DP2
-    "label_tp":       "TP",    # TP structure    e.g. TP1, TP2
-    "label_4p":       "4P",    # 4P structure    e.g. 4P1, 4P2
-    "label_dtr":      "DTR",   # DTR sub-station e.g. DTR1, DTR2
+    "label_ex_pole":  "EP",    # Existing LT pole     e.g. EP1, EP2
+    "label_ex_ht":    "EHT",   # Existing HT pole     e.g. EHT1, EHT2
+    "label_ex_dp":    "EDP",   # Existing DP          e.g. EDP1, EDP2
+    "label_ex_tp":    "ETP",   # Existing TP          e.g. ETP1, ETP2
+    "label_ex_4p":    "E4P",   # Existing 4P          e.g. E4P1, E4P2
+    "label_ex_dtr":   "EDTR",  # Existing DTR         e.g. EDTR1, EDTR2
     "label_consumer": "SC",    # Consumer        e.g. SC1,  SC2
 }
 

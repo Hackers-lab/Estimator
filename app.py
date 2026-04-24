@@ -1251,17 +1251,14 @@ class EstimateApp(QMainWindow, EditorMixin):
             elif self.span_start_pole != item_at:
                 # Warn on HT↔LT cross-connection
                 p1, p2 = self.span_start_pole, item_at
-                if (isinstance(p1, SmartPole) and isinstance(p2, SmartPole)):
-                    eff1 = p1.existing_subtype if p1.is_existing else p1.pole_type
-                    eff2 = p2.existing_subtype if p2.is_existing else p2.pole_type
-                    if (eff1 == "HT") != (eff2 == "HT"):
-                        ans = QMessageBox.question(
-                            self, "Warning",
-                            "Connect HT pole to LT pole?",
-                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                        )
-                        if ans == QMessageBox.StandardButton.No:
-                            return
+                if self._is_ht_node(p1) != self._is_ht_node(p2):
+                    ans = QMessageBox.question(
+                        self, "Warning",
+                        "Connect HT pole to LT pole?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    if ans == QMessageBox.StandardButton.No:
+                        return
 
                 ok, reason = self._validate_span_creation(p1, p2)
                 if not ok:
@@ -1308,14 +1305,13 @@ class EstimateApp(QMainWindow, EditorMixin):
         """
         Returns True if a node is effectively HT.
         SmartStructure is always HT.
-        SmartPole: check existing_subtype (DP/TP/4P/DTR/HT) or pole_type.
+        SmartPole: uses its voltage type (pole_type).
         SmartConsumer: always LT.
         """
         if isinstance(node, SmartStructure):
             return True
         if isinstance(node, SmartPole):
-            eff = node.existing_subtype if node.is_existing else node.pole_type
-            return eff in EstimateApp._HT_SUBTYPES
+            return node.pole_type == "HT"
         return False  # SmartConsumer = LT
 
     @staticmethod
@@ -2414,13 +2410,9 @@ class EstimateApp(QMainWindow, EditorMixin):
     def _renumber_labels(self) -> None:
         """
         After a node is deleted, compact the sequential label numbers for every
-        category so there are no gaps (e.g. EP1, EP3, EP5 → EP1, EP2, EP3).
-        Objects within each category are sorted by their current seq_id so
-        the relative order is preserved.
+        category so there are no gaps.
         """
-        # Gather per-category lists (sorted by current seq_id to keep order)
         buckets: dict = {
-            "ex":  [],   # existing poles
             "lt":  [],   # new LT poles
             "ht":  [],   # new HT poles
             "DP":  [],
@@ -2429,11 +2421,14 @@ class EstimateApp(QMainWindow, EditorMixin):
             "DTR": [],
             "con": [],   # consumers
         }
+        # Dynamic ex buckets
+        ex_buckets: dict = {}
 
         for item in self.scene.items():
             if isinstance(item, SmartPole):
                 if item.is_existing:
-                    buckets["ex"].append(item)
+                    sub = item.existing_subtype
+                    ex_buckets.setdefault(sub, []).append(item)
                 elif item.pole_type == "LT":
                     buckets["lt"].append(item)
                 else:
@@ -2453,10 +2448,18 @@ class EstimateApp(QMainWindow, EditorMixin):
                     obj.seq_id = new_id
                     obj.update_visuals()
 
+        # Compact existing poles separately by subtype
+        for sub, group in ex_buckets.items():
+            group.sort(key=lambda o: getattr(o, "seq_id", 0))
+            for new_id, obj in enumerate(group, start=1):
+                if getattr(obj, "seq_id", 0) != new_id:
+                    obj.seq_id = new_id
+                    obj.update_visuals()
+
         # Update class-level counters to match new maximums
-        SmartPole._ex_seq = len(buckets["ex"])
         SmartPole._lt_seq = len(buckets["lt"])
         SmartPole._ht_seq = len(buckets["ht"])
+        SmartPole._ex_type_seq = {s: len(g) for s, g in ex_buckets.items()}
         SmartStructure._type_seq = {
             "DP":  len(buckets["DP"]),
             "TP":  len(buckets["TP"]),
