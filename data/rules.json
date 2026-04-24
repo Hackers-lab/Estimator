@@ -422,7 +422,7 @@
   {
     "id": 4930,
     "object": "SmartPole",
-    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
+    "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0",
     "formula": "int(lt_wire_count)",
     "type": "Material",
     "item_code": "597011741",
@@ -922,8 +922,8 @@
   {
     "id": 4980,
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size in ('None','10KVA','16KVA','25KVA','63KVA')",
-    "formula": "14.5 * CH_75X40 / 1000",
+    "condition": "structure_type == 'DTR'",
+    "formula": "9.5 * CH_75X40 / 1000",
     "type": "Material",
     "item_code": "0102010611",
     "item_name": "M.S Channel 75X40 mm",
@@ -932,8 +932,8 @@
   {
     "id": 4981,
     "object": "SmartStructure",
-    "condition": "structure_type == 'DTR' and dtr_size in ('100KVA','160KVA')",
-    "formula": "14.5 * CH_100X50 / 1000",
+    "condition": "structure_type == 'DTR'",
+    "formula": "5.0 * CH_100X50 / 1000",
     "type": "Material",
     "item_code": "0102010911",
     "item_name": "M.S Channel 100X50 mm",
@@ -963,10 +963,10 @@
     "id": 4984,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR'",
-    "formula": "5.0 * ANG_50X50X6 / 1000",
+    "formula": "5.0 * ANG_65X65X6 / 1000",
     "type": "Material",
-    "item_code": "0101011011",
-    "item_name": "M.S Angle 50X50X6mm",
+    "item_code": "0101011311",
+    "item_name": "M.S Angle 65X65X6mm",
     "enabled": 1
   },
   {
