@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle
+    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider
 )
 from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
@@ -42,6 +42,7 @@ from core.database import setup_database, DB_PATH
 from core.rule_engine import DynamicRuleEngine
 from ui.components import InteractiveView, DraggableLabel
 from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
+from canvas.map_overlay import GPSBackgroundItem
 from ui.dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
     RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
@@ -388,25 +389,31 @@ class EstimateApp(QMainWindow, EditorMixin):
         sep3.setStyleSheet("color:#ccc; font-size:14px;")
         bottom_bar.addWidget(sep3)
 
-        # PDF title toggle
-        self.pdf_title_chk = QCheckBox("Project Name")
-        self.pdf_title_chk.setChecked(True)
-        self.pdf_title_chk.setToolTip("Show project name in PDF drawing title strip")
-        self.pdf_title_chk.setStyleSheet(
-            "font-size:11px; color:#555; spacing:4px;"
-        )
-        self.pdf_title_chk.toggled.connect(self._toggle_pdf_project_name)
-        bottom_bar.addWidget(self.pdf_title_chk)
+        # GPS Background toggle
+        self.gps_bg_chk = QCheckBox("GPS BG")
+        self.gps_bg_chk.setChecked(False)
+        self.gps_bg_chk.setToolTip("Show OpenStreetMap background for the project lat/long")
+        self.gps_bg_chk.setStyleSheet("font-size:11px; font-weight:bold; color:#d35400; spacing:4px;")
+        self.gps_bg_chk.toggled.connect(self._toggle_gps_bg)
+        bottom_bar.addWidget(self.gps_bg_chk)
 
-        # PDF legend toggle
-        self.pdf_legend_chk = QCheckBox("Legend")
-        self.pdf_legend_chk.setChecked(True)
-        self.pdf_legend_chk.setToolTip("Show legend on the last PDF drawing page")
-        self.pdf_legend_chk.setStyleSheet(
-            "font-size:11px; color:#555; spacing:4px;"
-        )
-        self.pdf_legend_chk.toggled.connect(self._toggle_pdf_legend)
-        bottom_bar.addWidget(self.pdf_legend_chk)
+        self.gps_zoom_cb = QComboBox()
+        self.gps_zoom_cb.addItems(["Zoom 17", "Zoom 18", "Zoom 19", "Zoom 20", "Zoom 21"])
+        self.gps_zoom_cb.setCurrentText("Zoom 19")
+        self.gps_zoom_cb.setEnabled(False)
+        self.gps_zoom_cb.currentTextChanged.connect(self._change_gps_zoom)
+        self.gps_zoom_cb.setStyleSheet("font-size:11px; font-weight:bold; color:#1a5276;")
+        self.gps_zoom_cb.setToolTip("Map Resolution Level")
+        bottom_bar.addWidget(self.gps_zoom_cb)
+
+        self.gps_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.gps_opacity_slider.setRange(10, 100)
+        self.gps_opacity_slider.setValue(50)
+        self.gps_opacity_slider.setFixedWidth(80)
+        self.gps_opacity_slider.setToolTip("Background Opacity")
+        self.gps_opacity_slider.setEnabled(False)
+        self.gps_opacity_slider.valueChanged.connect(self._change_gps_opacity)
+        bottom_bar.addWidget(self.gps_opacity_slider)
 
         bottom_bar.addStretch()
         left_layout.addLayout(bottom_bar)
@@ -819,12 +826,72 @@ class EstimateApp(QMainWindow, EditorMixin):
         vp = self.view.viewport()
         assert vp is not None
         vp.update()
+    def _toggle_gps_bg(self, checked):
+        if checked:
+            import urllib.request
+            try:
+                req = urllib.request.Request("https://mt1.google.com/vt/lyrs=m&z=0&x=0&y=0", headers={'User-Agent': 'Mozilla'})
+                urllib.request.urlopen(req, timeout=3)
+            except Exception:
+                QMessageBox.critical(self, "No Internet", "Internet connection is required to load GPS maps.")
+                self.gps_bg_chk.blockSignals(True)
+                self.gps_bg_chk.setChecked(False)
+                self.gps_bg_chk.blockSignals(False)
+                self.gps_opacity_slider.setEnabled(False)
+                if hasattr(self, "gps_zoom_cb"):
+                    self.gps_zoom_cb.setEnabled(False)
+                return
 
-    def _toggle_pdf_project_name(self, checked):
-        self.pdf_show_project_name = checked
+        self.gps_opacity_slider.setEnabled(checked)
+        if hasattr(self, "gps_zoom_cb"):
+            self.gps_zoom_cb.setEnabled(checked)
+        
+        if checked:
+            lat = self.project_meta.get("lat")
+            lon = self.project_meta.get("long")
+            if not lat or not lon:
+                QMessageBox.warning(self, "No GPS Data", "Please enter project Latitude and Longitude in Project Settings to use GPS Background.")
+                self.gps_bg_chk.setChecked(False)
+                return
+            try:
+                lat_f = float(lat)
+                lon_f = float(lon)
+            except ValueError:
+                QMessageBox.warning(self, "Invalid GPS Data", "Latitude and Longitude must be valid numbers.")
+                self.gps_bg_chk.setChecked(False)
+                return
+            
+            try:
+                zoom = int(self.gps_zoom_cb.currentText().split()[1])
+            except:
+                zoom = 19
 
-    def _toggle_pdf_legend(self, checked):
-        self.pdf_show_legend = checked
+            self.gps_bg_item = GPSBackgroundItem(lat_f, lon_f, zoom=zoom)
+            self.gps_bg_item.setOpacity(self.gps_opacity_slider.value() / 100.0)
+            self.scene.addItem(self.gps_bg_item)
+            
+            # Update background clipping securely by forcing grid reload
+            self._refresh_page_grid()
+        else:
+            if getattr(self, "gps_bg_item", None):
+                try:
+                    if self.gps_bg_item.scene() == self.scene:
+                        self.scene.removeItem(self.gps_bg_item)
+                except RuntimeError:
+                    pass
+                self.gps_bg_item = None
+
+    def _change_gps_zoom(self, text):
+        if self.gps_bg_chk.isChecked():
+            self._toggle_gps_bg(False)
+            self._toggle_gps_bg(True)
+
+    def _change_gps_opacity(self, val):
+        if getattr(self, "gps_bg_item", None):
+            try:
+                self.gps_bg_item.setOpacity(val / 100.0)
+            except RuntimeError:
+                pass
 
     def _on_scale_changed(self, text):
         """Called when user picks a new print scale from the dropdown."""
@@ -1012,13 +1079,23 @@ class EstimateApp(QMainWindow, EditorMixin):
             self.view.continuation_marks = {}
             margin = max(pw, ph)
             self.scene.setSceneRect(blank_rect.adjusted(-margin, -margin, margin, margin))
+            
+            if getattr(self, "gps_bg_item", None):
+                try:
+                    self.gps_bg_item.set_clip_rect(blank_rect)
+                except RuntimeError:
+                    pass
+
             vp = self.view.viewport()
             assert vp is not None
             vp.update()
             return
 
         PAD = 50  # Increased padding for better object spacing
-        bounds = self.scene.itemsBoundingRect().adjusted(-PAD, -PAD, PAD, PAD)
+        bounds = items[0].sceneBoundingRect()
+        for i in items[1:]:
+            bounds = bounds.united(i.sceneBoundingRect())
+        bounds = bounds.adjusted(-PAD, -PAD, PAD, PAD)
 
         if self.pdf_orientation_mode == "Landscape (All)":
             base_orient = "L"
@@ -1067,6 +1144,13 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.view.continuation_marks = {}
                 margin = max(pw_L, ph_L)
                 self.scene.setSceneRect(single_rect.adjusted(-margin, -margin, margin, margin))
+                
+                if getattr(self, "gps_bg_item", None):
+                    try:
+                        self.gps_bg_item.set_clip_rect(single_rect)
+                    except RuntimeError:
+                        pass
+
                 vp = self.view.viewport()
                 assert vp is not None
                 vp.update()
@@ -1145,6 +1229,12 @@ class EstimateApp(QMainWindow, EditorMixin):
             for t in final_tiles[1:]:
                 full_rect = full_rect.united(t["rect"])
             
+            if getattr(self, "gps_bg_item", None):
+                try:
+                    self.gps_bg_item.set_clip_rect(full_rect)
+                except RuntimeError:
+                    pass
+
             w_land, h_land = self._a4_scene_dims_oriented(self.pdf_scale, "L")
             w_port, h_port = self._a4_scene_dims_oriented(self.pdf_scale, "P")
             margin = max(w_land, h_land, w_port, h_port)

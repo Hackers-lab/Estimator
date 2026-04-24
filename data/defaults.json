@@ -66,9 +66,13 @@
   "label_new_lt": "PP",
   "label_new_ht": "HP",
   "label_ex_pole": "EP",
-  "label_dp": "DP",
-  "label_tp": "TP",
-  "label_4p": "4P",
-  "label_dtr": "DTR",
-  "label_consumer": "SC"
+  "label_ex_ht": "EHT",
+  "label_ex_dp": "EDP",
+  "label_ex_tp": "ETP",
+  "label_ex_4p": "E4P",
+  "label_ex_dtr": "EDTR",
+  "label_consumer": "SC",
+  "canvas_conductor_ug_cable_ht": "#888888",
+  "canvas_lt_pole_10mtr": "#2980b9",
+  "canvas_ht_pole_10mtr": "#c0392b"
 }
