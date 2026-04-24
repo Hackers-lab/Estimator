@@ -268,6 +268,13 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_about.triggered.connect(self.show_about_dialog)
         help_menu.addAction(act_about)
 
+        help_menu.addSeparator()
+
+        exp_str = f"Valid Till: {APP_EXPIRY}" if APP_EXPIRY else "Permanent Build"
+        act_valid = QAction(f"⏳  {exp_str}", self)
+        act_valid.setEnabled(False)
+        help_menu.addAction(act_valid)
+
     # =========================================================================
     #  UI CONSTRUCTION
     # =========================================================================

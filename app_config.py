@@ -46,4 +46,4 @@ APP_VERSION = "7.4"
 APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.
-APP_EXPIRY = "2026-04-30"
+APP_EXPIRY = "2026-05-15"
