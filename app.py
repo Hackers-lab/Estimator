@@ -560,7 +560,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         """Show a small popup menu to pick symbol shape, then activate ADD_SYMBOL tool."""
         menu = QMenu(self)
         shapes = [("⬤ Circle", "circle"), ("■ Square", "square"),
-                  ("➤ Arrow", "arrow"),   ("― Line",   "line")]
+                  ("➤ Arrow", "arrow"),   ("― Line",  "line"),
+                  ("╌ Dashed Line", "dashed_line")]
         for label, shape in shapes:
             act = QAction(label, self)
             act.triggered.connect(lambda checked, s=shape: self._activate_symbol_tool(s))
@@ -1280,8 +1281,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             sym = CanvasSymbol(shape, pos.x() - 20, pos.y() - 20)
             self.scene.addItem(sym)
             self.scene.clearSelection()
-            sym.setSelected(True)
             self.set_tool("SELECT")
+            self.refresh_live_estimate()   # triggers history/autosave timer
 
         # ── Text box placement ────────────────────────────────────────────
         elif self.current_tool == "ADD_TEXTBOX":
@@ -1292,6 +1293,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.scene.clearSelection()
                 tb.setSelected(True)
                 self.set_tool("SELECT")
+                self.refresh_live_estimate()   # triggers history/autosave timer
 
     # =========================================================================
     #  AUTO-CONNECT SPAN HELPER
@@ -2619,7 +2621,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                     with open(self.autosave_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     # Only load if there is actual canvas content
-                    if data.get("nodes") or data.get("spans"):
+                    if data.get("nodes") or data.get("spans") or data.get("annotations"):
                         self.parse_load_data(data)
                         loaded_any = True
             except (json.JSONDecodeError, KeyError):
