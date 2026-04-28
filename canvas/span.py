@@ -112,6 +112,45 @@ class SmartSpan(QGraphicsPathItem):
         self.update_position()
         self.update_visuals()
 
+    def to_dict(self) -> dict:
+        """Serialize span properties to a dictionary."""
+        return {
+            "length": self.length,
+            "conductor": self.conductor,
+            "conductor_size": self.conductor_size,
+            "wire_count": self.wire_count,
+            "aug_type": self.aug_type,
+            "has_cg": self.has_cg,
+            "is_service_drop": self.is_service_drop,
+            "consider_cable": getattr(self, "consider_cable", False),
+            "phase": self.phase,
+            "custom_note": self.custom_note,
+            "dynamic_props": self.dynamic_props,
+            "label_x": self.label.pos().x(),
+            "label_y": self.label.pos().y(),
+            "label_text": self.label.toPlainText(),
+        }
+
+    def apply_state(self, state: dict) -> None:
+        """Apply serialized state back to the span."""
+        self.length = state.get("length", 40)
+        self.conductor = state.get("conductor", "ACSR")
+        # Handle v4 compat conductor_size
+        self.conductor_size = state.get(
+            "conductor_size",
+            state.get("wire_size", state.get("cable_size", "50SQMM"))
+        )
+        self.wire_count = state.get("wire_count", "3")
+        self.aug_type = state.get("aug_type", "New")
+        self.has_cg = state.get("has_cg", False)
+        self.is_service_drop = state.get("is_service_drop", False)
+        self.consider_cable = state.get("consider_cable", False)
+        self.phase = state.get("phase", "3 Phase")
+        self.custom_note = state.get("custom_note", "")
+        self.dynamic_props = dict(state.get("dynamic_props", {}))
+        self.label.setPos(state.get("label_x", 0), state.get("label_y", 0))
+        self.label.setPlainText(state.get("label_text", ""))
+
     # ── Voltage detection ─────────────────────────────────────────────────────
 
     def _detect_lt(self) -> bool:

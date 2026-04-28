@@ -207,6 +207,26 @@ class _NodeMixin(_NodeBase):
         self.custom_note     = ""
         self.dynamic_props   = {}
 
+    def to_dict(self) -> dict:
+        """Serialize common node properties to a dictionary."""
+        return {
+            "x": self.x(),
+            "y": self.y(),
+            "label_x": self.label.pos().x(),
+            "label_y": self.label.pos().y(),
+            "label_text": self.label.toPlainText(),
+            "custom_note": self.custom_note,
+            "dynamic_props": self.dynamic_props,
+        }
+
+    def apply_state(self, state: dict) -> None:
+        """Apply serialized state back to the node."""
+        self.setPos(state["x"], state["y"])
+        self.label.setPos(state["label_x"], state["label_y"])
+        self.label.setPlainText(state["label_text"])
+        self.custom_note = state.get("custom_note", "")
+        self.dynamic_props = dict(state.get("dynamic_props", {}))
+
     def _on_position_changed(self) -> None:
         for span in self.connected_spans:
             span.update_position()
@@ -317,6 +337,46 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.label = DraggableLabel(self)
 
         self.update_visuals()
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update({
+            "type": "Pole",
+            "seq_id": self.seq_id,
+            "pole_type": self.pole_type,
+            "pole_type2": self.pole_type2,
+            "is_existing": self.is_existing,
+            "existing_subtype": self.existing_subtype,
+            "existing_dtr_size": getattr(self, "existing_dtr_size", "None"),
+            "height": self.height,
+            "has_extension": self.has_extension,
+            "extension_height": self.extension_height,
+            "earth_count": self.earth_count,
+            "stay_count": self.stay_count,
+            "override_auto_stay": self.override_auto_stay,
+            "stay_angle_override": self.stay_angle_override,
+            "earth_angle_override": self.earth_angle_override,
+            "dist_box_required": self.dist_box_required,
+        })
+        return d
+
+    def apply_state(self, state: dict) -> None:
+        super().apply_state(state)
+        self.pole_type = state.get("pole_type", "LT")
+        self.pole_type2 = state.get("pole_type2", "PCC")
+        self.is_existing = state.get("is_existing", False)
+        self.existing_subtype = state.get("existing_subtype", self.pole_type)
+        self.existing_dtr_size = state.get("existing_dtr_size", "None")
+        self.height = state.get("height", "8MTR")
+        self.has_extension = state.get("has_extension", False)
+        self.extension_height = state.get("extension_height", 3.0)
+        self.earth_count = state.get("earth_count", 0)
+        self.stay_count = state.get("stay_count", 0)
+        self.override_auto_stay = state.get("override_auto_stay", False)
+        self.stay_angle_override = state.get("stay_angle_override", None)
+        self.earth_angle_override = state.get("earth_angle_override", None)
+        self.dist_box_required = state.get("dist_box_required", False)
+        self.seq_id = state.get("seq_id", self.seq_id)
 
     # ── Stay / Earth angle calculation ────────────────────────────────────────
 

@@ -17,6 +17,9 @@ canvas_objects.py — HEIGHT_OPTIONS, CONDUCTOR_SIZES (optional reference)
 # ─────────────────────────────────────────────────────────────────────────────
 #  DRAWING TOOLS  (toolbar button order matters)
 # ─────────────────────────────────────────────────────────────────────────────
+A4_W_MM = 297.0
+A4_H_MM = 210.0
+
 TOOLS = {
     "SELECT":        "🖱 Select",
     "ADD_LT":        "🔵 LT Pole",
@@ -292,4 +295,15 @@ IRON_UNIT_WEIGHTS = {
     "MS Angle 65x65x6":  6.50,
     "MS Angle 50x50x6":  5.00,
     "MS Flat 65x6":      3.50,
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  QUANTITY ESTIMATION CONSTANTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Items that are sensitive to line length and require sag/wastage factors
+# (usually 3% to 5% extra).
+SAG_ITEMS = {
+    "ACSR", "AB Cable", "GI WIRE", "PVC CABLE", 
+    "AAAC", "STAY WIRE", "CRADLE GUARD", "EARTH WIRE"
 }

@@ -16,8 +16,7 @@ import math
 import json
 import os
 import sqlite3
-import datetime
-from datetime import datetime, date as _date
+from datetime import datetime, date
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -29,19 +28,28 @@ from PyQt6.QtWidgets import (
     QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider
 )
 from PyQt6.QtGui import (
-    QPen, QBrush, QColor, QPainter, QPageLayout, QPageSize, QFont,
+    QPen, QBrush, QColor, QPainter, QFont,
     QAction, QKeySequence, QIcon, QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QMarginsF, QEvent, QLineF, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QEvent, QSize, pyqtSignal
 
-from core.constants import TOOLS, PROJECT_TYPES, SUPERVISION_RATES
+from core.constants import (
+    TOOLS, PROJECT_TYPES, SUPERVISION_RATES, 
+    HEIGHT_OPTIONS, CONDUCTOR_SIZES, SERVICE_CABLE_SIZES,
+    SAG_ITEMS
+)
 from core import defaults
-from core import property_catalog
-from app_config import APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY, get_data_path
+from core.expiry import check_expiry
+from app_config import (
+    APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY, get_data_path
+)
 from core.database import setup_database, DB_PATH
 from core.rule_engine import DynamicRuleEngine
 from ui.components import InteractiveView, DraggableLabel
-from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
+from canvas import (
+    SmartPole, SmartStructure, SmartSpan, SmartConsumer, 
+    CanvasSymbol, CanvasTextBox, GridManager
+)
 from canvas.map_overlay import GPSBackgroundItem
 from ui.dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
@@ -119,6 +127,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._history_timer = QTimer(self)
         self._history_timer.setSingleShot(True)
         self._history_timer.timeout.connect(self.push_history)
+
+        self.grid_manager = GridManager(self)
 
         # ── Build UI ───────────────────────────────────────────────────────
         self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
@@ -985,273 +995,23 @@ class EstimateApp(QMainWindow, EditorMixin):
     #  PAGE GRID COMPUTATION
     # =========================================================================
 
-    # Physical A4 dimensions in millimetres
-    _A4_W_MM = 297.0   # landscape width
-    _A4_H_MM = 210.0   # landscape height
-    # Calibration: 40m real span ≈ 700 scene units → 17.5 units per metre
-    _SCENE_UNITS_PER_M = 17.5
 
-    def _a4_scene_dims(self, scale):
-        """
-        Return (page_w_scene, page_h_scene) — size of an A4 landscape sheet
-        in scene units at the given 1:scale ratio.
-        """
-        m_per_mm = scale / 1000.0          # 1mm paper → this many real metres
-        w = self._A4_W_MM * m_per_mm * self._SCENE_UNITS_PER_M
-        h = self._A4_H_MM * m_per_mm * self._SCENE_UNITS_PER_M
-        return w, h
 
-    def _a4_scene_dims_oriented(self, scale, orient: str):
-        w_l, h_l = self._a4_scene_dims(scale)
-        if orient == "P":
-            return h_l, w_l
-        return w_l, h_l
 
-    def _auto_tile_orientation(self, union_rect: QRectF, pad: float = 10.0) -> str:
-        """Pick L/P by comparing best fit scale of content in both orientations."""
-        if union_rect.isNull() or union_rect.isEmpty():
-            return "L"
 
-        content_w = max(1.0, union_rect.width())
-        content_h = max(1.0, union_rect.height())
 
-        pw_l, ph_l = self._a4_scene_dims_oriented(self.pdf_scale, "L")
-        pw_p, ph_p = self._a4_scene_dims_oriented(self.pdf_scale, "P")
 
-        s_l = min((pw_l - 2 * pad) / content_w, (ph_l - 2 * pad) / content_h)
-        s_p = min((pw_p - 2 * pad) / content_w, (ph_p - 2 * pad) / content_h)
-
-        if s_p > s_l * self.pdf_auto_gain_threshold:
-            return "P"
-        return "L"
-
-    def _auto_global_orientation(self, bounds: QRectF) -> str:
-        """Pick one stable orientation for the whole drawing bounds."""
-        return self._auto_tile_orientation(bounds)
-
-    def _resolve_orientation(self, auto_orient: str, page_num: int) -> tuple[str, bool]:
-        mode = self.pdf_orientation_mode
-        if mode == "Landscape (All)":
-            return "L", False
-        if mode == "Portrait (All)":
-            return "P", False
-        if mode == "Auto + Overrides":
-            ov = self.pdf_page_overrides.get(page_num)
-            if ov in ("L", "P"):
-                return ov, True
-            return auto_orient, False
-        return auto_orient, False
-
-    def _build_continuation_marks_for_tiles(self, tiles, inset_scene: float = 20.0):
-        """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
-        from exporters.pdf import PDFExporter
-        return PDFExporter(self)._build_continuation_marks_for_tiles(tiles, inset_scene)
-
-    def _position_split_span_labels(self, continuation_marks):
-        """Delegate to PDFExporter — keeps _refresh_page_grid call-sites unchanged."""
-        from exporters.pdf import PDFExporter
-        PDFExporter(self)._position_split_span_labels(continuation_marks)
 
     def _refresh_page_grid(self):
-        """
-        Recompute the A4 page tiles in scene coordinates and push them
-        to the InteractiveView for background rendering.
-        This uses a Sparse Grid algorithm -- only pages containing items are generated.
-        Tile positions are computed on a fixed landscape grid for stable row/col order,
-        while each tile is tagged L/P individually based on local drawing geometry.
-        Called after any placement, deletion, scale change, or load.
-        """
-        items = [
-            i for i in self.scene.items()
-            if isinstance(i, (SmartPole, SmartStructure, SmartConsumer, SmartSpan))
-        ]
-        if not items:
-            if self.pdf_orientation_mode == "Portrait (All)":
-                blank_orient = "P"
-            else:
-                blank_orient = "L"
-            pw, ph = self._a4_scene_dims_oriented(self.pdf_scale, blank_orient)
-            blank_rect = QRectF(-pw / 2.0, -ph / 2.0, pw, ph)
-            self.view.grid_tiles = [{
-                "rect": blank_rect,
-                "orient": blank_orient,
-                "auto_orient": blank_orient,
-                "is_override": False,
-                "items_count": 0,
-                "row": 0,
-                "col": 0,
-                "page_num": 1,
-                "total": 1,
-            }]
-            self.view.continuation_marks = {}
-            margin = max(pw, ph)
-            self.scene.setSceneRect(blank_rect.adjusted(-margin, -margin, margin, margin))
-            
-            if getattr(self, "gps_bg_item", None):
-                try:
-                    self.gps_bg_item.set_clip_rect(blank_rect)
-                except RuntimeError:
-                    pass
+        """Recompute the A4 page tiles using GridManager."""
+        if hasattr(self, "grid_manager"):
+            self.grid_manager.refresh()
 
-            vp = self.view.viewport()
-            assert vp is not None
-            vp.update()
-            return
 
-        PAD = 50  # Increased padding for better object spacing
-        bounds = items[0].sceneBoundingRect()
-        for i in items[1:]:
-            bounds = bounds.united(i.sceneBoundingRect())
-        bounds = bounds.adjusted(-PAD, -PAD, PAD, PAD)
 
-        if self.pdf_orientation_mode == "Landscape (All)":
-            base_orient = "L"
-        elif self.pdf_orientation_mode == "Portrait (All)":
-            base_orient = "P"
-        else:
-            # Use global auto orientation for stable non-overlapping page grid.
-            base_orient = self._auto_global_orientation(bounds)
-        pw_L, ph_L = self._a4_scene_dims_oriented(self.pdf_scale, base_orient)
 
-        # Edge margin: Minimum space between objects and page boundary (scene units)
-        # This ensures objects don't appear at the very edge of the page
-        EDGE_MARGIN = 30
-        
-        # Keep page 1 centered while the drawing still fits on a single page with safety margins.
-        # Only switch to top-left packed tiling when overflow requires more pages.
-        # Check if bounds fit within the page with additional edge protection
-        if (bounds.width() <= pw_L - 2 * EDGE_MARGIN and 
-            bounds.height() <= ph_L - 2 * EDGE_MARGIN):
-            single_rect = QRectF(-pw_L / 2.0, -ph_L / 2.0, pw_L, ph_L)
-            
-            # Ensure the centered page actually contains all items with margin
-            centered_bounds_check = bounds.adjusted(0, 0, 0, 0)  # Use bounds as-is
-            page_left = single_rect.left()
-            page_right = single_rect.right()
-            page_top = single_rect.top()
-            page_bottom = single_rect.bottom()
-            
-            # Verify bounds fit within centered page with margins
-            if (centered_bounds_check.left() >= page_left + EDGE_MARGIN and
-                centered_bounds_check.right() <= page_right - EDGE_MARGIN and
-                centered_bounds_check.top() >= page_top + EDGE_MARGIN and
-                centered_bounds_check.bottom() <= page_bottom - EDGE_MARGIN):
-                
-                self.view.grid_tiles = [{
-                    "rect": single_rect,
-                    "auto_orient": base_orient,
-                    "orient": base_orient,
-                    "is_override": False,
-                    "items_count": len(items),
-                    "row": 0,
-                    "col": 0,
-                    "page_num": 1,
-                    "total": 1,
-                }]
-                self.view.continuation_marks = {}
-                margin = max(pw_L, ph_L)
-                self.scene.setSceneRect(single_rect.adjusted(-margin, -margin, margin, margin))
-                
-                if getattr(self, "gps_bg_item", None):
-                    try:
-                        self.gps_bg_item.set_clip_rect(single_rect)
-                    except RuntimeError:
-                        pass
 
-                vp = self.view.viewport()
-                assert vp is not None
-                vp.update()
-                return
 
-        # A tile is occupied when any drawable item's geometry touches it.
-        def items_in(rect):
-            return [i for i in items if rect.intersects(i.sceneBoundingRect())]
-
-        # Pack pages from the drawing bounds origin so page-1 starts where
-        # content starts, instead of snapping to world-origin multiples.
-        eps = 1e-6
-        cols = max(1, int(math.ceil(max(0.0, bounds.width() - eps) / pw_L)))
-        rows = max(1, int(math.ceil(max(0.0, bounds.height() - eps) / ph_L)))
-        base_left = bounds.left()
-        base_top = bounds.top()
-
-        occupied_tiles = []
-        # Generate occupied tiles strictly top-to-bottom, left-to-right
-        for r in range(rows):
-            for c in range(cols):
-                rect = QRectF(base_left + c * pw_L, base_top + r * ph_L, pw_L, ph_L)
-                ins = items_in(rect)
-                if not ins:
-                    continue
-
-                # Local orientation based on item spread inside this tile.
-                local_union = None
-                for item in ins:
-                    inter = rect.intersected(item.sceneBoundingRect())
-                    if inter.isNull() or inter.isEmpty():
-                        continue
-                    local_union = inter if local_union is None else local_union.united(inter)
-
-                occupied_tiles.append({
-                    "rect": rect,
-                    "auto_orient": base_orient,
-                    "items_count": len(ins),
-                    "row": r,
-                    "col": c,
-                })
-
-        # Number occupied tiles sequentially 1..N with no gaps.
-        total = len(occupied_tiles)
-        final_tiles = []
-        for i, t in enumerate(occupied_tiles):
-            page_num = i + 1
-            orient, is_override = self._resolve_orientation(t.get("auto_orient", base_orient), page_num)
-
-            # Keep page grid geometry stable/non-overlapping. If an override
-            # disagrees with the global geometry orientation, keep geometry
-            # orientation and drop override for this layout pass.
-            if orient != base_orient:
-                orient = base_orient
-                is_override = False
-
-            t["page_num"] = page_num
-            t["total"] = total
-            t["orient"] = orient
-            t["is_override"] = is_override
-            final_tiles.append(t)
-
-        # Drop overrides that no longer map to current page count.
-        if self.pdf_page_overrides:
-            self.pdf_page_overrides = {
-                k: v for k, v in self.pdf_page_overrides.items() if 1 <= k <= total
-            }
-
-        self.view.grid_tiles = final_tiles
-        self.view.continuation_marks = self._build_continuation_marks_for_tiles(final_tiles)
-        self._position_split_span_labels(self.view.continuation_marks)
-
-        # Constrain the scene rect to exactly the generated tiles + margin
-        if final_tiles:
-            full_rect = final_tiles[0]["rect"]
-            for t in final_tiles[1:]:
-                full_rect = full_rect.united(t["rect"])
-            
-            if getattr(self, "gps_bg_item", None):
-                try:
-                    self.gps_bg_item.set_clip_rect(full_rect)
-                except RuntimeError:
-                    pass
-
-            w_land, h_land = self._a4_scene_dims_oriented(self.pdf_scale, "L")
-            w_port, h_port = self._a4_scene_dims_oriented(self.pdf_scale, "P")
-            margin = max(w_land, h_land, w_port, h_port)
-            self.scene.setSceneRect(full_rect.adjusted(-margin, -margin, margin, margin))
-        else:
-             self.scene.setSceneRect(QRectF(-1500, -1500, 3000, 3000))
-
-        vp = self.view.viewport()
-        assert vp is not None
-        vp.update()
 
 
 
@@ -1282,61 +1042,22 @@ class EstimateApp(QMainWindow, EditorMixin):
         pos = view.mapToScene(event.pos())
         item_at = self.scene.itemAt(pos, view.transform())
 
-        # ── Pole placement ────────────────────────────────────────────────
-        if self.current_tool in ("ADD_LT", "ADD_HT", "ADD_EXISTING"):
-            too_close = self._find_nearby_node(pos)
-            if too_close is not None:
-                QMessageBox.information(
-                    self,
-                    "Placement blocked",
-                    "Object is too close to an existing node. Place it a little farther away."
-                )
+        # ── Node placement (Poles, Structures, Consumers) ──────────────────
+        if self.current_tool in ("ADD_LT", "ADD_HT", "ADD_EXISTING", "ADD_STRUCTURE", "ADD_CONSUMER"):
+            if self._check_placement_blocked(pos):
                 return
-            p_type    = "LT" if self.current_tool in ("ADD_LT", "ADD_EXISTING") else "HT"
-            is_exist  = self.current_tool == "ADD_EXISTING"
-            pole = SmartPole(
-                pos.x(), pos.y(), self.refresh_signal,
-                p_type, is_exist,
-                detail_view=self.detail_view
-            )
-            self.scene.addItem(pole)
-            self._auto_connect_span(pole)
-            self.refresh_live_estimate()
-
-        # ── Structure placement ───────────────────────────────────────────
-        elif self.current_tool == "ADD_STRUCTURE":
-            too_close = self._find_nearby_node(pos)
-            if too_close is not None:
-                QMessageBox.information(
-                    self,
-                    "Placement blocked",
-                    "Object is too close to an existing node. Place it a little farther away."
-                )
-                return
-            struct = SmartStructure(
-                pos.x(), pos.y(), self.refresh_signal,
-                detail_view=self.detail_view
-            )
-            self.scene.addItem(struct)
-            self._auto_connect_span(struct)
-            self.refresh_live_estimate()
-
-        # ── Consumer placement ────────────────────────────────────────────
-        elif self.current_tool == "ADD_CONSUMER":
-            too_close = self._find_nearby_node(pos)
-            if too_close is not None:
-                QMessageBox.information(
-                    self,
-                    "Placement blocked",
-                    "Object is too close to an existing node. Place it a little farther away."
-                )
-                return
-            consumer = SmartConsumer(
-                pos.x(), pos.y(), self.refresh_signal,
-                detail_view=self.detail_view
-            )
-            self.scene.addItem(consumer)
-            self._auto_connect_span(consumer)
+                
+            if self.current_tool in ("ADD_LT", "ADD_HT", "ADD_EXISTING"):
+                p_type = "LT" if self.current_tool in ("ADD_LT", "ADD_EXISTING") else "HT"
+                is_exist = self.current_tool == "ADD_EXISTING"
+                item = SmartPole(pos.x(), pos.y(), self.refresh_signal, p_type, is_exist, detail_view=self.detail_view)
+            elif self.current_tool == "ADD_STRUCTURE":
+                item = SmartStructure(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
+            else: # ADD_CONSUMER
+                item = SmartConsumer(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
+                
+            self.scene.addItem(item)
+            self._auto_connect_span(item)
             self.refresh_live_estimate()
 
         # ── Span drawing ──────────────────────────────────────────────────
@@ -1372,25 +1093,28 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.span_start_pole = None
                 self.refresh_live_estimate()
 
-        # ── Symbol placement ──────────────────────────────────────────────
-        elif self.current_tool == "ADD_SYMBOL":
-            shape = getattr(self, "_pending_symbol_shape", "circle")
-            sym = CanvasSymbol(shape, pos.x() - 20, pos.y() - 20)
-            self.scene.addItem(sym)
+        # ── Symbol/Text placement ──────────────────────────────────────────
+        elif self.current_tool in ("ADD_SYMBOL", "ADD_TEXTBOX"):
+            if self.current_tool == "ADD_SYMBOL":
+                shape = getattr(self, "_pending_symbol_shape", "circle")
+                item = CanvasSymbol(shape, pos.x() - 20, pos.y() - 20)
+            else: # ADD_TEXTBOX
+                text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
+                if not (ok and text.strip()): return
+                item = CanvasTextBox(text.strip(), pos.x(), pos.y())
+                item.setSelected(True)
+            
+            self.scene.addItem(item)
             self.scene.clearSelection()
-            self.set_tool("SELECT")
-            self.refresh_live_estimate()   # triggers history/autosave timer
-
-        # ── Text box placement ────────────────────────────────────────────
-        elif self.current_tool == "ADD_TEXTBOX":
-            text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
-            if ok and text.strip():
-                tb = CanvasTextBox(text.strip(), pos.x(), pos.y())
-                self.scene.addItem(tb)
-                self.scene.clearSelection()
-                tb.setSelected(True)
+            if self.current_tool == "ADD_SYMBOL" or (self.current_tool == "ADD_TEXTBOX"):
                 self.set_tool("SELECT")
-                self.refresh_live_estimate()   # triggers history/autosave timer
+            self.refresh_live_estimate()
+
+    def _check_placement_blocked(self, pos: QPointF) -> bool:
+        if self._find_nearby_node(pos) is not None:
+            QMessageBox.information(self, "Placement blocked", "Object is too close to an existing node.")
+            return True
+        return False
 
     # =========================================================================
     #  AUTO-CONNECT SPAN HELPER
@@ -1919,20 +1643,9 @@ class EstimateApp(QMainWindow, EditorMixin):
             )
 
             # Apply 3% wastage + sag to steel & conductor material quantities
-            _SAG_ITEMS = {
-                "M.S Channel 75X40 mm", "M.S Angle 65X65X6mm",
-                "M.S Angle 50X50X6mm", "M.S Flat 65X6 mm",
-                "M.S Channel 100X50 mm",
-                "G.I. Wire 5 MM (6 SWG)", "G.I. Wire 4 MM (8 SWG)",
-                "ACSR Conductor 50SQMM (Rabbit)",
-                "ACSR Conductor 30SQMM (Weasel)",
-                "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
-                "CABLE (PVC 1.1KV GRADE) 4CX16SQMM",
-                "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
-                "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
-            }
             for name in list(raw_bom):
-                if name in _SAG_ITEMS:
+                upper_name = name.upper()
+                if any(tag in upper_name for tag in SAG_ITEMS):
                     raw_bom[name] = raw_bom[name] * 1.03
 
             # Build live_bom_data
@@ -2131,13 +1844,9 @@ class EstimateApp(QMainWindow, EditorMixin):
             )
 
     def _safe_subject_stem(self, fallback: str) -> str:
-        raw = (self.project_meta.get("subject") or "").strip()
-        # Replace non-filename chars with underscores (keep letters, digits, spaces, hyphens, dots)
-        import re as _re
-        sanitized = _re.sub(r'[\\/*?:"<>|]', "_", raw)
-        # Trim to first 6 words to keep filenames short
-        words = sanitized.split()[:6]
-        stem  = "_".join(words)
+        import re
+        sanitized = re.sub(r'[\\/*?:"<>|]', "_", (self.project_meta.get("subject") or "").strip())
+        stem = "_".join(sanitized.split()[:6])
         return stem if stem else fallback
 
     def save_project_bundle(self):
@@ -2240,67 +1949,12 @@ class EstimateApp(QMainWindow, EditorMixin):
             "spans":         [],
             "annotations":   [],
         }
-        node_map = {}
         node_id_by_obj = {}
         for i, item in enumerate(self.scene.items()):
             if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
-                node_map[i]   = item
                 node_id_by_obj[id(item)] = i
-                nd = {
-                    "id":      i,
-                    "type":    (
-                        "Pole"      if isinstance(item, SmartPole)      else
-                        "Structure" if isinstance(item, SmartStructure) else
-                        "Consumer"
-                    ),
-                    "x":       item.x(),
-                    "y":       item.y(),
-                    "label_x": item.label.pos().x(),
-                    "label_y": item.label.pos().y(),
-                    "label_text": item.label.toPlainText(),
-                    "custom_note": getattr(item, "custom_note", ""),
-                    "dynamic_props": getattr(item, "dynamic_props", {}),
-                }
-                if isinstance(item, SmartPole):
-                    nd.update({
-                        "seq_id":            item.seq_id,
-                        "pole_type":         item.pole_type,
-                        "pole_type2":        item.pole_type2,
-                        "is_existing":       item.is_existing,
-                        "existing_subtype":   item.existing_subtype,
-                        "existing_dtr_size":  getattr(item, "existing_dtr_size", "None"),
-                        "height":            item.height,
-                        "has_extension":     item.has_extension,
-                        "extension_height":  item.extension_height,
-                        "earth_count":        item.earth_count,
-                        "stay_count":         item.stay_count,
-                        "override_auto_stay":  item.override_auto_stay,
-                        "stay_angle_override":  item.stay_angle_override,
-                        "earth_angle_override": item.earth_angle_override,
-                        "dist_box_required":   item.dist_box_required,
-                    })
-                elif isinstance(item, SmartStructure):
-                    nd.update({
-                        "seq_id":            item.seq_id,
-                        "structure_type":    item.structure_type,
-                        "pole_type2":        item.pole_type2,
-                        "height":            item.height,
-                        "orientation":       getattr(item, "orientation", "Horizontal"),
-                        "has_extension":     item.has_extension,
-                        "extension_height":  item.extension_height,
-                        "earth_count":       item.earth_count,
-                        "stay_count":        item.stay_count,
-                        "dtr_size":          item.dtr_size,
-                        "kiosk_required":    getattr(item, "kiosk_required", True),
-                    })
-                elif isinstance(item, SmartConsumer):
-                    nd.update({
-                        "seq_id":          item.seq_id,
-                        "phase":           item.phase,
-                        "cable_size":      item.cable_size,
-                        "agency_supply":   item.agency_supply,
-                        "consider_cable":  getattr(item, "consider_cable", False),
-                    })
+                nd = item.to_dict()
+                nd["id"] = i
                 state["nodes"].append(nd)
 
         for item in self.scene.items():
@@ -2309,24 +1963,9 @@ class EstimateApp(QMainWindow, EditorMixin):
                 p2_id = node_id_by_obj.get(id(item.p2))
                 if p1_id is None or p2_id is None:
                     continue
-                state["spans"].append({
-                    "p1_id":          p1_id,
-                    "p2_id":          p2_id,
-                    "length":         item.length,
-                    "conductor":      item.conductor,
-                    "conductor_size": item.conductor_size,
-                    "wire_count":     item.wire_count,
-                    "aug_type":       item.aug_type,
-                    "has_cg":         item.has_cg,
-                    "is_service_drop": item.is_service_drop,
-                    "consider_cable": item.consider_cable,
-                    "phase":          item.phase,
-                    "custom_note":    getattr(item, "custom_note", ""),
-                    "dynamic_props":  getattr(item, "dynamic_props", {}),
-                    "label_x":        item.label.pos().x(),
-                    "label_y":        item.label.pos().y(),
-                    "label_text":     item.label.toPlainText(),
-                })
+                sd = item.to_dict()
+                sd.update({"p1_id": p1_id, "p2_id": p2_id})
+                state["spans"].append(sd)
 
         for item in self.scene.items():
             if isinstance(item, (CanvasSymbol, CanvasTextBox)):
@@ -2336,15 +1975,12 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def parse_load_data(self, state, fit_view=True):
         self.scene.clear()
-
-        # Support v4 files
         version = state.get("version", 4)
 
         if version >= 5:
             saved_meta = state.get("project_meta", {})
             self.project_meta = {**DEFAULT_PROJECT_META, **saved_meta}
         else:
-            # v4 backward compat
             self.project_meta = dict(DEFAULT_PROJECT_META)
             self.project_meta["subject"] = state.get("subject", "")
             self.project_meta["lat"]     = state.get("lat", "")
@@ -2361,94 +1997,26 @@ class EstimateApp(QMainWindow, EditorMixin):
 
             if ntype == "Pole":
                 # v4 compat: old DTR poles become SmartStructure
-                old_pole_type = nd.get("pole_type", "LT")
-                if old_pole_type == "DTR":
-                    struct = SmartStructure(
-                        x, y, self.refresh_signal, detail_view=self.detail_view
-                    )
-                    struct.structure_type   = "DTR"
-                    struct.dtr_size         = nd.get("dtr_size", "None")
-                    struct.earth_count      = nd.get("earth_count", 5)
-                    struct.stay_count       = nd.get("stay_count", 4)
-                    struct.height           = nd.get("height", "9MTR")
-                    struct.seq_id    = nd.get("seq_id", 0)
-                    struct._seq_type = "DTR"   # prevent lazy-reassignment
-                    struct.update_visuals()
-                    struct.label.setPos(nd["label_x"], nd["label_y"])
-                    struct.label.setPlainText(nd["label_text"])
-                    self.scene.addItem(struct)
-                    node_map[nd["id"]] = struct
+                if nd.get("pole_type") == "DTR":
+                    item = SmartStructure(x, y, self.refresh_signal, detail_view=self.detail_view)
+                    item.apply_state(nd)
+                    item.structure_type = "DTR"
                 else:
-                    pole = SmartPole(
-                        x, y, self.refresh_signal,
-                        old_pole_type,
-                        nd.get("is_existing", False),
-                        detail_view=self.detail_view
-                    )
-                    pole.pole_type2       = nd.get("pole_type2", "PCC")
-                    pole.height           = nd.get("height", "8MTR")
-                    pole.has_extension    = nd.get("has_extension", False)
-                    pole.extension_height = nd.get("extension_height", 3.0)
-                    pole.earth_count          = nd.get("earth_count", 1)
-                    pole.stay_count            = nd.get("stay_count", 0)
-                    pole.override_auto_stay    = nd.get("override_auto_stay", False)
-                    pole.stay_angle_override   = nd.get("stay_angle_override", None)
-                    pole.earth_angle_override  = nd.get("earth_angle_override", None)
-                    pole.dist_box_required     = nd.get("dist_box_required", True)
-                    pole.custom_note           = nd.get("custom_note", "")
-                    pole.dynamic_props         = dict(nd.get("dynamic_props", {}))
-                    pole.existing_subtype      = nd.get("existing_subtype", nd.get("pole_type", "LT"))
-                    pole.existing_dtr_size     = nd.get("existing_dtr_size", "None")
-                    pole.seq_id                = nd.get("seq_id", pole.seq_id)
-                    pole.update_visuals()
-                    pole.label.setPos(nd["label_x"], nd["label_y"])
-                    pole.label.setPlainText(nd["label_text"])
-                    self.scene.addItem(pole)
-                    node_map[nd["id"]] = pole
-
+                    item = SmartPole(x, y, self.refresh_signal, nd.get("pole_type", "LT"), 
+                                     nd.get("is_existing", False), detail_view=self.detail_view)
+                    item.apply_state(nd)
             elif ntype == "Structure":
-                struct = SmartStructure(
-                    x, y, self.refresh_signal, detail_view=self.detail_view
-                )
-                struct.structure_type   = nd.get("structure_type", "DP")
-                struct.pole_type2       = nd.get("pole_type2", "PCC")
-                struct.height           = nd.get("height", "9MTR")
-                struct.orientation      = nd.get("orientation", "Horizontal")
-                struct.has_extension    = nd.get("has_extension", False)
-                struct.extension_height = nd.get("extension_height", 3.0)
-                struct.earth_count      = nd.get("earth_count", 2)
-                struct.stay_count       = nd.get("stay_count", 4)
-                struct.dtr_size         = nd.get("dtr_size", "None")
-                struct.kiosk_required   = nd.get(
-                    "kiosk_required",
-                    True if struct.structure_type == "DTR" else False
-                )
-                struct.custom_note      = nd.get("custom_note", "")
-                struct.dynamic_props    = dict(nd.get("dynamic_props", {}))
-                struct.seq_id    = nd.get("seq_id", 0)
-                struct._seq_type = struct.structure_type   # prevent lazy-reassignment
-                struct.update_visuals()
-                struct.label.setPos(nd["label_x"], nd["label_y"])
-                struct.label.setPlainText(nd["label_text"])
-                self.scene.addItem(struct)
-                node_map[nd["id"]] = struct
+                item = SmartStructure(x, y, self.refresh_signal, detail_view=self.detail_view)
+                item.apply_state(nd)
+            elif ntype in ("Consumer", "Home"):
+                item = SmartConsumer(x, y, self.refresh_signal, detail_view=self.detail_view)
+                item.apply_state(nd)
+            else:
+                continue
 
-            elif ntype in ("Consumer", "Home"):  # "Home" for v4 compat
-                consumer = SmartConsumer(
-                    x, y, self.refresh_signal, detail_view=self.detail_view
-                )
-                consumer.phase          = nd.get("phase", "3 Phase")
-                consumer.cable_size     = nd.get("cable_size", "10 SQMM")
-                consumer.agency_supply  = nd.get("agency_supply", False)
-                consumer.consider_cable = nd.get("consider_cable", False)
-                consumer.custom_note   = nd.get("custom_note", "")
-                consumer.dynamic_props = dict(nd.get("dynamic_props", {}))
-                consumer.seq_id        = nd.get("seq_id", consumer.seq_id)
-                consumer.update_visuals()
-                consumer.label.setPos(nd["label_x"], nd["label_y"])
-                consumer.label.setPlainText(nd["label_text"])
-                self.scene.addItem(consumer)
-                node_map[nd["id"]] = consumer
+            item.update_visuals()
+            self.scene.addItem(item)
+            node_map[nd["id"]] = item
 
         for sd in state.get("spans", []):
             p1 = node_map.get(sd["p1_id"])
@@ -2456,24 +2024,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             if not (p1 and p2):
                 continue
             span = SmartSpan(p1, p2, detail_view=self.detail_view)
-            span.length         = sd.get("length", 40)
-            span.conductor      = sd.get("conductor", "ACSR")
-            # v4 compat: merge wire_size/cable_size into conductor_size
-            span.conductor_size = sd.get(
-                "conductor_size",
-                sd.get("wire_size", sd.get("cable_size", "50SQMM"))
-            )
-            span.wire_count     = sd.get("wire_count", "3")
-            span.aug_type       = sd.get("aug_type", "New")
-            span.has_cg         = sd.get("has_cg", False)
-            span.is_service_drop = sd.get("is_service_drop", False)
-            span.consider_cable  = sd.get("consider_cable", False)
-            span.phase           = sd.get("phase", "3 Phase")
-            span.custom_note     = sd.get("custom_note", "")
-            span.dynamic_props   = dict(sd.get("dynamic_props", {}))
+            span.apply_state(sd)
             span.update_visuals()
-            span.label.setPos(sd["label_x"], sd["label_y"])
-            span.label.setPlainText(sd["label_text"])
             p1.connected_spans.append(span)
             p2.connected_spans.append(span)
             self.scene.addItem(span)
@@ -2806,114 +2358,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         dlg.exec()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  EXPIRY HELPERS  (tamper-resistant: internet time + rollback watermark)
-# ─────────────────────────────────────────────────────────────────────────────
-import base64 as _b64
-import struct  as _struct
-
-# Watermark stored in APPDATA so it survives across runs even if user rolls
-# back their system clock.  Content is XOR-obfuscated — not crypto-secure, but
-# opaque to casual inspection.
-_WM_DIR  = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), APP_NAME)
-_WM_FILE = os.path.join(_WM_DIR, "prefs.dat")
-_WM_KEY  = 0x5A   # single-byte XOR mask
-
-
-def _wm_encode(d: _date) -> bytes:
-    raw = _struct.pack(">I", d.toordinal())
-    return _b64.b64encode(bytes(b ^ _WM_KEY for b in raw))
-
-
-def _wm_decode(data: bytes) -> "_date | None":
-    try:
-        raw = bytes(b ^ _WM_KEY for b in _b64.b64decode(data.strip()))
-        return _date.fromordinal(_struct.unpack(">I", raw)[0])
-    except Exception:
-        return None
-
-
-def _load_watermark() -> "_date | None":
-    try:
-        with open(_WM_FILE, "rb") as f:
-            return _wm_decode(f.read())
-    except Exception:
-        return None
-
-
-def _save_watermark(d: _date) -> None:
-    try:
-        os.makedirs(_WM_DIR, exist_ok=True)
-        with open(_WM_FILE, "wb") as f:
-            f.write(_wm_encode(d))
-    except Exception:
-        pass
-
-
-def _internet_date() -> "_date | None":
-    """Fetch the real date from public HTTP server Date headers (no NTP needed)."""
-    import urllib.request
-    from email.utils import parsedate_to_datetime
-    for url in ("https://www.google.com", "https://www.microsoft.com", "https://www.cloudflare.com"):
-        try:
-            with urllib.request.urlopen(url, timeout=3) as resp:
-                hdr = resp.headers.get("Date", "")
-                if hdr:
-                    return parsedate_to_datetime(hdr).date()
-        except Exception:
-            continue
-    return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  ENTRY POINT
-# ─────────────────────────────────────────────────────────────────────────────
-def _check_expiry() -> bool:
-    """Return False (and show a dialog) if the app has expired.
-
-    Uses three independent date sources so rolling back the system clock
-    cannot alone bypass the check:
-
-      1. System date  — always available, but user-controllable.
-      2. Internet date — HTTP Date header from a public server; not user-
-                         controllable without blocking outbound traffic.
-      3. Watermark date — highest date ever seen, stored XOR-obfuscated in
-                         APPDATA.  A rolled-back system clock cannot erase a
-                         watermark that was written on a later date.
-
-    The effective date is max(all available sources).
-    """
-    if not APP_EXPIRY:
-        return True
-    try:
-        expiry = _date.fromisoformat(APP_EXPIRY)
-    except ValueError:
-        return True  # malformed date — fail open
-
-    system_date   = _date.today()
-    internet_date = _internet_date()
-    watermark_date = _load_watermark()
-
-    candidates = [d for d in (system_date, internet_date, watermark_date) if d is not None]
-    effective_date = max(candidates)
-
-    # Persist the highest date seen so far.
-    _save_watermark(effective_date)
-
-    if effective_date > expiry:
-        _tmp = QApplication.instance() or QApplication(sys.argv)  # noqa: F841
-        QMessageBox.critical(
-            None,
-            "Application Expired",
-            f"<b>{APP_DISPLAY_NAME}</b> expired on <b>{expiry.strftime('%d %b %Y')}</b>.<br>"
-            "Please contact the administrator for an updated version.",
-        )
-        return False
-    return True
-
-
 if __name__ == "__main__":
-    if not _check_expiry():
+    if not check_expiry():
         sys.exit(1)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

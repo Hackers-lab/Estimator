@@ -82,6 +82,39 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
 
         self.update_visuals()
 
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update({
+            "type": "Structure",
+            "seq_id": self.seq_id,
+            "structure_type": self.structure_type,
+            "pole_type2": self.pole_type2,
+            "height": self.height,
+            "orientation": getattr(self, "orientation", "Horizontal"),
+            "has_extension": self.has_extension,
+            "extension_height": self.extension_height,
+            "earth_count": self.earth_count,
+            "stay_count": self.stay_count,
+            "dtr_size": self.dtr_size,
+            "kiosk_required": getattr(self, "kiosk_required", True),
+        })
+        return d
+
+    def apply_state(self, state: dict) -> None:
+        super().apply_state(state)
+        self.structure_type = state.get("structure_type", "DP")
+        self.pole_type2 = state.get("pole_type2", "PCC")
+        self.height = state.get("height", "9MTR")
+        self.orientation = state.get("orientation", "Horizontal")
+        self.has_extension = state.get("has_extension", False)
+        self.extension_height = state.get("extension_height", 3.0)
+        self.earth_count = state.get("earth_count", 2)
+        self.stay_count = state.get("stay_count", 4)
+        self.dtr_size = state.get("dtr_size", "None")
+        self.kiosk_required = state.get("kiosk_required", True)
+        self.seq_id = state.get("seq_id", 0)
+        self._seq_type = self.structure_type
+
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:
@@ -318,6 +351,26 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self.label.setPos(0, 20)
 
         self.update_visuals()
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update({
+            "type": "Consumer",
+            "seq_id": self.seq_id,
+            "phase": self.phase,
+            "cable_size": self.cable_size,
+            "agency_supply": self.agency_supply,
+            "consider_cable": getattr(self, "consider_cable", False),
+        })
+        return d
+
+    def apply_state(self, state: dict) -> None:
+        super().apply_state(state)
+        self.phase = state.get("phase", "3 Phase")
+        self.cable_size = state.get("cable_size", "10 SQMM")
+        self.agency_supply = state.get("agency_supply", False)
+        self.consider_cable = state.get("consider_cable", False)
+        self.seq_id = state.get("seq_id", self.seq_id)
 
     # ── Visual update ─────────────────────────────────────────────────────────
 
