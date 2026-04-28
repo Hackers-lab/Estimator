@@ -56,6 +56,7 @@ Backward-compatibility notes
 
 import math
 from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
+from core.expression_engine import evaluate_condition, evaluate_formula
 
 
 class DynamicRuleEngine:
@@ -71,16 +72,8 @@ class DynamicRuleEngine:
         Safely evaluate a condition string.
         Returns False on any exception (rule silently skipped).
         """
-        if not condition_str or condition_str.strip() == "":
-            return True           # empty condition = always fire
         try:
-            return bool(
-                eval(
-                    condition_str,
-                    {"__builtins__": {}},
-                    item_context,
-                )
-            )
+            return evaluate_condition(condition_str, item_context)
         except Exception as exc:
             print(f"[RuleEngine] Condition error '{condition_str}': {exc}")
             return False
@@ -90,25 +83,8 @@ class DynamicRuleEngine:
         Safely evaluate a quantity formula.
         Returns 0 on any exception.
         """
-        if not formula_str or formula_str.strip() == "":
-            return 0
         try:
-            result = eval(
-                formula_str,
-                {"__builtins__": {"int": int, "round": round, "abs": abs},
-                 "math": math,
-                 # Named iron weight constants (kg/m)
-                 "CH_75X40":    6.8,
-                 "CH_100X50":   9.8,
-                 "ANG_65X65X6": 5.8,
-                 "ANG_50X50X6": 4.5,
-                 "FLAT_65X6":   3.1,
-                 "FLAT_50X6":   2.5,
-                 "GIWIRE_5MM":  0.123,
-                 "GIWIRE_4MM":  0.100},
-                item_context,
-            )
-            return float(result)
+            return evaluate_formula(formula_str, item_context)
         except Exception as exc:
             print(f"[RuleEngine] Formula error '{formula_str}': {exc}")
             return 0

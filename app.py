@@ -2085,7 +2085,9 @@ class EstimateApp(QMainWindow, EditorMixin):
         DatabaseManagerDialog(self).exec()
 
     def open_rule_manager(self):
-        RulesetManagerDialog(self).exec()
+        # Collect canvas node data for simulator pre-fill
+        canvas_nodes = self.compile_save_data().get("nodes", [])
+        RulesetManagerDialog(self, canvas_objects=canvas_nodes).exec()
 
     # =========================================================================
     #  EXCEL EXPORT

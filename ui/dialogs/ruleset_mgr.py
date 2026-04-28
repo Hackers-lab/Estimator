@@ -32,6 +32,8 @@ import sqlite3
 import json
 import re
 
+from core.expression_engine import evaluate_condition, evaluate_formula, validate_expression
+
 from core import defaults
 
 from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
@@ -57,6 +59,79 @@ from PyQt6.QtGui import QColor, QFont
 from ui.dialogs._shared import ClickableCard
 from ui.dialogs.search import SearchDialog
 
+# ── Styling Constants ─────────────────────────────────────────────────────────
+
+OBJ_STYLES = {
+    "SmartPole":      {"icon": "\U0001f538", "fg": "#185FA5", "bg": "#ddeeff", "label": "POLE"},
+    "SmartStructure": {"icon": "\U0001f537", "fg": "#6a1fb0", "bg": "#f3e8ff", "label": "STRUCTURE"},
+    "SmartSpan":      {"icon": "\U0001f539", "fg": "#1a6b2a", "bg": "#e8f4ea", "label": "SPAN"},
+    "SmartConsumer":  {"icon": "\U0001f536", "fg": "#a04000", "bg": "#fff3e0", "label": "CONSUMER"},
+}
+
+CONDITION_KEY_COLORS = {
+    "is_existing":           ("#fdecea", "#b71c1c"),
+    "is_new":                ("#e8f5e9", "#1b5e20"),
+    "is_existing_span":      ("#fdecea", "#b71c1c"),
+    "is_new_span":           ("#e8f5e9", "#1b5e20"),
+    "is_distribution_span":  ("#ddeeff", "#185FA5"),
+    "is_service_drop":       ("#fff3e0", "#a04000"),
+    "is_lt_span":            ("#dff5ff", "#0a6080"),
+    "is_ht_span":            ("#f3e8ff", "#6a1fb0"),
+    "pole_type":             ("#ddeeff", "#185FA5"),
+    "pole_type2":            ("#e0f7f7", "#176b6b"),
+    "height":                ("#f3e8ff", "#6a1fb0"),
+    "structure_type":        ("#eee8ff", "#4a20a0"),
+    "conductor":             ("#ddeeff", "#0a3f80"),
+    "conductor_size":        ("#e8f0ff", "#3058a0"),
+    "aug_type":              ("#fff0e0", "#7a4000"),
+    "wire_count":            ("#e8f0e8", "#2a5a2a"),
+    "phase":                 ("#fce4ec", "#b71c4a"),
+    "dtr_size":              ("#e8f4ea", "#1a5c2a"),
+    "earth_count_gt":        ("#ffeef0", "#a01030"),
+    "stay_count_gt":         ("#ffeef0", "#a01030"),
+    "has_cg":                ("#fefce8", "#706000"),
+    "has_extension":         ("#fefce8", "#706000"),
+    "ab_cable_count_gt":     ("#e0f7f4", "#0a6b5a"),
+    "ab_needs_dead_end":     ("#e0f7f4", "#0a6b5a"),
+    "ab_needs_suspension":   ("#e0f7f4", "#0a6b5a"),
+    "use_uh":                ("#fffde7", "#706000"),
+    "agency_supply":         ("#f3e5f5", "#6a1b9a"),
+    "consider_cable":        ("#e8f4ea", "#1a5c2a"),
+    "project_type":          ("#e8eaf6", "#3949ab"),
+}
+
+CONDITION_LABEL_OVERRIDES = {
+    ("is_existing",          "True"):  "EX. POLE",
+    ("is_existing",          "False"): "NEW POLE",
+    ("is_new",               "True"):  "NEW POLE",
+    ("is_new",               "False"): "EX. POLE",
+    ("is_existing_span",     "True"):  "EX. SPAN",
+    ("is_existing_span",     "False"): "NEW SPAN",
+    ("is_new_span",          "True"):  "NEW SPAN",
+    ("is_new_span",          "False"): "EX. SPAN",
+    ("is_distribution_span", "True"):  "DIST. SPAN",
+    ("is_distribution_span", "False"): "SVC DROP",
+    ("is_service_drop",      "True"):  "SVC DROP",
+    ("is_service_drop",      "False"): "DIST. SPAN",
+    ("is_lt_span",           "True"):  "LT SPAN",
+    ("is_lt_span",           "False"): "HT SPAN",
+    ("is_ht_span",           "True"):  "HT SPAN",
+    ("is_ht_span",           "False"): "LT SPAN",
+    ("has_cg",               "True"):  "WITH CG",
+    ("has_cg",               "False"): "NO CG",
+    ("has_extension",        "True"):  "WITH EXT.",
+    ("has_extension",        "False"): "NO EXT.",
+    ("ab_needs_dead_end",    "True"):  "DEAD END",
+    ("ab_needs_suspension",  "True"):  "SUSPENSION",
+    ("dist_box_required",    "True"):  "DIST BOX",
+    ("use_uh",               "True"):  "UH MATS",
+    ("use_uh",               "False"): "RAW MATS",
+    ("agency_supply",        "True"):  "AGENCY SUPPLY",
+    ("agency_supply",        "False"): "SELF SUPPLY",
+    ("consider_cable",       "True"):  "WITH CABLE",
+    ("consider_cable",       "False"): "NO CABLE",
+}
+
 class RulesetManagerDialog(QDialog):
     """
     Full rule builder with three panels:
@@ -80,7 +155,7 @@ class RulesetManagerDialog(QDialog):
     hardcoded class-level dicts here.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, canvas_objects=None):
         super().__init__(parent)
         self.setWindowTitle("Ruleset Manager")
         self.setGeometry(60, 60, 1440, 880)
@@ -96,6 +171,7 @@ class RulesetManagerDialog(QDialog):
         self.active_chips        = set()
         self.sim_visible           = False
         self.sim_widgets           = {}
+        self._canvas_objects       = canvas_objects or []
         self._view_mode            = "grouped"   # "flat" | "grouped"
         self._editor_mode          = "rule"      # "rule" | "group"
         self._group_edit_indices   = []          # rule indices for current group edit
@@ -338,6 +414,13 @@ class RulesetManagerDialog(QDialog):
         )
         new_btn.clicked.connect(self.create_new_rule)
 
+        template_btn = QPushButton("📋 Templates")
+        template_btn.setStyleSheet(
+            "background:#5DCAA5; color:white; border:none; "
+            "padding:5px 12px; border-radius:4px; font-size:12px;"
+        )
+        template_btn.clicked.connect(self._open_templates)
+
         tl.addWidget(self._centre_title)
         tl.addStretch()
         tl.addWidget(self._card_search)
@@ -345,6 +428,7 @@ class RulesetManagerDialog(QDialog):
         tl.addWidget(self._view_btn)
         tl.addWidget(self._logic_btn)
         tl.addWidget(new_btn)
+        tl.addWidget(template_btn)
         lay.addWidget(topbar)
 
         # Chip bar
@@ -430,10 +514,13 @@ class RulesetManagerDialog(QDialog):
 
     def _update_centre_title(self):
         visible = self._visible_indices()
-        self._centre_title.setText(
-            f"{self.active_obj_type.replace('Smart','')}  —  "
-            f"{len(visible)} rule(s)"
-        )
+        if getattr(self, "_is_global_search", False):
+            self._centre_title.setText(f"Global Search Results  —  {len(visible)} rule(s)")
+        else:
+            self._centre_title.setText(
+                f"{self.active_obj_type.replace('Smart','')}  —  "
+                f"{len(visible)} rule(s)"
+            )
 
     # ── Card list ─────────────────────────────────────────────────────────────
 
@@ -503,29 +590,75 @@ class RulesetManagerDialog(QDialog):
         return result
 
     def _visible_indices(self):
-        search = (
-            self._card_search.text().lower()
-            if hasattr(self, "_card_search") else ""
-        )
-        type_filter = (
-            self._type_filter.currentText()
-            if hasattr(self, "_type_filter") else "All"
-        )
-        matched = self._get_matching_rules(
-            self.active_obj_type, self.active_tree_filter, self.active_chips
-        )
-        if type_filter != "All":
-            matched = [
-                (i, r) for i, r in matched
-                if r.get("type", "Material") == type_filter
-            ]
+        search = self._card_search.text().strip().lower() if hasattr(self, "_card_search") else ""
+        type_filter = self._type_filter.currentText() if hasattr(self, "_type_filter") else "All"
+        
+        # 1. Base set of rules
         if search:
-            matched = [
-                (i, r) for i, r in matched
-                if search in r.get("item_name", "").lower()
-                or search in r.get("condition", "").lower()
-            ]
-        return matched
+            # GLOBAL SEARCH: Ignore tree filter and active_obj_type
+            candidate_rules = [(i, r) for i, r in enumerate(self.rules)]
+            self._is_global_search = True
+        else:
+            # LOCAL VIEW: Filter by Object Type, Tree Folder, and Chips
+            candidate_rules = self._get_matching_rules(
+                self.active_obj_type, self.active_tree_filter, self.active_chips
+            )
+            self._is_global_search = False
+        
+        # 2. Filter by Type (Material/Labor)
+        if type_filter != "All":
+            candidate_rules = [(i, r) for i, r in candidate_rules if r.get("type", "Material") == type_filter]
+        
+        # 3. Smart Search & Sorting
+        if search:
+            from core.ai_rule_parser import find_similar_rules, infer_properties_from_text
+            
+            # We score all candidate rules across ALL object types
+            props = infer_properties_from_text(search)
+            
+            # Since find_similar_rules usually takes one obj_type, we'll manually combine scores
+            final_list = []
+            
+            # Group rules by object type to call scoring efficiently
+            by_obj = {}
+            for idx, rule in candidate_rules:
+                ot = rule.get("object", "SmartPole")
+                by_obj.setdefault(ot, []).append((idx, rule))
+            
+            all_scores = {}
+            for ot, rules_in_ot in by_obj.items():
+                # Get indices for this group
+                indices_in_ot = [x[0] for x in rules_in_ot]
+                # We can't easily use find_similar_rules directly because it wants the FULL rules list
+                # but we can call it for the relevant slice. 
+                # Actually, find_similar_rules is just a wrapper for search_existing_rules.
+                from core.ai_rule_parser import search_existing_rules
+                intent = {"object": ot, "properties": props, "item_name_hint": search}
+                ot_rules_only = [r for idx, r in rules_in_ot]
+                matches = search_existing_rules(intent, ot_rules_only, top_n=len(ot_rules_only), threshold=0.0)
+                for rel_idx, rule, score in matches:
+                    orig_idx = rules_in_ot[rel_idx][0]
+                    all_scores[orig_idx] = score
+
+            for idx, rule in candidate_rules:
+                item_name = rule.get("item_name", "").lower()
+                condition = rule.get("condition", "").lower()
+                string_hit = (search in item_name or search in condition)
+                sem_score = all_scores.get(idx, 0.0)
+                
+                final_score = sem_score
+                if string_hit:
+                    final_score = max(final_score, 0.5)
+                
+                if final_score > 0.05:
+                    final_list.append((idx, rule, final_score))
+            
+            final_list.sort(key=lambda x: x[2], reverse=True)
+            self._semantic_hits = {idx for idx, r, s in final_list if s >= 0.4}
+            return [(idx, r) for idx, r, s in final_list]
+            
+        self._semantic_hits = set()
+        return candidate_rules
 
     def _refresh_cards(self):
         while self._card_layout.count() > 1:
@@ -538,6 +671,10 @@ class RulesetManagerDialog(QDialog):
 
         matched   = self._visible_indices()
         sim_hits  = self._sim_hits() if self.sim_visible else set()
+        
+        # Merge search hits into visual highlights
+        if hasattr(self, "_semantic_hits"):
+            sim_hits = sim_hits.union(self._semantic_hits)
 
         if self._view_mode == "grouped":
             self._render_grouped_cards(matched, sim_hits)
@@ -551,11 +688,12 @@ class RulesetManagerDialog(QDialog):
         self._update_centre_title()
         self._update_tree_counts()
 
-    def _make_card(self, rule_index, rule, sim_hit=False):
+    def _make_rule_card_base(self, rule_index: int, rule: dict, sim_hit: bool, is_child: bool = False):
         card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
         selected = rule_index == self.selected_rule_index
         enabled  = bool(rule.get("enabled", 1))
 
+        # Styling
         if not enabled:
             bc = "#378ADD" if selected else "#bbb"
             bw = "1.5px" if selected else "0.5px"
@@ -564,18 +702,33 @@ class RulesetManagerDialog(QDialog):
             bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#ddd")
             bw = "1.5px"   if (selected or sim_hit) else "0.5px"
             bg = "#eaf8f4" if sim_hit else "white"
+        
         card.setStyleSheet(
-            f"background:{bg}; border:{bw} solid {bc}; border-radius:6px;"
+            f"background:{bg}; border:{bw} solid {bc}; border-radius:{'0px' if is_child else '6px'};"
+            + ("border-left: 2px solid " + bc if is_child else "")
         )
         card.setCursor(Qt.CursorShape.PointingHandCursor)
 
         lay = QHBoxLayout(card)
-        lay.setContentsMargins(9, 7, 9, 7)
+        lay.setContentsMargins(30 if is_child else 9, 5 if is_child else 7, 10, 5 if is_child else 7)
         lay.setSpacing(8)
 
+        # 1. Object Type Badge (only in global search)
+        if getattr(self, "_is_global_search", False):
+            ot = rule.get("object", "SmartPole")
+            style = self._get_obj_style(ot)
+            obj_badge = QLabel(style["label"])
+            obj_badge.setStyleSheet(
+                f"background:{style['bg']}; color:{style['fg']}; border-radius:3px; "
+                f"font-size:{'8px' if is_child else '9px'}; font-weight:bold; padding:1px 4px; border:0.5px solid #ccc;"
+            )
+            lay.addWidget(obj_badge)
+
+        # 2. Material/Labor Badge
         r_type = rule.get("type", "Material")
         badge  = QLabel("M" if r_type == "Material" else "L")
-        badge.setFixedSize(24, 24)
+        badge_size = 22 if is_child else 24
+        badge.setFixedSize(badge_size, badge_size)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setStyleSheet(
             "border-radius:4px; font-size:10px; font-weight:bold; " + (
@@ -585,42 +738,47 @@ class RulesetManagerDialog(QDialog):
         )
         lay.addWidget(badge)
 
-        body = QWidget()
-        bl   = QVBoxLayout(body)
-        bl.setContentsMargins(0, 0, 0, 0)
-        bl.setSpacing(1)
-
+        # 3. Content Row
         name_l = QLabel(rule.get("item_name", "Unnamed"))
-        name_style = "font-size:12px; font-weight:bold;"
+        name_style = f"font-size:12px; {'font-weight:bold;' if not is_child else ''}"
         if not enabled:
             name_style += " color:#aaa; text-decoration:line-through;"
         name_l.setStyleSheet(name_style)
+        lay.addWidget(name_l, 1) # Item Name takes available space
+        
+        # Condition (only in flat view)
+        if not is_child:
+            cond_l = QLabel(rule.get("condition", "") or "(always)")
+            cond_l.setStyleSheet(f"font-size:11px; color:{'#bbb' if not enabled else '#777'}; font-family:monospace;")
+            lay.addWidget(cond_l)
 
-        cond_l = QLabel(rule.get("condition", "") or "(no condition)")
-        cond_l.setStyleSheet(
-            f"font-size:11px; color:{'#bbb' if not enabled else '#555'};"
-            " font-family:monospace;"
-        )
-        form_l = QLabel(f"qty = {rule.get('formula','1')}")
+        lay.addStretch() # Spacer to keep metadata on the right
+        
+        # Code
+        code = rule.get("item_code", "")
+        if code and code != "N/A":
+            code_l = QLabel(code)
+            code_l.setStyleSheet("font-size:10px; color:#999; background:#f0f0f0; padding:1px 4px; border-radius:2px;")
+            lay.addWidget(code_l)
+
+        # Formula / Quantity
+        form_l = QLabel(f"{'×' if is_child else 'qty='}{rule.get('formula','1')}")
         form_l.setStyleSheet(
-            f"font-size:10px; color:{'#ccc' if not enabled else '#999'};"
+            f"font-size:11px; font-weight:bold; color:{'#ccc' if not enabled else '#185FA5'}; "
+            "background:#eef4fb; padding:1px 6px; border-radius:3px;"
         )
-        bl.addWidget(name_l)
-        bl.addWidget(cond_l)
-        bl.addWidget(form_l)
-        lay.addWidget(body, 1)
+        lay.addWidget(form_l)
 
+        # 4. Toggle
         toggle_cb = QCheckBox()
-        toggle_cb.setToolTip("Enable / disable this rule")
         toggle_cb.setChecked(enabled)
-        toggle_cb.setStyleSheet("margin-left:4px;")
-        toggle_cb.stateChanged.connect(
-            lambda state, idx=rule_index, r=rule:
-                self._on_rule_toggle(idx, r, bool(state))
-        )
+        toggle_cb.stateChanged.connect(lambda state, idx=rule_index, r=rule: self._on_rule_toggle(idx, r, bool(state)))
         lay.addWidget(toggle_cb)
 
         return card
+
+    def _make_card(self, rule_index, rule, sim_hit=False):
+        return self._make_rule_card_base(rule_index, rule, sim_hit, is_child=False)
 
     # ── Condition tag pills ─────────────────────────────────────────────
 
@@ -630,147 +788,85 @@ class RulesetManagerDialog(QDialog):
         if not cond or cond.strip() in ("True", ""):
             return [("always", "#e8e8e8", "#555")]
 
-        _KEY_COLORS = {
-            # ── pole/structure status ─────────────────────────────────────
-            "is_existing":           ("#fdecea", "#b71c1c"),
-            "is_new":                ("#e8f5e9", "#1b5e20"),
-            # ── span status ───────────────────────────────────────────────
-            "is_existing_span":      ("#fdecea", "#b71c1c"),
-            "is_new_span":           ("#e8f5e9", "#1b5e20"),
-            "is_distribution_span":  ("#ddeeff", "#185FA5"),
-            "is_service_drop":       ("#fff3e0", "#a04000"),
-            "is_lt_span":            ("#dff5ff", "#0a6080"),
-            "is_ht_span":            ("#f3e8ff", "#6a1fb0"),
-            # ── pole identity ─────────────────────────────────────────────
-            "pole_type":             ("#ddeeff", "#185FA5"),
-            "pole_type2":            ("#e0f7f7", "#176b6b"),
-            "height":                ("#f3e8ff", "#6a1fb0"),
-            "structure_type":        ("#eee8ff", "#4a20a0"),
-            # ── span identity ─────────────────────────────────────────────
-            "conductor":             ("#ddeeff", "#0a3f80"),
-            "conductor_size":        ("#e8f0ff", "#3058a0"),
-            "aug_type":              ("#fff0e0", "#7a4000"),
-            "wire_count":            ("#e8f0e8", "#2a5a2a"),
-            "phase":                 ("#fce4ec", "#b71c4a"),
-            # ── hardware ──────────────────────────────────────────────────
-            "dtr_size":              ("#e8f4ea", "#1a5c2a"),
-            "earth_count_gt":        ("#ffeef0", "#a01030"),
-            "stay_count_gt":         ("#ffeef0", "#a01030"),
-            "has_cg":                ("#fefce8", "#706000"),
-            "has_extension":         ("#fefce8", "#706000"),
-            "ab_cable_count_gt":     ("#e0f7f4", "#0a6b5a"),
-            "ab_needs_dead_end":     ("#e0f7f4", "#0a6b5a"),
-            "ab_needs_suspension":   ("#e0f7f4", "#0a6b5a"),
-            # ── supply / project ──────────────────────────────────────────
-            "use_uh":                ("#fffde7", "#706000"),
-            "agency_supply":         ("#f3e5f5", "#6a1b9a"),
-            "consider_cable":        ("#e8f4ea", "#1a5c2a"),
-            "project_type":          ("#e8eaf6", "#3949ab"),
-        }
-        _default = ("#f0f0f0", "#444")
-        # (key, str_value) -> human label
-        _LABEL_OVERRIDES = {
-            # ── pole / structure status ───────────────────────────────────
-            ("is_existing",          "True"):  "EX. POLE",
-            ("is_existing",          "False"): "NEW POLE",
-            ("is_new",               "True"):  "NEW POLE",
-            ("is_new",               "False"): "EX. POLE",
-            # ── span status ───────────────────────────────────────────────
-            ("is_existing_span",     "True"):  "EX. SPAN",
-            ("is_existing_span",     "False"): "NEW SPAN",
-            ("is_new_span",          "True"):  "NEW SPAN",
-            ("is_new_span",          "False"): "EX. SPAN",
-            ("is_distribution_span", "True"):  "DIST. SPAN",
-            ("is_distribution_span", "False"): "SVC DROP",
-            ("is_service_drop",      "True"):  "SVC DROP",
-            ("is_service_drop",      "False"): "DIST. SPAN",
-            ("is_lt_span",           "True"):  "LT SPAN",
-            ("is_lt_span",           "False"): "HT SPAN",
-            ("is_ht_span",           "True"):  "HT SPAN",
-            ("is_ht_span",           "False"): "LT SPAN",
-            # ── hardware booleans ─────────────────────────────────────────
-            ("has_cg",               "True"):  "WITH CG",
-            ("has_cg",               "False"): "NO CG",
-            ("has_extension",        "True"):  "WITH EXT.",
-            ("has_extension",        "False"): "NO EXT.",
-            ("ab_needs_dead_end",    "True"):  "DEAD END",
-            ("ab_needs_suspension",  "True"):  "SUSPENSION",
-            ("dist_box_required",    "True"):  "DIST BOX",
-            # ── supply ───────────────────────────────────────────────────
-            ("use_uh",               "True"):  "UH MATS",
-            ("use_uh",               "False"): "RAW MATS",
-            ("agency_supply",        "True"):  "AGENCY SUPPLY",
-            ("agency_supply",        "False"): "SELF SUPPLY",
-            ("consider_cable",       "True"):  "WITH CABLE",
-            ("consider_cable",       "False"): "NO CABLE",
-        }
-
         pills = []
+        default_style = ("#f0f0f0", "#444")
+        
+        # Split by logical operators but keep them or just use them as delimiters
         clauses = re.split(r'\s+(?:and|or)\s+', cond, flags=re.IGNORECASE)
         for clause in clauses:
             clause = clause.strip()
-            if not clause:
-                continue
-            # not key
+            if not clause: continue
+            
+            label, bg, fg = None, None, None
+            
+            # 1. NOT key
             m = re.match(r'^not\s+(\w+)$', clause)
             if m:
                 key = m.group(1)
-                label = _LABEL_OVERRIDES.get((key, "False"), f"\u00ac{key}")
-                bg, fg = _KEY_COLORS.get(key, _default)
-                pills.append((label, bg, fg))
-                continue
-            # bare key (truthy)
-            m = re.match(r'^(\w+)$', clause)
-            if m:
-                key = m.group(1)
-                label = _LABEL_OVERRIDES.get((key, "True"), key)
-                bg, fg = _KEY_COLORS.get(key, _default)
-                pills.append((label, bg, fg))
-                continue
-            # key op 'value' or key op value
-            m = re.match(
-                r"^(\w+)\s*(==|!=|>=|<=|>|<)\s*['\"]?(.+?)['\"]?$", clause
-            )
-            if m:
-                key  = m.group(1)
-                op   = m.group(2)
-                val  = m.group(3).strip().strip("'\"")
-                label = _LABEL_OVERRIDES.get((key, val))
-                if label is None:
-                    if op == "==":
-                        label = val
-                    elif op == "!=":
-                        label = f"\u2260{val}"
-                    elif op in (">", ">="):
-                        _sym = "\u2265" if op == ">=" else ">"
-                        label = f"{key}{_sym}{val}"
-                    elif op in ("<", "<="):
-                        _sym = "\u2264" if op == "<=" else "<"
-                        label = f"{key}{_sym}{val}"
-                    else:
-                        label = f"{key}{op}{val}"
-                bg, fg = _KEY_COLORS.get(key, _default)
-                pills.append((label, bg, fg))
-                continue
-            # fallback: truncated clause
-            pills.append((
-                clause[:14] + ("\u2026" if len(clause) > 14 else ""),
-                "#f0f0f0", "#444"
-            ))
+                label = CONDITION_LABEL_OVERRIDES.get((key, "False"), f"\u00ac{key}")
+                bg, fg = CONDITION_KEY_COLORS.get(key, default_style)
+            
+            # 2. Key OP Value
+            if not label:
+                m = re.match(r"^(\w+)\s*(==|!=|>=|<=|>|<)\s*['\"]?(.+?)['\"]?$", clause)
+                if m:
+                    key, op, val = m.group(1), m.group(2), m.group(3).strip().strip("'\"")
+                    label = CONDITION_LABEL_OVERRIDES.get((key, val))
+                    if not label:
+                        sym_map = {"==": "", "!=": "\u2260", ">=": "\u2265", "<=": "\u2264", ">": ">", "<": "<"}
+                        label = f"{val}" if op == "==" else f"{key}{sym_map.get(op, op)}{val}"
+                    bg, fg = CONDITION_KEY_COLORS.get(key, default_style)
+            
+            # 3. Bare Key
+            if not label:
+                m = re.match(r'^(\w+)$', clause)
+                if m:
+                    key = m.group(1)
+                    label = CONDITION_LABEL_OVERRIDES.get((key, "True"), key)
+                    bg, fg = CONDITION_KEY_COLORS.get(key, default_style)
+            
+            # Fallback
+            if not label:
+                label, (bg, fg) = clause[:14] + ("\u2026" if len(clause) > 14 else ""), default_style
+                
+            pills.append((label, bg, fg))
 
         return pills if pills else [("condition", "#f0f0f0", "#444")]
+
+    def _normalize_condition(self, cond: str) -> str:
+        """Normalize condition string for consistent grouping (quotes, spaces, operators)."""
+        if not cond or cond.strip().lower() == "true": 
+            return "True"
+        # 1. Standardize quotes
+        c = cond.replace('"', "'").strip()
+        # 2. Normalize spaces around operators
+        c = re.sub(r'\s*(==|!=|>=|<=|>|<|and|or|not)\s*', r' \1 ', c, flags=re.IGNORECASE)
+        # 3. Collapse multiple spaces
+        c = re.sub(r'\s+', ' ', c)
+        return c.strip()
 
     # ── Grouped view ──────────────────────────────────────────────────────────
 
     def _render_grouped_cards(self, matched, sim_hits):
-        """Render rules grouped by identical condition string."""
+        """Render rules grouped by identical condition string (and object if global)."""
         from collections import OrderedDict
         groups = OrderedDict()
+        is_global = getattr(self, "_is_global_search", False)
+        
         for orig_idx, rule in matched:
-            key = rule.get("condition", "") or ""
+            cond = rule.get("condition", "") or ""
+            norm_cond = self._normalize_condition(cond)
+            obj  = rule.get("object", "SmartPole")
+            # If global, group by both object and condition to avoid cross-category mixing
+            key = (obj, norm_cond) if is_global else norm_cond
             groups.setdefault(key, []).append((orig_idx, rule))
 
-        for cond, items in groups.items():
+        for key, items in groups.items():
+            if is_global:
+                obj, cond = key
+            else:
+                cond = key
+                
             mat_count = sum(1 for _, r in items if r.get("type") == "Material")
             lab_count = sum(1 for _, r in items if r.get("type") == "Labor")
             grp_hit   = any(i in sim_hits for i, _ in items)
@@ -900,65 +996,12 @@ class RulesetManagerDialog(QDialog):
         return outer
 
     def _make_child_row(self, rule_index, rule, sim_hit=False):
-        """Build one item row inside a condition group."""
-        card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
-        selected = rule_index == self.selected_rule_index
-        enabled  = bool(rule.get("enabled", 1))
-
-        bc = "#378ADD" if selected else ("#5DCAA5" if sim_hit else "#e8e8e8")
-        bg = "#eaf8f4" if sim_hit else (
-            "#eef4fb" if selected else ("#f5f5f5" if not enabled else "#fafafa")
-        )
-        card.setStyleSheet(
-            f"background:{bg}; border-left:2px solid {bc}; "
-            "border-radius:0px;"
-        )
-        card.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        lay = QHBoxLayout(card)
-        lay.setContentsMargins(30, 5, 10, 5)
-        lay.setSpacing(8)
-
-        r_type = rule.get("type", "Material")
-        badge  = QLabel("M" if r_type == "Material" else "L")
-        badge.setFixedSize(22, 22)
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setStyleSheet(
-            "border-radius:4px; font-size:10px; font-weight:bold; " + (
-                "background:#ddeeff; color:#185FA5;" if r_type == "Material"
-                else "background:#fff3e0; color:#854F0B;"
-            )
-        )
-        lay.addWidget(badge)
-
-        name_lbl = QLabel(rule.get("item_name", "Unnamed"))
-        name_style = "font-size:12px;"
-        if not enabled:
-            name_style += " color:#aaa; text-decoration:line-through;"
-        name_lbl.setStyleSheet(name_style)
-        lay.addWidget(name_lbl, 1)
-
-        code_lbl = QLabel(rule.get("item_code", ""))
-        code_lbl.setStyleSheet("font-size:10px; color:#999;")
-        lay.addWidget(code_lbl)
-
-        form_lbl = QLabel(f"\u00d7{rule.get('formula', '1')}")
-        form_lbl.setStyleSheet("font-size:10px; color:#bbb;")
-        lay.addWidget(form_lbl)
-
-        toggle_cb = QCheckBox()
-        toggle_cb.setToolTip("Enable / disable this rule")
-        toggle_cb.setChecked(enabled)
-        toggle_cb.setStyleSheet("margin-left:4px;")
-        toggle_cb.stateChanged.connect(
-            lambda state, idx=rule_index, r=rule:
-                self._on_rule_toggle(idx, r, bool(state))
-        )
-        lay.addWidget(toggle_cb)
-
-        return card
+        return self._make_rule_card_base(rule_index, rule, sim_hit, is_child=True)
 
     # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+    def _get_obj_style(self, obj_type: str) -> dict:
+        return OBJ_STYLES.get(obj_type, {"icon": "▪", "fg": "#555", "bg": "#f0f0f0", "label": "ITEM"})
 
     def _show_dashboard(self):
         """Render object-type summary cards in the centre panel."""
@@ -972,12 +1015,6 @@ class RulesetManagerDialog(QDialog):
 
         self._centre_title.setText("Overview  \u2014  All Object Types")
 
-        _OBJ_STYLES = {
-            "SmartPole":      ("\U0001f538", "#185FA5", "#ddeeff"),
-            "SmartStructure": ("\U0001f537", "#6a1fb0", "#f3e8ff"),
-            "SmartSpan":      ("\U0001f539", "#1a6b2a", "#e8f4ea"),
-            "SmartConsumer":  ("\U0001f536", "#a04000", "#fff3e0"),
-        }
         top_types = [e[1] for e in get_registry().get_tree_def()]
         for obj_type in top_types:
             obj_rules = [(i, r) for i, r in enumerate(self.rules)
@@ -985,9 +1022,11 @@ class RulesetManagerDialog(QDialog):
             n_conds = len(set(r.get("condition", "") for _, r in obj_rules))
             mat_n   = sum(1 for _, r in obj_rules if r.get("type") == "Material")
             lab_n   = sum(1 for _, r in obj_rules if r.get("type") == "Labor")
-            icon, fg, bg = _OBJ_STYLES.get(obj_type, ("\u25aa", "#555", "#f0f0f0"))
+            
+            style = self._get_obj_style(obj_type)
             card = self._make_dashboard_card(
-                obj_type, n_conds, mat_n, lab_n, icon, fg, bg
+                obj_type, n_conds, mat_n, lab_n, 
+                style["icon"], style["fg"], style["bg"]
             )
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
@@ -1048,9 +1087,18 @@ class RulesetManagerDialog(QDialog):
     # ── Card click ────────────────────────────────────────────────────────────
 
     def _on_card(self, rule_index):
+        rule = self.rules[rule_index]
+        new_obj = rule.get("object", "SmartPole")
+        
+        # If we selected a card from a different object type (global search), switch context
+        if new_obj != self.active_obj_type:
+            self.active_obj_type = new_obj
+            self.active_tree_filter = {} # Clear tree filter when switching types via search
+            self._select_tree_root(new_obj)
+            
         self.selected_rule_index = rule_index
         self._refresh_cards()
-        self._build_editor(self.rules[rule_index])
+        self._build_editor(rule)
 
     # ── SIMULATOR ─────────────────────────────────────────────────────────────
 
@@ -1079,11 +1127,38 @@ class RulesetManagerDialog(QDialog):
         sb.setContentsMargins(10, 8, 10, 8)
         sb.setSpacing(6)
 
+        # --- "Pick from canvas" dropdown (Task 5) ---
+        self._canvas_pick_w = QWidget()
+        cpk_l = QHBoxLayout(self._canvas_pick_w)
+        cpk_l.setContentsMargins(0, 0, 0, 4)
+        cpk_l.setSpacing(6)
+        cpk_lbl = QLabel("🎯 Pick from canvas:")
+        cpk_lbl.setStyleSheet("font-size:11px; color:#555; font-weight:bold;")
+        self._canvas_pick_cb = QComboBox()
+        self._canvas_pick_cb.setStyleSheet("font-size:11px; padding:3px;")
+        self._canvas_pick_cb.addItem("— pick an object —")
+        self._canvas_pick_cb.currentIndexChanged.connect(self._on_canvas_pick)
+        cpk_l.addWidget(cpk_lbl)
+        cpk_l.addWidget(self._canvas_pick_cb, 1)
+        sb.addWidget(self._canvas_pick_w)
+        # Only show if canvas objects were passed in
+        self._canvas_pick_w.setVisible(bool(self._canvas_objects))
+
+        # Horizontal Scroll Area for inputs
+        sim_scroll = QScrollArea()
+        sim_scroll.setWidgetResizable(True)
+        sim_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        sim_scroll.setFixedHeight(50)
+        sim_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sim_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
         self._sim_inputs_w = QWidget()
         self._sim_inputs_l = QHBoxLayout(self._sim_inputs_w)
         self._sim_inputs_l.setContentsMargins(0, 0, 0, 0)
-        self._sim_inputs_l.setSpacing(8)
-        sb.addWidget(self._sim_inputs_w)
+        self._sim_inputs_l.setSpacing(12)
+        
+        sim_scroll.setWidget(self._sim_inputs_w)
+        sb.addWidget(sim_scroll)
 
         run_row = QHBoxLayout()
         run_btn = QPushButton("▶  Run")
@@ -1165,6 +1240,94 @@ class RulesetManagerDialog(QDialog):
             self._sim_inputs_l.addWidget(col)
         self._sim_inputs_l.addStretch()
 
+        # Rebuild canvas picker for current object type
+        self._rebuild_canvas_picker()
+
+    def _rebuild_canvas_picker(self):
+        """Populate the 'Pick from canvas' dropdown with matching objects."""
+        if not hasattr(self, "_canvas_pick_cb"):
+            return
+        self._canvas_pick_cb.blockSignals(True)
+        self._canvas_pick_cb.clear()
+        self._canvas_pick_cb.addItem("— pick an object —")
+
+        # Map save-data "type" to internal object class names
+        _TYPE_MAP = {"Pole": "SmartPole", "Structure": "SmartStructure", "Consumer": "SmartConsumer"}
+
+        for nd in self._canvas_objects:
+            nd_type = _TYPE_MAP.get(nd.get("type", ""), nd.get("type", ""))
+            if nd_type != self.active_obj_type:
+                continue
+            label = nd.get("label_text", "") or nd.get("type", "?")
+            seq   = nd.get("seq_id", "")
+            summary = f"{label}"
+            if seq:
+                summary += f" (#{seq})"
+            props = nd.get("dynamic_props", {})
+            if nd.get("pole_type"):
+                summary += f" {nd['pole_type']}"
+            if nd.get("pole_type2"):
+                summary += f" {nd['pole_type2']}"
+            if nd.get("height"):
+                summary += f" {nd['height']}m"
+            self._canvas_pick_cb.addItem(summary, nd)
+
+        self._canvas_pick_cb.blockSignals(False)
+        self._canvas_pick_w.setVisible(
+            bool(self._canvas_objects) and self._canvas_pick_cb.count() > 1
+        )
+
+    def _on_canvas_pick(self, index: int):
+        """Handle selection from the 'Pick from canvas' dropdown."""
+        if index <= 0:
+            return
+        nd = self._canvas_pick_cb.itemData(index)
+        if nd and isinstance(nd, dict):
+            self._prefill_sim_from_object(nd)
+
+    def _prefill_sim_from_object(self, obj_dict: dict):
+        """Pre-fill simulator widgets from a canvas object dict."""
+        # Merge top-level props + dynamic_props as context
+        ctx = {}
+        ctx.update(obj_dict.get("dynamic_props", {}))
+        # Overlay direct attributes
+        for key in ("pole_type", "pole_type2", "height", "is_existing",
+                     "has_extension", "extension_height", "earth_count",
+                     "stay_count", "structure_type", "dtr_size",
+                     "phase", "cable_size", "agency_supply",
+                     "conductor", "conductor_size", "wire_count",
+                     "length", "has_cg", "consider_cable",
+                     "kiosk_required", "orientation",
+                     "dist_box_required", "override_auto_stay"):
+            if key in obj_dict:
+                ctx[key] = obj_dict[key]
+
+        for prop_name, widget in self.sim_widgets.items():
+            if prop_name not in ctx:
+                continue
+            val = ctx[prop_name]
+            if isinstance(widget, QSpinBox):
+                try:
+                    widget.setValue(int(float(val)))
+                except (ValueError, TypeError):
+                    pass
+            elif isinstance(widget, QComboBox):
+                text = str(val)
+                idx = widget.findText(text)
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+                else:
+                    # Try common conversions
+                    if isinstance(val, bool):
+                        widget.setCurrentText(str(val))
+                    else:
+                        widget.setCurrentText(text)
+            else:
+                widget.setText(str(val))
+
+        # Update formula preview after pre-fill
+        self._update_formula_preview()
+
     def _get_sim_ctx(self) -> dict:
         ctx = {
             "use_uh":       False,
@@ -1192,24 +1355,18 @@ class RulesetManagerDialog(QDialog):
             return set()
         ctx  = self._get_sim_ctx()
         hits = set()
-        import math as _math
         for i, rule in enumerate(self.rules):
             if rule.get("object") != self.active_obj_type:
                 continue
             cond = rule.get("condition", "True") or "True"
             try:
-                if eval(
-                    cond,
-                    {"__builtins__": {}, "math": _math},
-                    ctx
-                ):
+                if evaluate_condition(cond, ctx):
                     hits.add(i)
             except Exception:
                 pass
         return hits
 
     def _run_sim(self):
-        import math as _math
         ctx  = self._get_sim_ctx()
         hits = self._sim_hits()
         self._refresh_cards()
@@ -1223,12 +1380,7 @@ class RulesetManagerDialog(QDialog):
             r_type  = rule.get("type", "")
             formula = rule.get("formula", "1")
             try:
-                qty = eval(
-                    formula,
-                    {"__builtins__": {"int": int, "round": round},
-                     "math": _math},
-                    ctx
-                )
+                qty = evaluate_formula(formula, ctx)
                 qty_s = f"{qty:.3f}".rstrip("0").rstrip(".")
             except Exception:
                 qty_s = formula
@@ -1473,7 +1625,21 @@ class RulesetManagerDialog(QDialog):
         )
 
         # Condition section
-        self._editor_body_l.addWidget(self._sec_lbl("Conditions"))
+        cond_hdr_row = QWidget()
+        cond_hdr_l = QHBoxLayout(cond_hdr_row)
+        cond_hdr_l.setContentsMargins(0, 0, 0, 0)
+        cond_hdr_l.setSpacing(4)
+        cond_hdr_l.addWidget(self._sec_lbl("Conditions"))
+        cond_hdr_l.addStretch()
+        ai_btn = QPushButton("✨ Describe in plain English")
+        ai_btn.setStyleSheet(
+            "background:#9b59b6; color:white; border:none; "
+            "padding:3px 8px; border-radius:3px; font-size:10px;"
+        )
+        ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ai_btn.clicked.connect(self._open_ai_describe)
+        cond_hdr_l.addWidget(ai_btn)
+        self._editor_body_l.addWidget(cond_hdr_row)
 
         self._cond_container = QWidget()
         self._cond_rows_l    = QVBoxLayout(self._cond_container)
@@ -1518,6 +1684,16 @@ class RulesetManagerDialog(QDialog):
         self._editor_body_l.addWidget(self._formula_input)
         self._formula_input.textChanged.connect(self._update_preview)
 
+        # Live formula preview — evaluates formula against simulator context
+        self._formula_preview_lbl = QLabel("")
+        self._formula_preview_lbl.setWordWrap(True)
+        self._formula_preview_lbl.setStyleSheet(
+            "font-size:11px; color:#1a6b2a; background:#eaf8f0; "
+            "border-radius:3px; padding:5px 8px; font-family:monospace;"
+        )
+        self._editor_body_l.addWidget(self._formula_preview_lbl)
+        self._formula_input.textChanged.connect(self._update_formula_preview)
+
         # C4: real-time validation label (hidden unless there is an error)
         self._validation_lbl = QLabel("")
         self._validation_lbl.setWordWrap(True)
@@ -1531,6 +1707,7 @@ class RulesetManagerDialog(QDialog):
         self._editor_body_l.addStretch()
         self._parse_conditions(rule)
         self._update_preview()
+        self._update_formula_preview()
 
     # ── Condition rows ────────────────────────────────────────────────────────
 
@@ -1753,79 +1930,53 @@ class RulesetManagerDialog(QDialog):
             if not ok:
                 self._validation_lbl.setText(f"\u26a0  {msg}")
 
-    def _insert_raw_text(self, token: str):
-        if not hasattr(self, "_raw_cond_input"):
+        # Also update formula preview when condition changes
+        self._update_formula_preview()
+
+    def _update_formula_preview(self):
+        """Live-evaluate the formula against simulator context and display result."""
+        if not hasattr(self, "_formula_preview_lbl"):
             return
-        old = self._raw_cond_input.text()
-        pos = self._raw_cond_input.cursorPosition()
-        new = old[:pos] + token + old[pos:]
-        self._raw_cond_input.setText(new)
-        self._raw_cond_input.setCursorPosition(pos + len(token))
-
-    def _sync_expr_value_widget(self, prop: str):
-        obj = self.active_obj_type
-        pinfo = get_registry().get_all_property_data().get(obj, {}).get(prop)
-
-        new_w = None
-        if isinstance(pinfo, list):
-            cb = QComboBox()
-            cb.addItems([str(v) for v in pinfo])
-            cb.setEditable(False)
-            new_w = cb
-        elif pinfo == "int":
-            sp = QSpinBox()
-            sp.setRange(-100000, 100000)
-            new_w = sp
-        else:
-            le = QLineEdit()
-            le.setPlaceholderText("value")
-            new_w = le
-
-        row = self._expr_val_w.parentWidget()
-        lay = row.layout() if row else None
-        if lay is not None:
-            lay.replaceWidget(self._expr_val_w, new_w)
-        self._expr_val_w.deleteLater()
-        self._expr_val_w = new_w
-
-    def _insert_clause_from_helper(self):
-        if not hasattr(self, "_expr_prop_cb"):
-            return
-        prop = self._expr_prop_cb.currentText().strip()
-        op = self._expr_op_cb.currentText().strip()
-        if not prop:
+        if not hasattr(self, "_formula_input"):
+            self._formula_preview_lbl.setVisible(False)
             return
 
-        v = self._expr_val_w
-        if isinstance(v, QSpinBox):
-            raw_val = str(v.value())
-        elif isinstance(v, QComboBox):
-            raw_val = v.currentText().strip()
-        else:
-            raw_val = v.text().strip()
+        formula_text = self._formula_input.text().strip()
+        if not formula_text:
+            self._formula_preview_lbl.setVisible(False)
+            return
 
-        def _fmt_token(t: str) -> str:
-            is_num = re.match(r"^-?\d+(\.\d+)?$", t)
-            is_bool = t.lower() in ("true", "false")
-            if is_num or is_bool:
-                return t
-            return f"'{t}'"
+        # Check if simulator is configured with values
+        if not self.sim_widgets:
+            self._formula_preview_lbl.setVisible(True)
+            self._formula_preview_lbl.setStyleSheet(
+                "font-size:11px; color:#999; background:#f5f5f5; "
+                "border-radius:3px; padding:5px 8px; font-family:monospace;"
+            )
+            self._formula_preview_lbl.setText("→ open simulator to preview")
+            return
 
-        if op in ("in", "not in"):
-            vals = [x.strip() for x in raw_val.split(",") if x.strip()]
-            if not vals:
-                vals = ["value"]
-            seq = ", ".join(_fmt_token(x) for x in vals)
-            clause = f"{prop} {op} ({seq})"
-        else:
-            if raw_val == "":
-                raw_val = "value"
-            clause = f"{prop} {op} {_fmt_token(raw_val)}"
+        try:
+            ctx = self._get_sim_ctx()
+            qty = evaluate_formula(formula_text, ctx)
+            qty_s = f"{qty:.4f}".rstrip("0").rstrip(".")
+            self._formula_preview_lbl.setVisible(True)
+            self._formula_preview_lbl.setStyleSheet(
+                "font-size:11px; color:#1a6b2a; background:#eaf8f0; "
+                "border-radius:3px; padding:5px 8px; font-family:monospace;"
+            )
+            self._formula_preview_lbl.setText(
+                f"→ qty = {qty_s}  (simulator values)"
+            )
+        except Exception as exc:
+            self._formula_preview_lbl.setVisible(True)
+            self._formula_preview_lbl.setStyleSheet(
+                "font-size:11px; color:#c0392b; background:#fff0f0; "
+                "border-radius:3px; padding:5px 8px; font-family:monospace;"
+            )
+            self._formula_preview_lbl.setText(f"→ error: {exc}")
 
-        if self._raw_cond_input.text().strip():
-            self._insert_raw_text(" and " + clause)
-        else:
-            self._insert_raw_text(clause)
+    # ── Editor actions ────────────────────────────────────────────────────────
 
     # ── Editor actions ────────────────────────────────────────────────────────
 
@@ -1895,7 +2046,7 @@ class RulesetManagerDialog(QDialog):
             "formula":   "1",
         }
         self.rules.append(new_rule)
-        self.save_rules()
+        # self.save_rules() <-- Removed to only save on explicit 'Save' button click
         self.selected_rule_index = len(self.rules) - 1
         self._update_tree_counts()
         self._refresh_cards()
@@ -1962,18 +2113,14 @@ class RulesetManagerDialog(QDialog):
     @staticmethod
     def _validate_rule(cond: str, formula: str, obj_type: str) -> tuple[bool, str]:
         """Syntax-check condition and formula. Returns (ok, error_message)."""
-        cond_text    = cond.strip() or "True"
-        formula_text = formula.strip() or "1"
-        try:
-            compile(cond_text, "<condition>", "eval")
-        except SyntaxError as e:
-            col = f", col {e.offset}" if e.offset else ""
-            return False, f"Condition syntax error: {e.msg}{col}"
-        try:
-            compile(formula_text, "<formula>", "eval")
-        except SyntaxError as e:
-            col = f", col {e.offset}" if e.offset else ""
-            return False, f"Formula syntax error: {e.msg}{col}"
+        from core.property_registry import get_registry
+        props = list(get_registry().get_all_property_data().get(obj_type, {}).keys())
+        ok_c, msg_c = validate_expression(cond, props)
+        if not ok_c:
+            return False, f"Condition: {msg_c}"
+        ok_f, msg_f = validate_expression(formula, props)
+        if not ok_f:
+            return False, f"Formula: {msg_f}"
         return True, ""
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -1992,3 +2139,214 @@ class RulesetManagerDialog(QDialog):
             l = child.layout()
             if l is not None:
                 self._clear_layout(l)
+
+    # ── Template dialog ───────────────────────────────────────────────────────
+
+    def _open_templates(self):
+        """Open the rule templates dialog and import selected template."""
+        try:
+            from core.rule_templates import get_templates_by_object
+            grouped = get_templates_by_object()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Could not load templates:\n{exc}")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Rule Templates")
+        dlg.setMinimumSize(700, 500)
+        root_l = QVBoxLayout(dlg)
+        root_l.setContentsMargins(0, 0, 0, 0)
+        root_l.setSpacing(0)
+
+        # Header
+        hdr = QLabel("📋  Choose a template to create a pre-filled rule")
+        hdr.setStyleSheet(
+            "font-size:13px; font-weight:bold; padding:12px 16px; "
+            "border-bottom:1px solid #ddd; background:white;"
+        )
+        root_l.addWidget(hdr)
+
+        # Scroll area with template groups
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        container = QWidget()
+        container.setStyleSheet("background:#f8f8f8;")
+        cl = QVBoxLayout(container)
+        cl.setContentsMargins(12, 12, 12, 12)
+        cl.setSpacing(12)
+
+        _OBJ_ICONS = {
+            "SmartPole": "🔸", "SmartStructure": "🔷",
+            "SmartSpan": "🔹", "SmartConsumer": "🔶",
+        }
+
+        for obj_type in ["SmartPole", "SmartStructure", "SmartSpan", "SmartConsumer"]:
+            templates = grouped.get(obj_type, [])
+            if not templates:
+                continue
+
+            icon = _OBJ_ICONS.get(obj_type, "▪")
+            grp = QGroupBox(f"{icon}  {obj_type.replace('Smart', 'Smart ')}")
+            grp.setStyleSheet(
+                "QGroupBox { font-size:12px; font-weight:bold; color:#333; "
+                "border:1px solid #ddd; border-radius:6px; margin-top:8px; "
+                "padding-top:18px; background:white; } "
+                "QGroupBox::title { subcontrol-origin:margin; left:12px; "
+                "padding:0 6px; }"
+            )
+            gl = QVBoxLayout(grp)
+            gl.setSpacing(6)
+
+            for tmpl in templates:
+                row = QWidget()
+                rl = QHBoxLayout(row)
+                rl.setContentsMargins(8, 6, 8, 6)
+                rl.setSpacing(8)
+
+                # Info column
+                info_w = QWidget()
+                il = QVBoxLayout(info_w)
+                il.setContentsMargins(0, 0, 0, 0)
+                il.setSpacing(2)
+                name_l = QLabel(tmpl["name"])
+                name_l.setStyleSheet("font-size:12px; font-weight:bold;")
+                desc_l = QLabel(tmpl.get("description", ""))
+                desc_l.setStyleSheet("font-size:10px; color:#666;")
+                desc_l.setWordWrap(True)
+
+                # Pill row
+                pills_w = QWidget()
+                pills_l = QHBoxLayout(pills_w)
+                pills_l.setContentsMargins(0, 0, 0, 0)
+                pills_l.setSpacing(3)
+                for p_label, p_bg, p_fg in self._condition_to_pills(tmpl["condition"]):
+                    pill = QLabel(p_label)
+                    pill.setStyleSheet(
+                        f"background:{p_bg}; color:{p_fg}; border-radius:3px; "
+                        "padding:1px 5px; font-size:9px; font-weight:bold;"
+                    )
+                    pills_l.addWidget(pill)
+                pills_l.addStretch()
+
+                formula_l = QLabel(f"qty = {tmpl['formula']}")
+                formula_l.setStyleSheet("font-size:10px; color:#999; font-family:monospace;")
+
+                il.addWidget(name_l)
+                il.addWidget(desc_l)
+                il.addWidget(pills_w)
+                il.addWidget(formula_l)
+                rl.addWidget(info_w, 1)
+
+                # Badge
+                r_type = tmpl.get("type", "Material")
+                badge = QLabel("M" if r_type == "Material" else "L")
+                badge.setFixedSize(22, 22)
+                badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                badge.setStyleSheet(
+                    "border-radius:4px; font-size:10px; font-weight:bold; " + (
+                        "background:#ddeeff; color:#185FA5;" if r_type == "Material"
+                        else "background:#fff3e0; color:#854F0B;"
+                    )
+                )
+                rl.addWidget(badge)
+
+                # Import button
+                imp_btn = QPushButton("Import")
+                imp_btn.setStyleSheet(
+                    "background:#185FA5; color:white; border:none; "
+                    "padding:4px 10px; border-radius:3px; font-size:11px;"
+                )
+                imp_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                imp_btn.clicked.connect(
+                    lambda _checked=False, t=tmpl, d=dlg: self._import_template(t, d)
+                )
+                rl.addWidget(imp_btn)
+
+                row.setStyleSheet(
+                    "background:#fafafa; border:0.5px solid #eee; border-radius:4px;"
+                )
+                gl.addWidget(row)
+
+            cl.addWidget(grp)
+
+        cl.addStretch()
+        scroll.setWidget(container)
+        root_l.addWidget(scroll, 1)
+        dlg.exec()
+
+    def _import_template(self, tmpl: dict, parent_dlg: QDialog):
+        """Create a new rule from a template and open it in the editor."""
+        new_rule = {
+            "object":    tmpl["object"],
+            "condition": tmpl["condition"],
+            "formula":   tmpl["formula"],
+            "type":      tmpl.get("type", "Material"),
+            "item_name": tmpl.get("item_name", "Template rule — edit me"),
+            "item_code": tmpl.get("item_code", "N/A"),
+        }
+        self.rules.append(new_rule)
+        # self.save_rules()
+        self.selected_rule_index = len(self.rules) - 1
+        parent_dlg.accept()  # Close template dialog
+        self.active_obj_type = tmpl["object"]
+        self._update_tree_counts()
+        self._refresh_cards()
+        self._build_editor(new_rule)
+        QMessageBox.information(
+            self, "Template Imported",
+            f"Rule created from template: {tmpl['name']}\n\n"
+            "You can now edit the item, condition, and formula."
+        )
+
+    # ── AI describe ───────────────────────────────────────────────────────────
+
+    def _open_ai_describe(self):
+        """Use AI Assistant to parse requests and modify/create rules."""
+        try:
+            from ui.dialogs.ai_assistant import AIAssistantDialog
+            # Pass ALL rules so the AI knows about global duplicates
+            dlg = AIAssistantDialog(self, obj_type=self.active_obj_type, current_rules=self.rules)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                ops = dlg.get_selected_operations()
+                if not ops: return
+                
+                changed = False
+                for op in ops:
+                    action = str(op.get("action", "")).upper()
+                    target_obj = op.get("object", self.active_obj_type)
+                    if action == "CREATE":
+                        new_r = {
+                            "object": target_obj,
+                            "condition": op.get("condition", "True"),
+                            "formula": str(op.get("formula", "1")),
+                            "type": op.get("type", "Material"),
+                            "item_name": op.get("item_name", "AI Suggested Item"),
+                            "item_code": "",
+                            "enabled": 1
+                        }
+                        self.rules.append(new_r)
+                        changed = True
+                    elif action == "UPDATE":
+                        try:
+                            real_id = int(op.get("rule_id", -1))
+                            if 0 <= real_id < len(self.rules):
+                                r = self.rules[real_id]
+                                if "condition" in op: r["condition"] = op["condition"]
+                                if "formula" in op: r["formula"] = str(op["formula"])
+                                if "item_name" in op: r["item_name"] = op["item_name"]
+                                changed = True
+                        except (ValueError, TypeError):
+                            pass
+                
+                if changed:
+                    # self.save_rules() <-- Removed
+                    self._update_tree_counts()
+                    self._refresh_cards()
+                    QMessageBox.information(self, "AI Update Applied", f"Changes applied to memory. Click 'Save' on individual rules to persist.")
+                    
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "AI Assistant Error", f"An error occurred:\n{exc}")
+

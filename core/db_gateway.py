@@ -67,31 +67,63 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
 
 
 def save_rules(rules: list[dict]) -> None:
-    """Replace ALL rules in DB with the given list.
+    """Replace ALL rules in DB with the given list, preserving IDs where possible.
 
-    Each dict must have: object, condition, formula, type, item_code, item_name.
-    The 'enabled' flag (0/1) is preserved when present, defaulting to 1.
+    Each dict should have: object, condition, formula, type, item_code, item_name.
+    If 'id' is present and exists in DB, that row is updated.
+    Rules not present in the 'rules' list are deleted from the DB.
     """
     con = _conn()
     try:
         cur = con.cursor()
-        cur.execute("DELETE FROM rules")
+        
+        # 1. Map existing IDs
+        existing_ids = {r[0] for r in cur.execute("SELECT id FROM rules").fetchall()}
+        incoming_ids = {r["id"] for r in rules if "id" in r and r["id"] in existing_ids}
+        
+        # 2. Delete rules not in the incoming list
+        to_delete = existing_ids - incoming_ids
+        if to_delete:
+            placeholders = ",".join("?" * len(to_delete))
+            cur.execute(f"DELETE FROM rules WHERE id IN ({placeholders})", list(to_delete))
+
+        # 3. Upsert rules
         for i, r in enumerate(rules):
-            cur.execute(
-                "INSERT INTO rules "
-                "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    r.get("object", ""),
-                    r.get("condition", "True"),
-                    r.get("formula", "1"),
-                    r.get("type", "Material"),
-                    r.get("item_code", ""),
-                    r.get("item_name", ""),
-                    1 if r.get("enabled", 1) else 0,
-                    i,
-                ),
-            )
+            rid = r.get("id")
+            if rid and rid in existing_ids:
+                # Update existing (preserves ID)
+                cur.execute(
+                    "UPDATE rules SET object_type=?, condition=?, formula=?, type=?, "
+                    "item_code=?, item_name=?, enabled=?, sort_order=? WHERE id=?",
+                    (
+                        r.get("object", ""),
+                        r.get("condition", "True"),
+                        r.get("formula", "1"),
+                        r.get("type", "Material"),
+                        r.get("item_code", ""),
+                        r.get("item_name", ""),
+                        1 if r.get("enabled", 1) else 0,
+                        i,
+                        rid,
+                    ),
+                )
+            else:
+                # Insert new
+                cur.execute(
+                    "INSERT INTO rules "
+                    "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        r.get("object", ""),
+                        r.get("condition", "True"),
+                        r.get("formula", "1"),
+                        r.get("type", "Material"),
+                        r.get("item_code", ""),
+                        r.get("item_name", ""),
+                        1 if r.get("enabled", 1) else 0,
+                        i,
+                    ),
+                )
         con.commit()
     finally:
         con.close()

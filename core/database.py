@@ -631,3 +631,14 @@ def get_labour_rate(task_name: str) -> float:
     row = cursor.fetchone()
     conn.close()
     return float(row[0]) if row else 0.0
+
+
+def get_all_catalog_items() -> dict[str, list[str]]:
+    """Return {'materials': [...], 'labor': [...]} list of all current item/task names."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        mats = [r[0] for r in conn.execute("SELECT item_name FROM materials ORDER BY item_name").fetchall()]
+        labs = [r[0] for r in conn.execute("SELECT task_name FROM labor ORDER BY task_name").fetchall()]
+        return {"materials": mats, "labor": labs}
+    finally:
+        conn.close()
