@@ -1,0 +1,55 @@
+# ERP Estimate Generator v7.4
+
+![Version](https://img.shields.io/badge/version-7.4-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
+![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
+
+**ERP Estimate Generator** is a powerful, interactive PyQt6 desktop application designed to automate and streamline electrical network estimation. Tailored for drafting professional project schematics, it pairs a fast, 2D CAD-like drawing canvas with a dynamic, highly configurable rule-based estimation engine.
+
+---
+
+## 🚀 What's New in Version 7.4
+
+We’ve heavily upgraded the core estimation engine and expanded the canvas capabilities to provide unparalleled accuracy and contextual drafting:
+
+* **📈 Improved Estimation Logic:** A completely overhauled, state-of-the-art estimation core that delivers faster, highly accurate calculations, easily handling complex multi-node network rules and edge cases.
+* **🗺️ GPS Map Integration:** You can now add and overlay GPS maps directly into your drawing canvas, allowing for true-to-life, georeferenced schematic drafting and route planning.
+* **🛣️ Custom Infrastructure Tools:** Enhance your schematics with our new suite of contextual drawing tools. Easily map out environmental and civil features like roads, railway lines, rivers, and plot boundaries.
+* **⚙️ Robust Rule Manager:** The Rule Manager has evolved into a robust, advanced engine. It now supports complex conditional nesting, priority-based execution, and sophisticated custom logic for ultimate estimation control.
+
+*(Looking for older updates? Features like live Excel formulas, custom canvas colors, and advanced label management introduced in v7.3 are still fully supported!)*
+
+---
+
+## ⚡ Core Features
+
+### 1. Interactive Drawing Canvas
+* **Smart Objects:** Drag and drop specialized elements like `SmartPole` (LT/HT), `SmartStructure` (DP, TP, 4P, DTR), and `SmartConsumer`.
+* **Smart Connections:** Wire objects together using `SmartSpan`, which automatically calculates line lengths, voltage drops, and required hardware based on connected nodes.
+* **Contextual Mapping:** Add underlying GPS maps and use custom drawing tools to plot roads, rail lines, and terrain limits alongside your electrical networks.
+* **CAD Controls:** Smooth zooming, middle-mouse panning, and spacebar-drag navigation for a professional drafting experience.
+
+### 2. Dynamic Rule Engine
+* **Automated BOM & Labor:** Automatically evaluates the drawn canvas against a dynamic `rules.json` configuration file.
+* **Advanced Logic Processing:** Granular calculations driven by our improved estimation logic compute exact material (BOM) and labor quantities, including complex structural iron weights and stay/earth requirements.
+
+### 3. Professional Exports
+* **Excel Estimates (`openpyxl`):** Generates detailed, multi-sheet workbooks complete with full standard estimates, granular "Iron Breakup" sheets, and live formulas that automatically recalculate when edited externally.
+* **PDF Schematics:** Exports massive network drawings into multi-page PDFs with automatic page orientation and continuation markers.
+
+### 4. Built-in Database
+* Powered by a robust SQLite backend containing official master material and labor codes/rates.
+
+---
+
+## 💻 Tech Stack
+* **Python 3.x**
+* **UI & Canvas:** PyQt6 (`QGraphicsScene` / `QGraphicsView`)
+* **Data Export:** `openpyxl`, `QPrinter`
+* **Database:** SQLite3
+
+---
+
+## 📝 Release Notes & Installation
+Please check the releases tab to download the standalone executable for **v7.4**. 
+*(Note: Be sure to review your existing `rules.json` configurations using the new Robust Rule Manager to leverage the advanced estimation logic and new map integration features).*
