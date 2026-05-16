@@ -612,6 +612,10 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 _lbl = _pfx_d.get(_lbl_key, _pfx_d.get("label_ex_pole", "EP"))
                 txt = f"{_lbl}{self.seq_id}"
                 
+                _sin = getattr(self, "dynamic_props", {}).get("sin", "")
+                if _sin:
+                    txt += f"\nSIN: {_sin}"
+                
                 if _sub == "DTR":
                     ex_kva = getattr(self, "existing_dtr_size", "None")
                     txt += f"\n{ex_kva}"

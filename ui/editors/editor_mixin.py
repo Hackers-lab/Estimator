@@ -91,6 +91,17 @@ class EditorMixin:
                 )
                 self.editor_layout.addRow("DTR Size:", dtr_cb)
 
+            self._add_section_separator("Map Data")
+
+            sin_input = QLineEdit(str(getattr(item, "dynamic_props", {}).get("sin", "")))
+            sin_input.setPlaceholderText("Optional System ID")
+            sin_input.editingFinished.connect(
+                lambda i=item, w=sin_input: self._set_dynamic_prop(i, "sin", w.text().strip())
+            )
+            self.editor_layout.addRow("SIN:", sin_input)
+
+            self._add_separator_line()
+
 
         # Pole type 2 (material)
         pt2_cb = QComboBox()
