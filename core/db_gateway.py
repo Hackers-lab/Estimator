@@ -108,12 +108,17 @@ def save_rules(rules: list[dict]) -> None:
                     ),
                 )
             else:
-                # Insert new
+                # Insert new (Ensure ID starts from 7001 to avoid clashing with System Rules 1-7000)
+                cur.execute("SELECT MAX(id) FROM rules")
+                max_id = cur.fetchone()[0] or 7000
+                target_id = max(max_id + 1, 7001)
+
                 cur.execute(
                     "INSERT INTO rules "
-                    "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-                    "VALUES (?,?,?,?,?,?,?,?)",
+                    "(id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
                     (
+                        target_id,
                         r.get("object", ""),
                         r.get("condition", "True"),
                         r.get("formula", "1"),
@@ -136,22 +141,29 @@ def add_rule(rule: dict) -> int:
         cur = con.cursor()
         cur.execute("SELECT COALESCE(MAX(sort_order),0) FROM rules")
         max_sort = cur.fetchone()[0]
+
+        cur.execute("SELECT MAX(id) FROM rules")
+        max_id = cur.fetchone()[0] or 7000
+        target_id = max(max_id + 1, 7001)
+
         cur.execute(
             "INSERT INTO rules "
-            "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-            "VALUES (?,?,?,?,?,?,1,?)",
+            "(id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (
+                target_id,
                 rule.get("object", ""),
                 rule.get("condition", "True"),
                 rule.get("formula", "1"),
                 rule.get("type", "Material"),
                 rule.get("item_code", ""),
                 rule.get("item_name", ""),
+                1,
                 max_sort + 1,
             ),
         )
         con.commit()
-        return cur.lastrowid
+        return target_id
     finally:
         con.close()
 

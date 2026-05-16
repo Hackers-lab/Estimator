@@ -162,13 +162,17 @@ class ExcelExporter:
             ws.append([
                 i, item["code"], item["name"],
                 round(item["qty"], 3), item["unit"],
-                item["rate"], f'=D{row}*F{row}'
+                round(item["rate"], 2), f'=ROUND(D{row}*F{row}, 2)'
             ])
+            ws.cell(row, 4).number_format = '0.000'
+            ws.cell(row, 6).number_format = '0.00'
+            ws.cell(row, 7).number_format = '0.00'
             row += 1
 
         # Calculate mat_base for further calculations, but write formula to Excel
         mat_base = sum(x["amt"] for x in mat_items)
-        ws.append(["", "", "Material Base Total", "", "", "", f'=SUM(G{mat_start_row}:G{mat_end_row})'])
+        ws.append(["", "", "Material Base Total", "", "", "", f'=ROUND(SUM(G{mat_start_row}:G{mat_end_row}), 2)'])
+        ws.cell(row, 7).number_format = '0.00'
         row += 1
 
 
@@ -179,13 +183,14 @@ class ExcelExporter:
         for i, (fy, esc) in enumerate(app.escalations):
             # Each escalation is 5% of (mat_base + all previous escalations)
             if i == 0:
-                esc_formula = f'=({mat_base_cell})*0.05'
+                esc_formula = f'=ROUND(({mat_base_cell})*0.05, 2)'
             else:
                 prev_esc_cells = '+'.join(esc_rows)
-                esc_formula = f'=({mat_base_cell}+{prev_esc_cells})*0.05'
+                esc_formula = f'=ROUND(({mat_base_cell}+{prev_esc_cells})*0.05, 2)'
             ws.append([
                 "", "", f"Add: Escalation @ 5% for FY {fy}", "", "", "", esc_formula
             ])
+            ws.cell(row, 7).number_format = '0.00'
             row += 1
             esc_cell = f'G{row-1}'
             esc_rows.append(esc_cell)
@@ -195,20 +200,22 @@ class ExcelExporter:
             subtotal_formula = f'{mat_base_cell}+' + '+'.join(esc_rows)
         else:
             subtotal_formula = mat_base_cell
-        sun_formula = f'=({subtotal_formula})*0.05'
+        sun_formula = f'=ROUND(({subtotal_formula})*0.05, 2)'
         ws.append(["", "", "Add: Sundries @ 5%", "", "", "", sun_formula])
+        ws.cell(row, 7).number_format = '0.00'
         row += 1
         sun_row = row-1
 
         # TOTAL MATERIAL COST (A) (formula)
         # Grand total = mat_base + all escalations + sundries
         if esc_rows:
-            grand_total_formula = f'=({mat_base_cell}+' + '+'.join(esc_rows) + f'+G{sun_row})'
+            grand_total_formula = f'=ROUND({mat_base_cell}+' + '+'.join(esc_rows) + f'+G{sun_row}, 2)'
         else:
-            grand_total_formula = f'=({mat_base_cell}+G{sun_row})'
+            grand_total_formula = f'=ROUND({mat_base_cell}+G{sun_row}, 2)'
         ws.append(["", "", "TOTAL MATERIAL COST (A)", "", "", "", grand_total_formula])
         ws.cell(row, 3).font = Font(bold=True)
         ws.cell(row, 7).font = Font(bold=True)
+        ws.cell(row, 7).number_format = '0.00'
         mat_total_row = row  # Track the row where TOTAL MATERIAL COST (A) is written
         row += 2
 
@@ -222,15 +229,19 @@ class ExcelExporter:
             ws.append([
                 i, "", item["name"],
                 round(item["qty"], 3), item["unit"],
-                item["rate"], f'=D{row}*F{row}'
+                round(item["rate"], 2), f'=ROUND(D{row}*F{row}, 2)'
             ])
+            ws.cell(row, 4).number_format = '0.000'
+            ws.cell(row, 6).number_format = '0.00'
+            ws.cell(row, 7).number_format = '0.00'
             row += 1
 
 
         # Formula for labor total
-        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", f'=SUM(G{lab_start_row}:G{lab_end_row})'])
+        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", f'=ROUND(SUM(G{lab_start_row}:G{lab_end_row}), 2)'])
         ws.cell(row, 3).font = Font(bold=True)
         ws.cell(row, 7).font = Font(bold=True)
+        ws.cell(row, 7).number_format = '0.00'
         lab_total_row = row  # Track the row where TOTAL LABOR COST (B) is written
         row += 2
 
@@ -245,38 +256,43 @@ class ExcelExporter:
         row += 1
 
         # Supervision
-        sup_formula = f'=({mat_total_cell}+G{lab_total_row})*{sup_rate}'
+        sup_formula = f'=ROUND(({mat_total_cell}+G{lab_total_row})*{sup_rate}, 2)'
         ws.append(["", "", f"Supervision @ {sup_pct}% on (A+B)", "", "", "", sup_formula])
+        ws.cell(row, 7).number_format = '0.00'
         sup_row = row
         sup_cell = f'G{sup_row}'
         row += 1
 
         # GST on labor only
-        gst_formula = f'=G{lab_total_row}*0.18'
+        gst_formula = f'=ROUND(G{lab_total_row}*0.18, 2)'
         ws.append(["", "", "GST @ 18% on Labour only", "", "", "", gst_formula])
+        ws.cell(row, 7).number_format = '0.00'
         gst_row = row
         gst_cell = f'G{gst_row}'
         row += 1
 
         # Sub-Total (A+B+Supervision+GST)
-        sub_total_formula = f'={mat_total_cell}+G{lab_total_row}+{sup_cell}+{gst_cell}'
+        sub_total_formula = f'=ROUND({mat_total_cell}+G{lab_total_row}+{sup_cell}+{gst_cell}, 2)'
         ws.append(["", "", "Sub-Total", "", "", "", sub_total_formula])
+        ws.cell(row, 7).number_format = '0.00'
         sub_total_row = row
         sub_total_cell = f'G{sub_total_row}'
         row += 1
 
         # Cess on (A+B+Supervision)
-        cess_formula = f'=({mat_total_cell}+G{lab_total_row}+{sup_cell})*0.01'
+        cess_formula = f'=ROUND(({mat_total_cell}+G{lab_total_row}+{sup_cell})*0.01, 2)'
         ws.append(["", "", "Add: Cess @ 1% on (Mat+Lab+Sup)", "", "", "", cess_formula])
+        ws.cell(row, 7).number_format = '0.00'
         cess_row = row
         cess_cell = f'G{cess_row}'
         row += 1
 
         # GRAND TOTAL (Sub-Total + Cess)
-        grand_total_formula = f'={sub_total_cell}+{cess_cell}'
+        grand_total_formula = f'=ROUND({sub_total_cell}+{cess_cell}, 2)'
         ws.append(["", "", "GRAND TOTAL", "", "", "", grand_total_formula])
         ws.cell(row, 3).font = Font(bold=True, size=12)
         ws.cell(row, 7).font = Font(bold=True, size=12, color="FF0000")
+        ws.cell(row, 7).number_format = '0.00'
 
     # ── Iron breakup sheet ───────────────────────────────────────────────────
 

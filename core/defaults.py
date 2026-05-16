@@ -22,9 +22,9 @@ from __future__ import annotations
 import json
 import os
 
-from app_config import get_data_path
+from app_config import get_user_data_path
 
-_DEFAULTS_FILE = get_data_path("defaults.json")
+_DEFAULTS_FILE = get_user_data_path("defaults.json")
 
 # ── Factory defaults ──────────────────────────────────────────────────────────
 _FACTORY: dict = {

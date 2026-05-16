@@ -2300,13 +2300,13 @@
     "enabled": 1
   },
   {
-    "id": 231,
+    "id": 7001,
     "object": "SmartPole",
-    "condition": "height == 10",
+    "condition": "pole_type == 'LT' and pole_type2 == 'H-BEAM' and stay_count == 4",
     "formula": "1",
     "type": "Material",
-    "item_code": "0110051211",
-    "item_name": "WIDE FLANGE BEAM 13M LONG WBP 160X160X30.44 KG/M",
+    "item_code": "0110051111",
+    "item_name": "WIDE FLANGE BEAM 11M LONG WBP 160X160X30.44 KG/M",
     "enabled": 1
   }
 ]

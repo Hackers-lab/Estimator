@@ -280,12 +280,20 @@ SIM_DEFAULTS = {
 #  Hierarchy shown in the left panel of RulesetManagerDialog.
 #  Format per entry: (display_label, obj_type, filter_dict, children)
 # ─────────────────────────────────────────────────────────────────────────────
+TREE_DEF: list = []
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  RULE BUILDER — FILTER CHIPS
 #  Context-aware checkbox filters shown above the card list per object type.
 #  Format: (display_label, context_key, match_value)
 # ─────────────────────────────────────────────────────────────────────────────
+FILTER_CHIPS: dict = {}
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  RULE BUILDER — FORMULA VARS
+#  Numeric variables available inside qty formula strings.
+# ─────────────────────────────────────────────────────────────────────────────
+FORMULA_VARS: dict = {}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  IRON BREAKUP — UNIT WEIGHTS  (kg per metre)

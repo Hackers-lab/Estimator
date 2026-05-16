@@ -42,7 +42,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QGroupBox, QComboBox,
     QSpinBox, QDoubleSpinBox, QHeaderView, QInputDialog,
     QWidget, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLabel, QScrollArea, QDialogButtonBox, QFrame,
+    QLabel, QScrollArea, QDialogButtonBox, QFrame, QTextEdit
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -122,13 +122,22 @@ class ProjectSetupDialog(QDialog):
 
         # Subject — max ~5 lines (300 chars) with live counter
         _SUBJECT_MAX = 300
-        self._subject = QLineEdit(self._meta.get("subject", ""))
+        self._subject = QTextEdit(self._meta.get("subject", ""))
         self._subject.setPlaceholderText("e.g. GOCHIYA II LT Line Extension")
-        self._subject.setMaxLength(_SUBJECT_MAX)
+        self._subject.setFixedHeight(80)
+        self._subject.setStyleSheet("font-size: 13px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;")
         _subj_counter = QLabel()
         _subj_counter.setStyleSheet("color:#888; font-size:11px;")
 
-        def _update_counter(text: str) -> None:
+        def _update_counter() -> None:
+            text = self._subject.toPlainText()
+            if len(text) > _SUBJECT_MAX:
+                text = text[:_SUBJECT_MAX]
+                cursor = self._subject.textCursor()
+                pos = cursor.position()
+                self._subject.setPlainText(text)
+                cursor.setPosition(min(pos, len(text)))
+                self._subject.setTextCursor(cursor)
             remaining = _SUBJECT_MAX - len(text)
             _subj_counter.setText(f"{len(text)}/{_SUBJECT_MAX} chars")
             _subj_counter.setStyleSheet(
@@ -137,7 +146,7 @@ class ProjectSetupDialog(QDialog):
             )
 
         self._subject.textChanged.connect(_update_counter)
-        _update_counter(self._subject.text())
+        _update_counter()
 
         _subj_w = QWidget()
         _subj_l = QVBoxLayout(_subj_w)
@@ -232,7 +241,7 @@ class ProjectSetupDialog(QDialog):
             self._uh.setChecked(False)
 
     def _on_accept(self):
-        subj = self._subject.text().strip()
+        subj = self._subject.toPlainText().strip()
         if not subj:
             QMessageBox.warning(
                 self, "Required", "Please enter a Project Name."

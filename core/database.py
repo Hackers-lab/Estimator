@@ -36,11 +36,13 @@ import sqlite3
 import json
 import os
 
-from app_config import get_app_root as _get_app_root
-DB_PATH = os.path.join(_get_app_root(), "erp_master.db")
-_SEED_DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "seed_data.json")
-_RULES_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "rules.json")
-_CATALOG_FILE   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "property_catalog.json")
+from app_config import get_user_data_path, get_data_path
+from core import data_mgr
+
+DB_PATH = get_user_data_path("erp_master.db")
+_SEED_DATA_FILE = get_data_path("seed_data.json")
+_RULES_FILE     = get_data_path("rules.json")
+_CATALOG_FILE   = get_data_path("property_catalog.json")
 
 # Prefixes / codes for incremental rows added to existing databases
 _NEW_MATERIAL_PREFIXES = (
@@ -85,7 +87,11 @@ def _load_seed_data() -> tuple[list, list]:
 
 
 def setup_database():
-    """Called on every app launch. Seed data is loaded lazily only when needed."""
+    """Called on every app launch. Handles AppData initialization and data syncing."""
+    # 1. Ensure user AppData exists and is seeded if needed
+    data_mgr.initialize_user_data()
+
+    # 2. Open connection
     conn   = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -123,10 +129,17 @@ def setup_database():
     # ── Config tables (added in v7.0) ──────────────────────────────────────────
     _create_config_tables(cursor)
 
+    # Always ensure Phase 3 configuration is seeded
+    _seed_phase_3_tables(cursor)
+
     # Seed config tables the first time (rules table empty = fresh DB or migration)
     cursor.execute("SELECT COUNT(*) FROM rules")
     if cursor.fetchone()[0] == 0:
         _seed_config_tables(cursor)
+    else:
+        # DB exists, but we might have new rules/items in the app update
+        conn.commit() # Save state before mgr syncs
+        data_mgr.check_and_sync()
 
     conn.commit()
     conn.close()
@@ -301,10 +314,8 @@ def _create_config_tables(cursor) -> None:
     )
 
 
-def _seed_config_tables(cursor) -> None:
-    """Seed all config tables from existing JSON / constants.  Called once on fresh DB or schema migration."""
-
-    # ── Project Types, Tree Def, Filter Chips, Formula Vars (Phase 3) ──────────
+def _seed_phase_3_tables(cursor) -> None:
+    """Seed Phase 3 config tables. Safe to run on every startup."""
     try:
         from core.constants import PROJECT_TYPES, SUPERVISION_RATES, TREE_DEF, FILTER_CHIPS, FORMULA_VARS
         
@@ -349,6 +360,9 @@ def _seed_config_tables(cursor) -> None:
                     )
     except ImportError:
         pass
+
+def _seed_config_tables(cursor) -> None:
+    """Seed all config tables from existing JSON / constants.  Called once on fresh DB or schema migration."""
 
     # ── Rules ──────────────────────────────────────────────────────────────────
     rules_data: list = []
@@ -535,7 +549,7 @@ def _seed_config_tables(cursor) -> None:
         )
 
     # Migrate existing defaults.json (user's customised values take precedence)
-    _dfile = os.path.join(_get_app_root(), "data", "defaults.json")
+    _dfile = get_data_path("defaults.json")
     if os.path.exists(_dfile):
         try:
             with open(_dfile, "r", encoding="utf-8") as _df:
