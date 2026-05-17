@@ -54,6 +54,7 @@ cmd = [
     # Hidden imports that PyInstaller might miss
     "--hidden-import", "openpyxl",
     "--hidden-import", "sqlite3",
+    "--hidden-import", "simpleeval",
     "app.py",
 ]
 

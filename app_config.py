@@ -62,3 +62,6 @@ APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.
 APP_EXPIRY = "2026-06-30"
+
+# AI Assistant API Key
+GROQ_API_KEY = "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"

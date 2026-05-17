@@ -18,6 +18,7 @@ import os
 import sqlite3
 from datetime import datetime, date
 
+# pyrefly: ignore [missing-import]
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QGraphicsScene,

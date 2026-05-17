@@ -47,9 +47,8 @@ import json
 import os
 import re
 from difflib import SequenceMatcher
-from dotenv import load_dotenv
-
-load_dotenv() # Load from .env if present
+import sys
+from app_config import GROQ_API_KEY
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -329,12 +328,10 @@ def parse_natural_language_rules(
 
     Returns list of operation dicts for the AI Assistant dialog to display.
     """
-    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    api_key = GROQ_API_KEY.strip()
     if not api_key:
         raise RuntimeError(
-            "GROQ_API_KEY not set.\n"
-            "Add it to your .env file:  GROQ_API_KEY=gsk_...\n"
-            "Never paste the key directly in source code."
+            "GROQ_API_KEY not set in app_config.\n"
         )
 
     try:

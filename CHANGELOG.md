@@ -2,6 +2,24 @@
 
 ---
 
+## v7.5 — May 17, 2026
+
+### What's New
+
+#### 🤖 AI Rule Creator
+You can now create and manage estimation rules using plain English! Simply describe the rule to the AI Assistant, and it will handle the complex logic for you.
+
+#### ⚡ SIN on Existing Poles
+Support has been added for configuring SIN (Service Identification Number) directly on existing poles.
+
+#### 💾 Rule Preservation
+Your existing, custom-made rules are now safely preserved and will not be overwritten by application updates.
+
+#### 📅 Extended Validity
+The application's validity period has been extended until **30.06.2026**.
+
+---
+
 ## v7.2 — April 12, 2026
 
 ### Fixes & Improvements

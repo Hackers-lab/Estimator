@@ -1,6 +1,6 @@
-# ERP Estimate Generator v7.4
+# ERP Estimate Generator v7.5
 
-![Version](https://img.shields.io/badge/version-7.4-blue.svg)
+![Version](https://img.shields.io/badge/version-7.5-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,9 +8,16 @@
 
 ---
 
-## 🚀 What's New in Version 7.4
+## 🚀 What's New in Version 7.5
 
-We’ve heavily upgraded the core estimation engine and expanded the canvas capabilities to provide unparalleled accuracy and contextual drafting:
+* **🤖 AI Rule Creator:** You can now create and manage estimation rules using plain English! Simply describe the rule to the AI Assistant, and it will handle the complex logic for you.
+* **⚡ SIN on Existing Poles:** Support has been added for configuring SIN (Service Identification Number) directly on existing poles.
+* **💾 Rule Preservation:** Your existing, custom-made rules are now safely preserved and will not be overwritten by application updates.
+* **📅 Extended Validity:** The application's validity period has been extended until **30.06.2026**.
+
+## 🔄 Previous Highlights (v7.4)
+
+We heavily upgraded the core estimation engine and expanded the canvas capabilities to provide unparalleled accuracy and contextual drafting:
 
 * **📈 Improved Estimation Logic:** A completely overhauled, state-of-the-art estimation core that delivers faster, highly accurate calculations, easily handling complex multi-node network rules and edge cases.
 * **🗺️ GPS Map Integration:** You can now add and overlay GPS maps directly into your drawing canvas, allowing for true-to-life, georeferenced schematic drafting and route planning.
@@ -51,5 +58,5 @@ We’ve heavily upgraded the core estimation engine and expanded the canvas capa
 ---
 
 ## 📝 Release Notes & Installation
-Please check the releases tab to download the standalone executable for **v7.4**. 
+Please check the releases tab to download the standalone executable for **v7.5**. 
 *(Note: Be sure to review your existing `rules.json` configurations using the new Robust Rule Manager to leverage the advanced estimation logic and new map integration features).*
