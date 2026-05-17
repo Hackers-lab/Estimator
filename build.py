@@ -55,6 +55,7 @@ cmd = [
     "--hidden-import", "openpyxl",
     "--hidden-import", "sqlite3",
     "--hidden-import", "simpleeval",
+    "--hidden-import", "api_secrets",
     "app.py",
 ]
 
