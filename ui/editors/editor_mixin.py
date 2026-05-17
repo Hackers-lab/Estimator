@@ -33,6 +33,28 @@ class EditorMixin:
     - self._show_advanced_pole_props (bool)
     """
 
+    _LABEL_W = 58  # fixed label width for 4-col grid alignment
+
+    def _add_field_pair(self, label1, widget1, label2=None, widget2=None):
+        """Add a row: [label1][input1] or [label1][input1][label2][input2]."""
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        lbl1 = QLabel(label1)
+        lbl1.setFixedWidth(self._LABEL_W)
+        lbl1.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(lbl1)
+        row.addWidget(widget1, 1)
+        if label2 is not None and widget2 is not None:
+            lbl2 = QLabel(label2)
+            lbl2.setFixedWidth(self._LABEL_W)
+            lbl2.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(lbl2)
+            row.addWidget(widget2, 1)
+        w = QWidget()
+        w.setLayout(row)
+        self.editor_layout.addRow(w)
+
     def _build_empty_editor_hint(self):
         hint = QLabel(
             "<b>Mouse</b><br>"
@@ -68,7 +90,7 @@ class EditorMixin:
         else:
             self.editor_group.setTitle(f"{item.pole_type} Pole")
 
-        # Existing subtype picker — only shown for existing poles
+        # Existing subtype picker
         if item.is_existing:
             type_cb = QComboBox()
             type_cb.addItems(["LT", "HT", "DP", "TP", "4P", "DTR"])
@@ -76,8 +98,6 @@ class EditorMixin:
             type_cb.currentTextChanged.connect(
                 lambda t, i=item: self._update_existing_subtype(i, t)
             )
-            self.editor_layout.addRow("Existing Type:", type_cb)
-
             if subtype == "DTR":
                 dtr_cb = QComboBox()
                 _xdtr = self._dtr_size_options("SmartPole", "existing_dtr_size")
@@ -89,39 +109,72 @@ class EditorMixin:
                 dtr_cb.currentTextChanged.connect(
                     lambda t, i=item: self._update_pole(i, "existing_dtr_size", t)
                 )
-                self.editor_layout.addRow("DTR Size:", dtr_cb)
-
-            self._add_section_separator("Map Data")
+                self._add_field_pair("Ex Type:", type_cb, "DTR Size:", dtr_cb)
+            else:
+                self._add_field_pair("Ex Type:", type_cb)
 
             sin_input = QLineEdit(str(getattr(item, "dynamic_props", {}).get("sin", "")))
             sin_input.setPlaceholderText("Optional System ID")
             sin_input.editingFinished.connect(
                 lambda i=item, w=sin_input: self._set_dynamic_prop(i, "sin", w.text().strip())
             )
-            self.editor_layout.addRow("SIN:", sin_input)
+            self._add_field_pair("SIN:", sin_input)
 
-            self._add_separator_line()
-
-
-        # Pole type 2 (material)
+        # Material + Height paired
         pt2_cb = QComboBox()
         pt2_cb.addItems(self._pole_type2_options())
         if item.pole_type2 not in self._pole_type2_options():
-            pt2_cb.addItem(item.pole_type2)   # preserve loaded value
+            pt2_cb.addItem(item.pole_type2)
         pt2_cb.setCurrentText(item.pole_type2)
         pt2_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_pole_type2(i, t)
         )
-        self.editor_layout.addRow("Material:", pt2_cb)
-
-        # Height (cascading)
         ht_cb = QComboBox()
         ht_cb.addItems(self._height_options(item.pole_type2))
         ht_cb.setCurrentText(item.height)
         self._bind_property_widget(item, "height", ht_cb)
-        self.editor_layout.addRow("Height:", ht_cb)
+        self._add_field_pair("Material:", pt2_cb, "Height:", ht_cb)
 
-        # Extension
+        # Earth + Stay paired
+        earth_sp = QSpinBox()
+        earth_sp.setRange(0, 10)
+        earth_sp.setValue(item.earth_count)
+        self._bind_property_widget(item, "earth_count", earth_sp)
+        stay_w = QWidget()
+        stay_row = QHBoxLayout(stay_w)
+        stay_row.setContentsMargins(0, 0, 0, 0)
+        stay_row.setSpacing(3)
+        stay_sp = QSpinBox()
+        stay_sp.setRange(0, 10)
+        stay_sp.setValue(item.stay_count)
+        stay_sp.valueChanged.connect(
+            lambda v, i=item: self._manual_stay(i, v)
+        )
+        stay_row.addWidget(stay_sp)
+        if item.override_auto_stay:
+            lock_lbl = QLabel("🔒")
+            lock_lbl.setStyleSheet("color:#e67e22; font-size:10px;")
+            stay_row.addWidget(lock_lbl)
+            reset_btn = QPushButton("Reset")
+            reset_btn.setFixedWidth(40)
+            reset_btn.setStyleSheet("font-size:10px; padding:2px;")
+            reset_btn.clicked.connect(
+                lambda _, i=item: self._reset_auto_stay(i)
+            )
+            stay_row.addWidget(reset_btn)
+        self._add_field_pair("Earth:", earth_sp, "Stay:", stay_w)
+
+        self._add_custom_slots_editor(item)
+
+        # Note
+        note = QLineEdit(getattr(item, "custom_note", ""))
+        note.setPlaceholderText("Custom note...")
+        note.textChanged.connect(
+            lambda t, i=item: self._update_note(i, t)
+        )
+        self._add_field_pair("Note:", note)
+
+        # Checkboxes grouped at bottom
         ext_chk = QCheckBox("Extension required")
         ext_chk.setChecked(item.has_extension)
         ext_chk.stateChanged.connect(
@@ -136,40 +189,8 @@ class EditorMixin:
             ext_ht.setSuffix(" m")
             ext_ht.setValue(item.extension_height)
             self._bind_property_widget(item, "extension_height", ext_ht)
-            self.editor_layout.addRow("Ext. Height:", ext_ht)
+            self._add_field_pair("Ext. Ht:", ext_ht)
 
-        # Earth count
-        earth_sp = QSpinBox()
-        earth_sp.setRange(0, 10)
-        earth_sp.setValue(item.earth_count)
-        self._bind_property_widget(item, "earth_count", earth_sp)
-        self.editor_layout.addRow("Earthing Sets:", earth_sp)
-
-        # Stay count + override indicator
-        stay_row = QHBoxLayout()
-        stay_sp = QSpinBox()
-        stay_sp.setRange(0, 10)
-        stay_sp.setValue(item.stay_count)
-        stay_sp.valueChanged.connect(
-            lambda v, i=item: self._manual_stay(i, v)
-        )
-        stay_row.addWidget(stay_sp)
-        if item.override_auto_stay:
-            lock_lbl = QLabel("🔒 Manual")
-            lock_lbl.setStyleSheet("color:#e67e22; font-size:10px;")
-            stay_row.addWidget(lock_lbl)
-            reset_btn = QPushButton("Reset")
-            reset_btn.setFixedWidth(48)
-            reset_btn.setStyleSheet("font-size:10px; padding:2px;")
-            reset_btn.clicked.connect(
-                lambda _, i=item: self._reset_auto_stay(i)
-            )
-            stay_row.addWidget(reset_btn)
-        stay_w = QWidget()
-        stay_w.setLayout(stay_row)
-        self.editor_layout.addRow("Stay Sets:", stay_w)
-
-        # ── Distribution box (LT poles with AB-Cable spans only) ─────────
         if not item.is_existing and item.pole_type == "LT":
             has_ab = any(
                 s.conductor == "AB Cable" and not s.is_service_drop
@@ -184,7 +205,6 @@ class EditorMixin:
                 )
                 self.editor_layout.addRow(db_chk)
 
-        # Advanced controls are collapsed by default to reduce scrolling.
         adv_chk = QCheckBox("Show advanced controls")
         adv_chk.setChecked(self._show_advanced_pole_props)
         adv_chk.stateChanged.connect(
@@ -193,7 +213,6 @@ class EditorMixin:
         self.editor_layout.addRow(adv_chk)
 
         if self._show_advanced_pole_props:
-            # ── Stay angle rotation (manual override) ─────────────────────
             def _make_angle_row(label_text, angle_val, rotate_fn, reset_fn):
                 row_w   = QWidget()
                 row_lay = QHBoxLayout(row_w)
@@ -220,34 +239,16 @@ class EditorMixin:
                 row_lay.addWidget(rst_btn)
                 return row_w
 
-            self.editor_layout.addRow(
-                "Stay dir.:",
-                _make_angle_row(
-                    "Stay dir.",
-                    item.stay_angle_override,
-                    lambda delta, i=item: self._rotate_stay(i, delta),
-                    lambda _, i=item: self._reset_stay_angle(i),
-                )
-            )
-            self.editor_layout.addRow(
-                "Earth dir.:",
-                _make_angle_row(
-                    "Earth dir.",
-                    item.earth_angle_override,
-                    lambda delta, i=item: self._rotate_earth(i, delta),
-                    lambda _, i=item: self._reset_earth_angle(i),
-                )
-            )
-
-        self._add_custom_slots_editor(item)
-
-        # Note
-        note = QLineEdit(getattr(item, "custom_note", ""))
-        note.setPlaceholderText("Custom note...")
-        note.textChanged.connect(
-            lambda t, i=item: self._update_note(i, t)
-        )
-        self.editor_layout.addRow("Note:", note)
+            self._add_field_pair("Stay dir:", _make_angle_row(
+                "Stay", item.stay_angle_override,
+                lambda delta, i=item: self._rotate_stay(i, delta),
+                lambda _, i=item: self._reset_stay_angle(i),
+            ))
+            self._add_field_pair("Earth dir:", _make_angle_row(
+                "Earth", item.earth_angle_override,
+                lambda delta, i=item: self._rotate_earth(i, delta),
+                lambda _, i=item: self._reset_earth_angle(i),
+            ))
 
         if item.is_existing and subtype == "DTR":
             self._build_dtr_augmentation_editor(item)
@@ -263,20 +264,18 @@ class EditorMixin:
     def _build_structure_editor(self, item):
         self.editor_group.setTitle(f"Structure — {item.structure_type}")
 
-        # Structure type
+        # Structure type + Orientation paired
         st_cb = QComboBox()
         st_cb.addItems(["DP", "TP", "4P", "DTR"])
         st_cb.setCurrentText(item.structure_type)
         st_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_structure_type(i, t)
         )
-        self.editor_layout.addRow("Structure Type:", st_cb)
-
         orient_cb = QComboBox()
         orient_cb.addItems(["Horizontal", "Vertical"])
         orient_cb.setCurrentText(getattr(item, "orientation", "Horizontal"))
         self._bind_property_widget(item, "orientation", orient_cb)
-        self.editor_layout.addRow("Orientation:", orient_cb)
+        self._add_field_pair("Type:", st_cb, "Orient:", orient_cb)
 
         # DTR size (only when DTR)
         if item.structure_type == "DTR":
@@ -289,18 +288,9 @@ class EditorMixin:
             dtr_cb.currentTextChanged.connect(
                 lambda t, i=item: self._update_structure(i, "dtr_size", t)
             )
-            self.editor_layout.addRow("DTR Size:", dtr_cb)
+            self._add_field_pair("DTR Size:", dtr_cb)
 
-            kiosk_chk = QCheckBox("Kiosk required")
-            kiosk_chk.setChecked(bool(getattr(item, "kiosk_required", True)))
-            kiosk_chk.stateChanged.connect(
-                lambda v, i=item: self._update_structure(i, "kiosk_required", v == 2)
-            )
-            self.editor_layout.addRow(kiosk_chk)
-
-            # Augmentation editor is shown only for existing DTR poles.
-
-        # Pole material
+        # Material + Height paired
         pt2_cb = QComboBox()
         _spt2 = self._pole_type2_options("SmartStructure")
         pt2_cb.addItems(_spt2)
@@ -310,16 +300,34 @@ class EditorMixin:
         pt2_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_struct_type2(i, t)
         )
-        self.editor_layout.addRow("Pole Material:", pt2_cb)
-
-        # Height (cascading)
         ht_cb = QComboBox()
         ht_cb.addItems(self._height_options(item.pole_type2, "SmartStructure"))
         ht_cb.setCurrentText(item.height)
         self._bind_property_widget(item, "height", ht_cb)
-        self.editor_layout.addRow("Height:", ht_cb)
+        self._add_field_pair("Material:", pt2_cb, "Height:", ht_cb)
 
-        # Extension
+        # Earth + Stay paired
+        earth_sp = QSpinBox()
+        earth_sp.setRange(0, 20)
+        earth_sp.setValue(item.earth_count)
+        self._bind_property_widget(item, "earth_count", earth_sp)
+        stay_sp = QSpinBox()
+        stay_sp.setRange(0, 20)
+        stay_sp.setValue(item.stay_count)
+        self._bind_property_widget(item, "stay_count", stay_sp)
+        self._add_field_pair("Earth:", earth_sp, "Stay:", stay_sp)
+
+        self._add_custom_slots_editor(item)
+
+        # Note
+        note = QLineEdit(getattr(item, "custom_note", ""))
+        note.setPlaceholderText("Custom note...")
+        note.textChanged.connect(
+            lambda t, i=item: self._update_note(i, t)
+        )
+        self._add_field_pair("Note:", note)
+
+        # Checkboxes at bottom
         ext_chk = QCheckBox("Extension required")
         ext_chk.setChecked(item.has_extension)
         ext_chk.stateChanged.connect(
@@ -334,31 +342,15 @@ class EditorMixin:
             ext_ht.setSuffix(" m")
             ext_ht.setValue(item.extension_height)
             self._bind_property_widget(item, "extension_height", ext_ht)
-            self.editor_layout.addRow("Ext. Height:", ext_ht)
+            self._add_field_pair("Ext. Ht:", ext_ht)
 
-        # Earth count
-        earth_sp = QSpinBox()
-        earth_sp.setRange(0, 20)
-        earth_sp.setValue(item.earth_count)
-        self._bind_property_widget(item, "earth_count", earth_sp)
-        self.editor_layout.addRow("Earthing Sets:", earth_sp)
-
-        # Stay count
-        stay_sp = QSpinBox()
-        stay_sp.setRange(0, 20)
-        stay_sp.setValue(item.stay_count)
-        self._bind_property_widget(item, "stay_count", stay_sp)
-        self.editor_layout.addRow("Stay Sets:", stay_sp)
-
-        self._add_custom_slots_editor(item)
-
-        # Note
-        note = QLineEdit(getattr(item, "custom_note", ""))
-        note.setPlaceholderText("Custom note...")
-        note.textChanged.connect(
-            lambda t, i=item: self._update_note(i, t)
-        )
-        self.editor_layout.addRow("Note:", note)
+        if item.structure_type == "DTR":
+            kiosk_chk = QCheckBox("Kiosk required")
+            kiosk_chk.setChecked(bool(getattr(item, "kiosk_required", True)))
+            kiosk_chk.stateChanged.connect(
+                lambda v, i=item: self._update_structure(i, "kiosk_required", v == 2)
+            )
+            self.editor_layout.addRow(kiosk_chk)
 
         self._add_delete_btn(item)
 
@@ -379,7 +371,7 @@ class EditorMixin:
         note.textChanged.connect(
             lambda t, i=item: self._update_note(i, t)
         )
-        self.editor_layout.addRow("Note:", note)
+        self._add_field_pair("Note:", note)
         self._add_delete_btn(item)
 
     def _build_service_drop_editor(self, item):
@@ -389,25 +381,23 @@ class EditorMixin:
         len_sp.valueChanged.connect(
             lambda v, i=item: self._update_span(i, "length", v)
         )
-        self.editor_layout.addRow("Length (m):", len_sp)
+        self._add_field_pair("Length:", len_sp)
 
     def _build_line_span_editor(self, item):
-        # Voltage level (read-only, auto-detected)
+        # Voltage + Length paired
         vl_lbl = QLabel(
-            f"{'LT' if item.is_lt_span else 'HT'} (auto-detected)"
+            f"{'LT' if item.is_lt_span else 'HT'} (auto)"
         )
         vl_lbl.setStyleSheet("color:#555; font-style:italic;")
-        self.editor_layout.addRow("Voltage Level:", vl_lbl)
-
         len_sp = QSpinBox()
         len_sp.setRange(1, 500)
         len_sp.setValue(int(item.length))
         len_sp.valueChanged.connect(
             lambda v, i=item: self._update_span(i, "length", v)
         )
-        self.editor_layout.addRow("Length (m):", len_sp)
+        self._add_field_pair("Voltage:", vl_lbl, "Length:", len_sp)
 
-        # Conductor type — filtered by voltage level (built-in + user-added)
+        # Conductor + Size paired
         _user = property_catalog.get_user_conductors()
         _user_lt = [c["name"] for c in _user if c["voltage"] in ("LT", "Both")]
         _user_ht = [c["name"] for c in _user if c["voltage"] in ("HT", "Both")]
@@ -417,23 +407,26 @@ class EditorMixin:
         cond_cb = QComboBox()
         cond_cb.addItems(cond_list)
         if item.conductor not in cond_list:
-            cond_cb.addItem(item.conductor)   # preserve loaded value
+            cond_cb.addItem(item.conductor)
         cond_cb.setCurrentText(item.conductor)
         cond_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_conductor(i, t)
         )
-        self.editor_layout.addRow("Conductor:", cond_cb)
-
-        # Conductor size (cascading)
         sz_cb = QComboBox()
         sz_cb.addItems(self._conductor_sizes(item.conductor, item.is_lt_span))
         sz_cb.setCurrentText(item.conductor_size)
         sz_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_span(i, "conductor_size", t)
         )
-        self.editor_layout.addRow("Size:", sz_cb)
+        self._add_field_pair("Cond:", cond_cb, "Size:", sz_cb)
 
-        # Wire count (ACSR only)
+        # Wire count + Work nature paired (ACSR) or just Work nature
+        aug_cb = QComboBox()
+        aug_cb.addItems(["New", "Replace 2W->4W", "Add-on 2W"])
+        aug_cb.setCurrentText(item.aug_type)
+        aug_cb.currentTextChanged.connect(
+            lambda t, i=item: self._update_span(i, "aug_type", t)
+        )
         if item.conductor == "ACSR":
             wc_cb = QComboBox()
             wc_cb.addItems(["2", "3", "4"])
@@ -441,21 +434,14 @@ class EditorMixin:
             wc_cb.currentTextChanged.connect(
                 lambda t, i=item: self._update_span(i, "wire_count", t)
             )
-            self.editor_layout.addRow("Wire Count:", wc_cb)
-
-        # Work nature
-        aug_cb = QComboBox()
-        aug_cb.addItems(["New", "Replace 2W->4W", "Add-on 2W"])
-        aug_cb.setCurrentText(item.aug_type)
-        aug_cb.currentTextChanged.connect(
-            lambda t, i=item: self._update_span(i, "aug_type", t)
-        )
-        self.editor_layout.addRow("Work Nature:", aug_cb)
+            self._add_field_pair("Wires:", wc_cb, "Nature:", aug_cb)
+        else:
+            self._add_field_pair("Nature:", aug_cb)
 
         if item.conductor == "ACSR" and item.is_existing_span and not item.is_service_drop:
             self._build_conductor_augmentation_editor(item)
 
-        # CG
+        # Checkbox at bottom
         cg_chk = QCheckBox("Cattle Guard required")
         cg_chk.setChecked(item.has_cg)
         cg_chk.stateChanged.connect(
@@ -468,22 +454,31 @@ class EditorMixin:
     def _build_consumer_editor(self, item):
         self.editor_group.setTitle("Consumer")
 
+        # Phase + Cable Size paired
         phase_cb = QComboBox()
         phase_cb.addItems(["1 Phase", "3 Phase"])
         phase_cb.setCurrentText(item.phase)
         phase_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_consumer(i, "phase", t)
         )
-        self.editor_layout.addRow("Phase:", phase_cb)
-
         sz_cb = QComboBox()
         sz_cb.addItems(self._service_cable_sizes(item.phase))
         sz_cb.setCurrentText(item.cable_size)
         sz_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_consumer(i, "cable_size", t)
         )
-        self.editor_layout.addRow("Cable Size:", sz_cb)
+        self._add_field_pair("Phase:", phase_cb, "Cable:", sz_cb)
 
+        self._add_custom_slots_editor(item)
+
+        note = QLineEdit(getattr(item, "custom_note", ""))
+        note.setPlaceholderText("Custom note...")
+        note.textChanged.connect(
+            lambda t, i=item: self._update_note(i, t)
+        )
+        self._add_field_pair("Note:", note)
+
+        # Checkboxes at bottom
         agency_chk = QCheckBox("Agency Supplied (not WBSEDCL)")
         agency_chk.setChecked(item.agency_supply)
         agency_chk.stateChanged.connect(
@@ -497,15 +492,6 @@ class EditorMixin:
             lambda v, i=item: self._update_consumer(i, "consider_cable", v == 2)
         )
         self.editor_layout.addRow(cons_chk)
-
-        self._add_custom_slots_editor(item)
-
-        note = QLineEdit(getattr(item, "custom_note", ""))
-        note.setPlaceholderText("Custom note...")
-        note.textChanged.connect(
-            lambda t, i=item: self._update_note(i, t)
-        )
-        self.editor_layout.addRow("Note:", note)
 
         self._add_delete_btn(item)
 
