@@ -54,8 +54,8 @@ Backward-compatibility notes
     be migrated to ``object == 'SmartStructure'`` in the Ruleset Manager.
 """
 
+from __future__ import annotations
 import math
-from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
 from core.expression_engine import evaluate_condition, evaluate_formula
 
 
@@ -141,6 +141,7 @@ class DynamicRuleEngine:
             "dtr_return_old_dtr":           bool(dyn.get("dtr_return_old_dtr", dtr_aug_required_pole)),
             "dtr_return_old_pole":          bool(dyn.get("dtr_return_old_pole", bool(dyn.get("dtr_structure_change_required", False)))),
             "dtr_return_old_iron":          bool(dyn.get("dtr_return_old_iron", False)),
+            "iron_recipe":                  getattr(item, "iron_recipe", "None"),
         }
 
         # has_cg — True if any connected span has cattle guard
@@ -280,6 +281,7 @@ class DynamicRuleEngine:
             "dtr_return_old_iron": bool(dyn.get("dtr_return_old_iron", False)),
             "use_uh":           use_uh,
             "project_type":     project_type,
+            "iron_recipe":      getattr(item, "iron_recipe", "None"),
         }
 
         # has_cg — True if any connected span has cattle guard
@@ -390,6 +392,7 @@ class DynamicRuleEngine:
             raw_bom  : dict  item_name → total_quantity  (Materials)
             raw_lab  : dict  task_name → total_quantity  (Labor)
         """
+        from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
         raw_bom: dict[str, float] = {}
         raw_lab: dict[str, float] = {}
 
@@ -439,6 +442,45 @@ class DynamicRuleEngine:
 
                 for item_dict in rule_items:
                     formula = item_dict.get("formula", "1")
+                    
+                    is_recipe = False
+                    recipe_key = str(formula).strip()
+                    if recipe_key.lower() == "recipe":
+                        recipe_key = ctx.get("iron_recipe", "None")
+                        is_recipe = True
+                    elif any(recipe_key.startswith(pfx) for pfx in ["DP_", "TP_", "4P_", "DTR_", "CUSTOM_", "POLE_"]):
+                        is_recipe = True
+                        
+                    if is_recipe:
+                        if not recipe_key or recipe_key == "None":
+                            continue
+                        try:
+                            from core import db_gateway as _dbg
+                            recipes = _dbg.get_recipes()
+                            recipe = next((r for r in recipes if r["recipe_key"] == recipe_key), None)
+                            if not recipe:
+                                continue
+                            sections = _dbg.get_sections()
+                            for rec_item in recipe.get("items", []):
+                                sec_code = rec_item["section"]
+                                sec = sections.get(sec_code)
+                                if not sec:
+                                    continue
+                                qty_mt = (rec_item.get("length", 0.0) * rec_item.get("qty", 1) * sec.get("kg_per_metre", 0.0)) / 1000.0
+                                if qty_mt <= 0:
+                                    continue
+                                
+                                # Prioritize item's custom description/reason, fallback to generic section label
+                                item_name = rec_item.get("description") or sec.get("label", sec_code)
+                                item_type = item_dict.get("type", "Material")
+                                if item_type in ("Material", "Iron"):
+                                    raw_bom[item_name] = raw_bom.get(item_name, 0) + qty_mt
+                                elif item_type == "Labor":
+                                    raw_lab[item_name] = raw_lab.get(item_name, 0) + qty_mt
+                        except Exception as e:
+                            print(f"[RuleEngine] Error expanding recipe '{recipe_key}': {e}")
+                        continue
+
                     qty     = self.calculate_qty(ctx, formula)
 
                     if qty <= 0:

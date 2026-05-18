@@ -55,7 +55,7 @@ from canvas.map_overlay import GPSBackgroundItem
 from ui.dialogs import (
     SearchDialog, SettingsDialog, DatabaseManagerDialog,
     RulesetManagerDialog, ProjectSetupDialog, PlacementDefaultsDialog,
-    PropertyEditorDialog,
+    PropertyEditorDialog, RecipeManagerDialog,
 )
 
 
@@ -258,6 +258,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_defs.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogStart))
         act_defs.triggered.connect(self.open_placement_defaults)
         settings_menu.addAction(act_defs)
+
+        act_recipes = QAction("📐  Iron Recipes Manager", self)
+        act_recipes.triggered.connect(self.open_recipe_manager)
+        settings_menu.addAction(act_recipes)
 
         act_props = QAction("  Property Editor", self)
         act_props.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView))
@@ -1830,6 +1834,11 @@ class EstimateApp(QMainWindow, EditorMixin):
         # Collect canvas node data for simulator pre-fill
         canvas_nodes = self.compile_save_data().get("nodes", [])
         RulesetManagerDialog(self, canvas_objects=canvas_nodes).exec()
+
+    def open_recipe_manager(self):
+        if RecipeManagerDialog(self).exec():
+            # Refresh live estimates immediately
+            self.refresh_live_estimate()
 
     # =========================================================================
     #  EXCEL EXPORT

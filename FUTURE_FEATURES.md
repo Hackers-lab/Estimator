@@ -12,6 +12,7 @@ Last updated: 2026-05-18
 - AI Rule Creator (plain English rule generation via Groq API).
 - Configurable Rate Chart Base Year for escalations (Settings → Rate Chart Year dialog + database persistence).
 - Rule Grouping (Phase 1.1): One condition maps to multiple items; SQLite auto-migration; and interactive items table editor in Ruleset Manager UI.
+- Phase 2 — Iron Recipe System: Built dynamic database-backed iron recipes template system (`data/recipes.json` + `recipes`/`sections` database tables), complete CRUD API integration, canvas property serialization, Property Editor dropdown integration, dynamic Rule Engine `"formula": "recipe"` expansion, and premium `RecipeManagerDialog` UI for full template and steel profile management.
 
 ---
 
@@ -43,7 +44,7 @@ Last updated: 2026-05-18
 
 ---
 
-## Phase 2 — Iron Recipe System
+## Phase 2 — Iron Recipe System [COMPLETED]
 
 ### 2.1 Recipe Data
 - Create `data/recipes.json` — named templates per object variant.

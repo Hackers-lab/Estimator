@@ -619,18 +619,6 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "5.0 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "2.0 * FLAT_65X6 / 1000"
-      },
-      {
-        "type": "Material",
         "item_code": "0508030541",
         "item_name": "11 KV Polymer Composite Disc Insulator 45KN",
         "formula": "6"
@@ -658,6 +646,12 @@
         "item_code": "LAB-45",
         "item_name": "Fixing of 11KV Pin Insulator",
         "formula": "3"
+      },
+      {
+        "type": "Material",
+        "item_code": "RECIPE_IRON",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
       }
     ]
   },
@@ -749,21 +743,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "12.0 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "12.72 * ANG_65X65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "9.0 * FLAT_65X6 / 1000"
+        "item_code": "RECIPE_IRON",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
       }
     ]
   },
@@ -815,21 +797,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "16.0 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "12.72 * ANG_65X65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "12.0 * FLAT_65X6 / 1000"
+        "item_code": "RECIPE_IRON",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
       }
     ]
   },
@@ -879,36 +849,6 @@
     "condition": "structure_type == 'DTR'",
     "enabled": 1,
     "items": [
-      {
-        "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "9.5 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0102010911",
-        "item_name": "M.S Channel 100X50 mm",
-        "formula": "5.0 * CH_100X50 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "12.25 * ANG_65X65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "14.0 * FLAT_65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "5.0 * ANG_65X65X6 / 1000"
-      },
       {
         "type": "Material",
         "item_code": "0508011141",
@@ -968,6 +908,12 @@
         "item_code": "0501017821",
         "item_name": "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
         "formula": "0.010"
+      },
+      {
+        "type": "Material",
+        "item_code": "RECIPE_IRON",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
       }
     ]
   },

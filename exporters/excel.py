@@ -296,277 +296,508 @@ class ExcelExporter:
 
     # ── Iron breakup sheet ───────────────────────────────────────────────────
 
+    def _compute_canvas_counts(self) -> dict:
+        from canvas import SmartPole, SmartStructure, SmartSpan
+
+        scene_items = self._app.scene.items()
+        poles    = [i for i in scene_items if isinstance(i, SmartPole)]
+        structs  = [i for i in scene_items if isinstance(i, SmartStructure)]
+        spans    = [i for i in scene_items if isinstance(i, SmartSpan)]
+
+        new_lt_poles = [p for p in poles if not p.is_existing and p.pole_type == "LT"]
+        new_ht_poles = [p for p in poles if not p.is_existing and p.pole_type == "HT"]
+
+        return {
+            "lt_pole_count":    len(new_lt_poles),
+            "ht_pole_count":    len(new_ht_poles),
+            "dp_count":         len([s for s in structs if s.structure_type == "DP"]),
+            "tp_count":         len([s for s in structs if s.structure_type == "TP"]),
+            "4p_count":         len([s for s in structs if s.structure_type == "4P"]),
+            "dtr_count":        len([s for s in structs if s.structure_type == "DTR"]),
+            "cg_pole_count":    len([p for p in new_lt_poles if any(
+                                    getattr(s, "has_cg", False)
+                                    for s in getattr(p, "connected_spans", []))]),
+            "pole_ext_count":   len([p for p in poles if getattr(p, "has_extension", False)]),
+            "ht_ext_count":     len([p for p in new_ht_poles if getattr(p, "has_extension", False)]),
+            "lt_acsr_count":    len([p for p in new_lt_poles if any(
+                                    getattr(s, "conductor", "") == "ACSR"
+                                    for s in getattr(p, "connected_spans", []))]),
+            "ab_cable_count":   len([sp for sp in spans
+                                    if getattr(sp, "conductor", "") == "AB Cable"
+                                    and not getattr(sp, "is_existing_span", False)]),
+        }
+
     def _write_iron_breakup_sheet(self, wb: Any) -> None:
         """
-        Generates a detailed Iron Breakup sheet showing per-source metre/kg rows,
-        plus 3% wastage + sag.
+        Generates a premium object-group centric Iron Breakup sheet showing per-source metre/kg rows.
         """
         openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
         ws = wb.create_sheet("Iron Breakup")
-        wastage_sag_pct = 0.03
-
-        sections = [
-            ("B",  "M.S. Channel (75X40mm)",   "0102010611", 6.8),
-            ("B2", "M.S. Channel (100X50mm)",  "0102010911", 9.8),
-            ("C",  "M.S. Angle (65X65X6mm)",   "0101011311", 5.8),
-            ("D",  "M.S. Angle (50X50X6mm)",   "0101011011", 4.5),
-            ("E",  "M.S. Flat (65X6mm)",       "0103011511", 3.1),
-            ("F",  "G.I. Wire 5 MM (6 SWG)",   "0503010811", 0),
-            ("G",  "G.I. Wire 4 MM (8 SWG)",   "0503010711", 0),
-        ]
-
-        detail = self._collect_iron_detail()
-
+        
+        # Column setup
         ws.column_dimensions["A"].width = 5
-        ws.column_dimensions["B"].width = 42
+        ws.column_dimensions["B"].width = 44
         ws.column_dimensions["C"].width = 8
-        ws.column_dimensions["D"].width = 10
-        ws.column_dimensions["E"].width = 10
+        ws.column_dimensions["D"].width = 14
+        ws.column_dimensions["E"].width = 12
         ws.column_dimensions["F"].width = 12
-
-        header_fill  = PatternFill("solid", fgColor="4F81BD")
-        section_fill = PatternFill("solid", fgColor="D9E1F2")
-        total_fill   = PatternFill("solid", fgColor="EBF1DE")
-        thin   = Side(border_style="thin", color="AAAAAA")
-        border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-        cr = 1
-        ws.cell(cr, 1, "IRON CALCULATION BREAKUP").font = Font(bold=True, size=13)
-        ws.merge_cells(start_row=cr, start_column=1, end_row=cr, end_column=6)
-        ws.cell(cr, 1).fill      = header_fill
-        ws.cell(cr, 1).font      = Font(bold=True, size=13, color="FFFFFF")
-        ws.cell(cr, 1).alignment = Alignment(horizontal="center")
-        cr += 1
-
-        ws.merge_cells(start_row=cr, start_column=1, end_row=cr, end_column=6)
-        ws.cell(cr, 1, "Steel quantities from rule-engine + 3% wastage & sag")
-        ws.cell(cr, 1).alignment = Alignment(horizontal="center")
-        ws.cell(cr, 1).font = Font(bold=True, color="2F5597")
-        cr += 1
-
-        for sec_key, sec_title, item_code, kg_m in sections:
-            rows = detail.get(item_code, [])
-            if not rows:
-                continue
-
-            # Section header
-            ws.cell(cr, 1, sec_key).font  = Font(bold=True)
-            ws.cell(cr, 2, sec_title).font = Font(bold=True)
-            ws.cell(cr, 3, "No").font     = Font(bold=True)
-            if kg_m:
-                ws.cell(cr, 4, "Lgth(m)").font  = Font(bold=True)
-                ws.cell(cr, 5, "Total(m)").font = Font(bold=True)
-            else:
-                ws.cell(cr, 4, ""); ws.cell(cr, 5, "")
-            ws.cell(cr, 6, "Wt(kg)").font = Font(bold=True)
-            for col in range(1, 7):
-                ws.cell(cr, col).fill   = section_fill
-                ws.cell(cr, col).border = border
-            cr += 1
-
-            is_wire     = (kg_m == 0)
-            subtotal_m  = 0.0
-            subtotal_kg = 0.0
-
-            for i, (desc, count, length_each, total_m, wt_kg) in enumerate(rows, 1):
-                ws.cell(cr, 1, i)
-                ws.cell(cr, 2, desc)
-                ws.cell(cr, 3, count if count else "")
-                if is_wire:
-                    ws.cell(cr, 4, "")
-                    ws.cell(cr, 5, "")
-                else:
-                    ws.cell(cr, 4, round(length_each, 2) if length_each else "")
-                    ws.cell(cr, 5, round(total_m, 3))
-                ws.cell(cr, 6, round(wt_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                subtotal_m  += total_m
-                subtotal_kg += wt_kg
-                cr += 1
-
-            if is_wire:
-                extra_kg = subtotal_kg * wastage_sag_pct
-                ws.cell(cr, 1, len(rows) + 1)
-                ws.cell(cr, 2, "Add: Wastage + Sag @ 3%")
-                ws.cell(cr, 3, ""); ws.cell(cr, 4, ""); ws.cell(cr, 5, "")
-                ws.cell(cr, 6, round(extra_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                cr += 1
-                ws.cell(cr, 2, "Total (incl. 3% wastage & sag)").font = Font(bold=True)
-                ws.cell(cr, 5, "")
-                ws.cell(cr, 6, round(subtotal_kg + extra_kg, 2)).font = Font(bold=True)
-            else:
-                base_kg  = subtotal_m * kg_m
-                extra_m  = subtotal_m * wastage_sag_pct
-                extra_kg = base_kg * wastage_sag_pct
-                ws.cell(cr, 1, len(rows) + 1)
-                ws.cell(cr, 2, "Add: Wastage + Sag @ 3%")
-                ws.cell(cr, 3, ""); ws.cell(cr, 4, "")
-                ws.cell(cr, 5, round(extra_m, 3))
-                ws.cell(cr, 6, round(extra_kg, 2))
-                for col in range(1, 7):
-                    ws.cell(cr, col).border = border
-                cr += 1
-                ws.cell(cr, 2, "Total (incl. 3% wastage & sag)").font = Font(bold=True)
-                ws.cell(cr, 5, round(subtotal_m + extra_m, 3)).font = Font(bold=True)
-                ws.cell(cr, 6, round(base_kg + extra_kg, 2)).font   = Font(bold=True)
-
-            for col in range(1, 7):
-                ws.cell(cr, col).border = border
-                ws.cell(cr, col).fill   = total_fill
-            cr += 2
-
-    # ── Iron detail collector ────────────────────────────────────────────────
-
-    def _collect_iron_detail(self) -> dict[str, list]:
-        """
-        Re-evaluate each steel rule per canvas item and return a
-        per-item_code list of (description, count, length_each, total_m, wt_kg)
-        rows suitable for the detailed Iron Breakup sheet.
-
-        Returns
-        -------
-        dict  { item_code: [(desc, count, len_each, tot_m, wt_kg), ...] }
-        """
-        app = self._app
-        UW  = self._IRON_UNIT_WEIGHTS
-
+        ws.column_dimensions["G"].width = 5
+        
+        SECTION_TO_ITEM_CODE = {
+            "CH_75X40":   "0102010611",
+            "CH_100X50":  "0102010911",
+            "ANG_65X65X6":"0101011311",
+            "ANG_50X50X6":"0101011011",
+            "FLAT_65X6":  "0103011511",
+            "FLAT_50X6":  "0103011211",
+        }
+        
+        KG_PER_METRE = {
+            "CH_75X40":    6.8,
+            "CH_100X50":   9.8,
+            "ANG_65X65X6": 5.8,
+            "ANG_50X50X6": 4.5,
+            "FLAT_65X6":   3.1,
+            "FLAT_50X6":   2.5,
+        }
+        
+        # Get dynamic recipes and sections from DB
         try:
-            from core import db_gateway as _dbg  # noqa: PLC0415
-            rules = _dbg.get_rules()
-        except Exception:
-            rules = []
+            from core import db_gateway as _dbg
+            recipes_list = _dbg.get_recipes()
+            sections_dict = _dbg.get_sections()
+        except Exception as e:
+            recipes_list = []
+            sections_dict = {}
+            print(f"Error loading recipes/sections: {e}")
+            
+        def find_recipe(rkey):
+            return next((r for r in recipes_list if r["recipe_key"] == rkey), None)
+            
+        def get_section_category(section_code):
+            if "CH" in section_code:
+                return "Channel"
+            elif "ANG" in section_code:
+                return "Angle"
+            elif "FLAT" in section_code:
+                return "Flat"
+            return "Other"
+            
+        thin = Side(border_style="thin", color="D3D3D3")
+        thin_border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-        steel_rules = [
-            r for r in rules
-            if r.get("type") == "Material" and r.get("item_code") in UW
-        ]
+        def style_row(row_idx, fill_color=None, bold=False, color="000000", size=11, align_center_cols=[]):
+            for col in range(1, 8):
+                cell = ws.cell(row_idx, col)
+                cell.border = thin_border
+                if fill_color:
+                    cell.fill = PatternFill("solid", fgColor=fill_color)
+                if bold or color != "000000" or size != 11:
+                    cell.font = Font(name="Segoe UI", size=size, bold=bold, color=color)
+                if col in align_center_cols:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        use_uh       = app.project_meta.get("use_uh", False)
-        project_type = app.project_meta.get("project_type", "NSC")
+        # 1. Compute canvas counts
+        counts = self._compute_canvas_counts()
+        
+        # Scan poles for LT and HT extension height calculations
+        scene_items = self._app.scene.items()
+        from canvas import SmartPole
+        poles = [i for i in scene_items if isinstance(i, SmartPole)]
+        new_lt_poles = [p for p in poles if not p.is_existing and p.pole_type == "LT"]
+        
+        lt_recipe_counts = {}
+        for p in new_lt_poles:
+            rkey = getattr(p, "iron_recipe", "POLE_LT_IRON")
+            if not rkey or rkey == "None":
+                rkey = "POLE_LT_IRON"
+            lt_recipe_counts[rkey] = lt_recipe_counts.get(rkey, 0) + 1
 
-        accum: dict[str, dict[tuple, list]] = {code: {} for code in UW}
+        def get_recipe_items(recipe_key, canvas_count):
+            rec = find_recipe(recipe_key)
+            if not rec:
+                return []
+            items = []
+            for item in rec.get("items", []):
+                items.append({
+                    "description": item.get("description", ""),
+                    "section": item.get("section", ""),
+                    "length_per_piece": float(item.get("length_per_piece") or item.get("length") or 0.0),
+                    "qty_per_object": int(item.get("qty_per_object") or item.get("qty") or 1),
+                    "length_formula": item.get("length_formula") or str(item.get("length") or 0.0),
+                    "canvas_count": canvas_count
+                })
+            return items
 
-        for item in app.scene.items():
-            if isinstance(item, SmartPole):
-                ctx = app.rule_engine._build_pole_context(item, use_uh, project_type)
-            elif isinstance(item, SmartStructure):
-                ctx = app.rule_engine._build_structure_context(item, use_uh, project_type)
-            elif isinstance(item, SmartSpan):
-                ctx = app.rule_engine._build_span_context(item, use_uh, project_type)
-            elif isinstance(item, SmartConsumer):
-                ctx = app.rule_engine._build_consumer_context(item, use_uh, project_type)
-            else:
-                continue
+        # Build all group structures dynamically
+        all_groups = []
+        
+        # 1. DTR Substation Iron
+        if counts["dtr_count"] > 0:
+            items = get_recipe_items("DTR_IRON", counts["dtr_count"])
+            if items:
+                all_groups.append({
+                    "title": f"DTR Substation Iron ({counts['dtr_count']} nos on canvas)",
+                    "subgroups": [{"items": items}]
+                })
+                
+        # 2. DP Structure Iron
+        if counts["dp_count"] > 0:
+            items = get_recipe_items("DP_IRON", counts["dp_count"])
+            if items:
+                all_groups.append({
+                    "title": f"DP Structure Iron ({counts['dp_count']} nos on canvas)",
+                    "subgroups": [{"items": items}]
+                })
+                
+        # 3. TP Structure Iron
+        if counts["tp_count"] > 0:
+            items = get_recipe_items("TP_IRON", counts["tp_count"])
+            if items:
+                all_groups.append({
+                    "title": f"TP Structure Iron ({counts['tp_count']} nos on canvas)",
+                    "subgroups": [{"items": items}]
+                })
+                
+        # 4. 4-Pole Structure Iron
+        if counts["4p_count"] > 0:
+            items = get_recipe_items("4P_IRON", counts["4p_count"])
+            if items:
+                all_groups.append({
+                    "title": f"4-Pole Structure Iron ({counts['4p_count']} nos on canvas)",
+                    "subgroups": [{"items": items}]
+                })
+                
+        # 5. LT Pole Iron
+        if counts["lt_pole_count"] > 0:
+            lt_subgroups = []
+            for rkey, cnt in lt_recipe_counts.items():
+                if cnt > 0:
+                    rec = find_recipe(rkey)
+                    if rec:
+                        items = get_recipe_items(rkey, cnt)
+                        if items:
+                            lt_subgroups.append({
+                                "title": f"{rec['name']} ({cnt} nos)",
+                                "items": items
+                            })
+            if lt_subgroups:
+                all_groups.append({
+                    "title": f"LT Pole Iron ({counts['lt_pole_count']} nos on canvas)",
+                    "subgroups": lt_subgroups
+                })
+                
+        # 6. HT Pole Iron
+        if counts["ht_pole_count"] > 0:
+            items = get_recipe_items("POLE_HT_IRON", counts["ht_pole_count"])
+            if items:
+                all_groups.append({
+                    "title": f"HT Pole Iron ({counts['ht_pole_count']} nos on canvas)",
+                    "subgroups": [{"items": items}]
+                })
+                
+        # 7. Pole Extensions
+        ext_subgroups = []
+        
+        # HT Extensions
+        if counts["ht_ext_count"] > 0:
+            ext_poles_ht = [p for p in poles if not p.is_existing and p.pole_type == "HT" and getattr(p, "has_extension", False)]
+            avg_ext_ht = (sum(float(getattr(p, "extension_height", 3.0) or 3.0) for p in ext_poles_ht) / len(ext_poles_ht)
+                          if ext_poles_ht else 3.0)
+            
+            ht_items = [
+                {
+                    "description": "HT Pole Extension (Channel)",
+                    "section": "CH_75X40",
+                    "length_per_piece": avg_ext_ht * 2,
+                    "qty_per_object": 1,
+                    "length_formula": f"={round(avg_ext_ht, 2)}*2",
+                    "canvas_count": counts["ht_ext_count"]
+                },
+                {
+                    "description": "HT Pole Extension (Flat)",
+                    "section": "FLAT_65X6",
+                    "length_per_piece": 3.0,
+                    "qty_per_object": 1,
+                    "length_formula": "=3",
+                    "canvas_count": counts["ht_ext_count"]
+                }
+            ]
+            ext_subgroups.append({
+                "title": f"HT Pole Extension ({counts['ht_ext_count']} nos)",
+                "items": ht_items
+            })
+            
+        # LT Extensions
+        ext_poles_lt = [p for p in poles if not p.is_existing and p.pole_type == "LT" and getattr(p, "has_extension", False)]
+        lt_ext_count = len(ext_poles_lt)
+        
+        if lt_ext_count > 0:
+            avg_ext_lt = (sum(float(getattr(p, "extension_height", 1.5) or 1.5) for p in ext_poles_lt) / len(ext_poles_lt)
+                          if ext_poles_lt else 1.5)
+            
+            lt_items = [
+                {
+                    "description": "LT Pole Extension (Angle)",
+                    "section": "ANG_65X65X6",
+                    "length_per_piece": avg_ext_lt,
+                    "qty_per_object": 1,
+                    "length_formula": f"={round(avg_ext_lt, 2)}",
+                    "canvas_count": lt_ext_count
+                }
+            ]
+            ext_subgroups.append({
+                "title": f"LT Pole Extension ({lt_ext_count} nos)",
+                "items": lt_items
+            })
+            
+        if ext_subgroups:
+            all_groups.append({
+                "title": f"Pole Extensions ({counts['ht_ext_count'] + lt_ext_count} nos on canvas)",
+                "subgroups": ext_subgroups
+            })
+            
+        # 8. CG Bracket Iron
+        if counts["cg_pole_count"] > 0:
+            cg_items = [
+                {
+                    "description": "CG Cradle Guard Bracket (Angle)",
+                    "section": "ANG_65X65X6",
+                    "length_per_piece": 1.9,
+                    "qty_per_object": 1,
+                    "length_formula": "=1.9",
+                    "canvas_count": counts["cg_pole_count"]
+                },
+                {
+                    "description": "CG Cradle Guard Bracket (Flat)",
+                    "section": "FLAT_65X6",
+                    "length_per_piece": 0.5,
+                    "qty_per_object": 1,
+                    "length_formula": "=0.5",
+                    "canvas_count": counts["cg_pole_count"]
+                }
+            ]
+            all_groups.append({
+                "title": f"CG Bracket Iron ({counts['cg_pole_count']} nos on canvas)",
+                "subgroups": [{"items": cg_items}]
+            })
+            
+        # 9. LT ACSR Bracket
+        if counts["lt_acsr_count"] > 0:
+            acsr_items = [
+                {
+                    "description": "LT ACSR Bracket (Angle)",
+                    "section": "ANG_65X65X6",
+                    "length_per_piece": 1.0,
+                    "qty_per_object": 1,
+                    "length_formula": "=1",
+                    "canvas_count": counts["lt_acsr_count"]
+                },
+                {
+                    "description": "LT ACSR Bracket (Flat)",
+                    "section": "FLAT_65X6",
+                    "length_per_piece": 1.0,
+                    "qty_per_object": 1,
+                    "length_formula": "=1",
+                    "canvas_count": counts["lt_acsr_count"]
+                }
+            ]
+            all_groups.append({
+                "title": f"LT ACSR Bracket ({counts['lt_acsr_count']} nos on canvas)",
+                "subgroups": [{"items": acsr_items}]
+            })
+            
+        # 10. AB Cable Clamp Flat
+        if counts["ab_cable_count"] > 0:
+            ab_items = [
+                {
+                    "description": "AB Cable Clamp (Flat)",
+                    "section": "FLAT_65X6",
+                    "length_per_piece": 0.5,
+                    "qty_per_object": 1,
+                    "length_formula": "=0.5",
+                    "canvas_count": counts["ab_cable_count"]
+                }
+            ]
+            all_groups.append({
+                "title": f"AB Cable Clamp Flat ({counts['ab_cable_count']} nos on canvas)",
+                "subgroups": [{"items": ab_items}]
+            })
 
-            obj_type = ctx.get("object_type", "")
+        # Write to sheet
+        cr = 1
+        ws.cell(cr, 1, "IRON CALCULATION BREAKUP").font = Font(name="Segoe UI", bold=True, size=13)
+        ws.merge_cells(start_row=cr, start_column=1, end_row=cr, end_column=7)
+        ws.cell(cr, 1).fill = PatternFill("solid", fgColor="4472C4")
+        ws.cell(cr, 1).font = Font(name="Segoe UI", bold=True, size=13, color="FFFFFF")
+        ws.cell(cr, 1).alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[cr].height = 28
+        cr += 2
 
-            for rule in steel_rules:
-                target = rule.get("object", "")
-                if target == "SmartHome" and obj_type == "SmartConsumer":
-                    pass
-                elif target != obj_type:
-                    continue
+        section_totals = {}  # {section_code: {"metres": 0.0, "kg": 0.0}}
+        group_letter_idx = 0
+        
+        for g in all_groups:
+            group_letter = chr(ord('A') + group_letter_idx)
+            group_letter_idx += 1
+            
+            # Group Header Row
+            ws.cell(cr, 1, group_letter)
+            ws.cell(cr, 2, g["title"])
+            ws.cell(cr, 3, "No")
+            ws.cell(cr, 4, "Length (m)")
+            ws.cell(cr, 5, "Total (m)")
+            ws.cell(cr, 6, "Wt (kg)")
+            ws.cell(cr, 7, "")
+            
+            style_row(cr, fill_color="4472C4", bold=True, color="FFFFFF", align_center_cols=[1, 3, 4, 5, 6])
+            ws.row_dimensions[cr].height = 24
+            cr += 1
+            
+            row_idx_within_group = 1
+            
+            for subgroup in g["subgroups"]:
+                if subgroup.get("title") and len(g["subgroups"]) > 1:
+                    # Subgroup header row
+                    ws.cell(cr, 2, subgroup["title"])
+                    style_row(cr, fill_color="F2F7FF", bold=True)
+                    cr += 1
+                
+                # Group subgroup items by section type
+                items_by_sec_type = {}
+                for item in subgroup["items"]:
+                    sec_type = get_section_category(item["section"])
+                    items_by_sec_type.setdefault(sec_type, []).append(item)
+                    
+                has_multiple_types = (len(items_by_sec_type) > 1)
+                
+                for sec_type, type_items in items_by_sec_type.items():
+                    type_start_row = cr
+                    for item in type_items:
+                        ws.cell(cr, 1, row_idx_within_group)
+                        ws.cell(cr, 2, item["description"])
+                        ws.cell(cr, 3, item["canvas_count"])
+                        
+                        length_formula = item["length_formula"]
+                        if not str(length_formula).startswith("="):
+                            length_formula = f"={length_formula}"
+                        ws.cell(cr, 4, length_formula)
+                        
+                        ws.cell(cr, 5, f"=C{cr}*D{cr}")
+                        
+                        sec_code = item["section"]
+                        kg_m = KG_PER_METRE.get(sec_code, 0.0)
+                        if not kg_m and sections_dict and sec_code in sections_dict:
+                            kg_m = sections_dict[sec_code].get("kg_per_metre", 0.0)
+                            
+                        wt_kg = item["length_per_piece"] * item["qty_per_object"] * item["canvas_count"] * kg_m
+                        ws.cell(cr, 6, round(wt_kg, 2))
+                        
+                        # Alternating colors for data rows
+                        fill_color = "FFFFFF" if row_idx_within_group % 2 != 0 else "F2F7FF"
+                        style_row(cr, fill_color=fill_color, align_center_cols=[1, 3, 4, 5])
+                        ws.row_dimensions[cr].height = 20
+                        
+                        # Accumulate section totals
+                        total_m_val = item["length_per_piece"] * item["qty_per_object"] * item["canvas_count"]
+                        if sec_code not in section_totals:
+                            section_totals[sec_code] = {"metres": 0.0, "kg": 0.0}
+                        section_totals[sec_code]["metres"] += total_m_val
+                        section_totals[sec_code]["kg"] += wt_kg
+                        
+                        row_idx_within_group += 1
+                        cr += 1
+                        
+                    if has_multiple_types:
+                        type_end_row = cr - 1
+                        ws.cell(cr, 2, f"{sec_type} subtotal")
+                        ws.cell(cr, 5, f"=SUM(E{type_start_row}:E{type_end_row})")
+                        ws.cell(cr, 6, f"=SUM(F{type_start_row}:F{type_end_row})")
+                        style_row(cr, fill_color="E2EFDA", bold=True, align_center_cols=[5])
+                        ws.row_dimensions[cr].height = 20
+                        cr += 1
+                        
+            cr += 1  # space between blocks
 
-                if not app.rule_engine.evaluate_rule(ctx, rule.get("condition", "")):
-                    continue
+        # 4. Section Summary Block
+        ws.cell(cr, 2, "SECTION SUMMARY")
+        style_row(cr, fill_color="D9E1F2", bold=True)
+        ws.row_dimensions[cr].height = 22
+        cr += 1
+        
+        SECTION_LABELS = {
+            "CH_75X40":   "M.S. Channel 75x40mm",
+            "CH_100X50":  "M.S. Channel 100x50mm",
+            "ANG_65X65X6":"M.S. Angle 65x65x6mm",
+            "ANG_50X50X6":"M.S. Angle 50x50x6mm",
+            "FLAT_65X6":  "M.S. Flat 65x6mm",
+            "FLAT_50X6":  "M.S. Flat 50x6mm",
+        }
+        
+        summary_start_row = cr
+        has_summary_items = False
+        
+        for sec_code in ["CH_100X50", "CH_75X40", "ANG_65X65X6", "ANG_50X50X6", "FLAT_65X6", "FLAT_50X6"]:
+            if sec_code in section_totals and section_totals[sec_code]["metres"] > 0:
+                has_summary_items = True
+                info = section_totals[sec_code]
+                label = SECTION_LABELS.get(sec_code, sec_code)
+                kg_m = KG_PER_METRE.get(sec_code, 0.0)
+                
+                ws.cell(cr, 2, label)
+                ws.cell(cr, 3, round(info["metres"], 2))
+                ws.cell(cr, 4, "m")
+                ws.cell(cr, 5, f"{kg_m} kg/m")
+                ws.cell(cr, 6, round(info["kg"], 2))
+                
+                style_row(cr, align_center_cols=[3, 4, 5])
+                ws.row_dimensions[cr].height = 20
+                cr += 1
+                
+        for sec_code, info in section_totals.items():
+            if sec_code not in ["CH_100X50", "CH_75X40", "ANG_65X65X6", "ANG_50X50X6", "FLAT_65X6", "FLAT_50X6"] and info["metres"] > 0:
+                has_summary_items = True
+                label = sections_dict.get(sec_code, {}).get("label", sec_code)
+                kg_m = sections_dict.get(sec_code, {}).get("kg_per_metre", 0.0)
+                
+                ws.cell(cr, 2, label)
+                ws.cell(cr, 3, round(info["metres"], 2))
+                ws.cell(cr, 4, "m")
+                ws.cell(cr, 5, f"{kg_m} kg/m")
+                ws.cell(cr, 6, round(info["kg"], 2))
+                
+                style_row(cr, align_center_cols=[3, 4, 5])
+                ws.row_dimensions[cr].height = 20
+                cr += 1
+                
+        if not has_summary_items:
+            ws.cell(cr, 2, "No iron items on canvas")
+            style_row(cr)
+            cr += 1
+            
+        cr += 1
+        
+        # Sub-total (all iron)
+        subtotal_row = cr
+        ws.cell(cr, 2, "Sub-total (all iron):")
+        ws.cell(cr, 6, f"=SUM(F{summary_start_row}:F{subtotal_row-2})")
+        style_row(cr, fill_color="E2EFDA", bold=True)
+        ws.row_dimensions[cr].height = 20
+        cr += 1
+        
+        # Add: Wastage + Sag @ 3%
+        wastage_row = cr
+        ws.cell(cr, 2, "Add: Wastage + Sag @ 3%:")
+        ws.cell(cr, 6, f"=ROUND(F{subtotal_row}*0.03, 2)")
+        style_row(cr, fill_color="E2EFDA", bold=True)
+        ws.row_dimensions[cr].height = 20
+        cr += 1
+        
+        # GRAND TOTAL
+        grand_total_row = cr
+        ws.cell(cr, 2, "GRAND TOTAL:")
+        ws.cell(cr, 6, f"=F{subtotal_row}+F{wastage_row}")
+        ws.cell(cr, 7, f'=CONCATENATE("=  ", FIXED(F{grand_total_row}/1000, 4), " MT")')
+        style_row(cr, fill_color="FFF2CC", bold=True, size=12)
+        ws.row_dimensions[cr].height = 24
 
-                qty_mt = app.rule_engine.calculate_qty(ctx, rule.get("formula", "1"))
-                if qty_mt <= 0:
-                    continue
-
-                code  = rule["item_code"]
-                kg_m  = UW[code]
-                wt_kg = qty_mt * 1000.0
-                tot_m = wt_kg / kg_m if kg_m else 0.0
-
-                label, len_each = self._iron_source_label(ctx, rule, tot_m)
-                key = (label, len_each)
-                if key not in accum[code]:
-                    accum[code][key] = [0, 0.0, 0.0]
-                accum[code][key][0] += 1
-                accum[code][key][1] += tot_m
-                accum[code][key][2] += wt_kg
-
-        result: dict[str, list] = {}
-        for code, entries in accum.items():
-            rows = []
-            for (label, len_each), (cnt, tot_m, wt_kg) in sorted(entries.items()):
-                rows.append((label, cnt, len_each, round(tot_m, 4), round(wt_kg, 4)))
-            if rows:
-                result[code] = rows
-        return result
-
-    @staticmethod
-    def _iron_source_label(ctx: dict, rule: dict, total_m: float) -> tuple[str, float]:
-        """Return (description_string, length_per_unit) for an iron breakup row."""
-        obj   = ctx.get("object_type", "")
-        cond  = rule.get("condition", "")
-        formula = rule.get("formula", "")
-
-        if obj == "SmartPole":
-            pole_type   = ctx.get("pole_type", "")
-            is_existing = ctx.get("is_existing", False)
-            prefix      = "Existing" if is_existing else "New"
-
-            if "has_extension" in cond:
-                ext_h = ctx.get("extension_height", 3.0)
-                if "FLAT" in formula:
-                    return (f"{prefix} {pole_type} Pole Extension Flat ({ext_h}m)", round(total_m, 2))
-                return (f"{prefix} {pole_type} Pole Extension ({ext_h}m)", round(total_m, 2))
-            elif "has_cg" in cond:
-                return ("Cradle Guard (CG) Bracket on Pole",
-                        1.9 if "ANG" in formula else 0.5)
-            elif "lt_acsr_count" in cond:
-                return (f"LT Bracket on {prefix} LT Pole", 1.0)
-            elif "ht_spans_count" in cond:
-                return (f"Tee-off Bracket on {prefix} HT Pole", round(total_m, 2))
-            elif "earth_count" in cond:
-                ec = ctx.get("earth_count", 1)
-                return (f"Earthing on {prefix} {pole_type} Pole ({ec} nos)", round(total_m, 2))
-            else:
-                return (f"{prefix} {pole_type} Pole Iron", round(total_m, 2))
-
-        elif obj == "SmartStructure":
-            st = ctx.get("structure_type", "")
-            if "earth_count" in cond:
-                ec = ctx.get("earth_count", 1)
-                return (f"Earthing on {st} Structure ({ec} nos)", round(total_m, 2))
-            if st == "DTR":
-                if "CH_75X40" in formula or "CH_100X50" in formula:
-                    return ("DTR Sub-Stn (Channel — Top + Isolator + Base + Bolt)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("DTR Sub-Stn (Angle — Fuse + Switch + Support + FootRest)", round(total_m, 2))
-                elif "ANG_50X50X6" in formula:
-                    return ("DTR Sub-Stn (Angle 50 — Main Switch)", round(total_m, 2))
-                elif "FLAT_65X6" in formula:
-                    return ("DTR Sub-Stn (Flat — HT Clamp)", round(total_m, 2))
-                return ("DTR Sub-Stn Iron", round(total_m, 2))
-            elif st == "DP":
-                if "CH_75X40" in formula:
-                    return ("DP Structure (Channel)", round(total_m, 2))
-                return ("DP Structure (Flat)", round(total_m, 2))
-            elif st == "TP":
-                if "CH_75X40" in formula:
-                    return ("TP Structure (Channel)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("TP Structure (Angle)", round(total_m, 2))
-                return ("TP Structure (Flat)", round(total_m, 2))
-            elif st == "4P":
-                if "CH_75X40" in formula:
-                    return ("4P Structure (Channel)", round(total_m, 2))
-                elif "ANG_65X65X6" in formula:
-                    return ("4P Structure (Angle)", round(total_m, 2))
-                return ("4P Structure (Flat)", round(total_m, 2))
-            return (f"{st} Structure Iron", round(total_m, 2))
-
-        elif obj == "SmartSpan":
-            item_code = rule.get("item_code", "")
-            if item_code in ("0503010811", "0503010711"):
-                length = ctx.get("length", 0)
-                return (f"CG Earthing Wire on Span ({length}m)", round(total_m, 2))
-            return ("AB Cable Span (Flat)", 0.5)
-
-        return ("Other Iron", round(total_m, 2))

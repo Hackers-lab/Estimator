@@ -306,6 +306,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.has_extension      = False
         self.extension_height   = _d["extension_height"]
         self.override_auto_stay = False
+        self.iron_recipe        = "None"
 
         # Assign unique sequential label number for this pole category
         if is_existing:
@@ -357,6 +358,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             "stay_angle_override": self.stay_angle_override,
             "earth_angle_override": self.earth_angle_override,
             "dist_box_required": self.dist_box_required,
+            "iron_recipe": getattr(self, "iron_recipe", "None"),
         })
         return d
 
@@ -376,6 +378,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.stay_angle_override = state.get("stay_angle_override", None)
         self.earth_angle_override = state.get("earth_angle_override", None)
         self.dist_box_required = state.get("dist_box_required", False)
+        self.iron_recipe = state.get("iron_recipe", "None")
         self.seq_id = state.get("seq_id", self.seq_id)
 
     # ── Stay / Earth angle calculation ────────────────────────────────────────

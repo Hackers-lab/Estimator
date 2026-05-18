@@ -194,6 +194,97 @@ def toggle_rule(rule_id: int, enabled: bool) -> None:
         con.close()
 
 
+# ─── Iron Recipes & Steel Sections (Phase 2.1) ────────────────────────────────
+
+def get_sections() -> dict[str, dict]:
+    """Get all steel sections indexed by code."""
+    con = _conn()
+    try:
+        rows = con.execute("SELECT section_code, label, kg_per_metre FROM sections").fetchall()
+        return {
+            r[0]: {"label": r[1], "kg_per_metre": r[2]}
+            for r in rows
+        }
+    finally:
+        con.close()
+
+
+def save_sections(sections_dict: dict[str, dict]) -> None:
+    """Save or update multiple steel sections."""
+    con = _conn()
+    try:
+        for code, data in sections_dict.items():
+            con.execute(
+                "INSERT OR REPLACE INTO sections (section_code, label, kg_per_metre) VALUES (?, ?, ?)",
+                (code, data["label"], data["kg_per_metre"])
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
+def get_recipes(object_type: str | None = None) -> list[dict]:
+    """Get recipes, optionally filtered by object_type."""
+    con = _conn()
+    try:
+        if object_type:
+            rows = con.execute(
+                "SELECT recipe_key, name, description, object_type, items_json FROM recipes WHERE object_type=?",
+                (object_type,)
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT recipe_key, name, description, object_type, items_json FROM recipes"
+            ).fetchall()
+        
+        recipes = []
+        for r in rows:
+            try:
+                items = json.loads(r[4])
+            except Exception:
+                items = []
+            recipes.append({
+                "recipe_key": r[0],
+                "name": r[1],
+                "description": r[2],
+                "object_type": r[3],
+                "items": items
+            })
+        return recipes
+    finally:
+        con.close()
+
+
+def save_recipe(recipe: dict) -> None:
+    """Upsert an iron recipe template."""
+    con = _conn()
+    try:
+        con.execute(
+            "INSERT OR REPLACE INTO recipes (recipe_key, name, description, object_type, items_json) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                recipe["recipe_key"],
+                recipe["name"],
+                recipe.get("description", ""),
+                recipe["object_type"],
+                json.dumps(recipe.get("items", []))
+            )
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def delete_recipe(recipe_key: str) -> None:
+    """Hard delete a recipe template."""
+    con = _conn()
+    try:
+        con.execute("DELETE FROM recipes WHERE recipe_key=?", (recipe_key,))
+        con.commit()
+    finally:
+        con.close()
+
+
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 def get_all_settings() -> dict[str, str]:

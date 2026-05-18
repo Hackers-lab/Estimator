@@ -379,6 +379,66 @@ def _create_config_tables(cursor) -> None:
         "ON option_color_overrides(object_type, prop_name, option_val, context_key)"
     )
 
+    # ── Iron Recipe System Tables (Phase 2.1) ──────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sections (
+            section_code TEXT PRIMARY KEY,
+            label        TEXT NOT NULL,
+            kg_per_metre REAL NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recipes (
+            recipe_key  TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT,
+            object_type TEXT NOT NULL,
+            items_json  TEXT NOT NULL
+        )
+    """)
+
+    _seed_recipes_and_sections_tables(cursor)
+
+
+def _seed_recipes_and_sections_tables(cursor) -> None:
+    """Seed default steel sections and factory iron recipes."""
+    # 1. Seed standard steel sections
+    sections_factory = [
+        ("CH_75X40", "M.S Channel 75x40 mm", 6.8),
+        ("CH_100X50", "M.S Channel 100x50 mm", 9.8),
+        ("ANG_65X65X6", "M.S Angle 65x65x6 mm", 5.8),
+        ("ANG_50X50X6", "M.S Angle 50x50x6 mm", 4.5),
+        ("FLAT_65X6", "M.S Flat 65x6 mm", 3.1),
+        ("FLAT_50X6", "M.S Flat 50x6 mm", 2.5),
+        ("GIWIRE_5MM", "G.I. Wire 5 mm", 0.123),
+        ("GIWIRE_4MM", "G.I. Wire 4 mm", 0.100)
+    ]
+    cursor.executemany(
+        "INSERT OR IGNORE INTO sections (section_code, label, kg_per_metre) VALUES (?, ?, ?)",
+        sections_factory
+    )
+
+    # 2. Seed default recipes from recipes.json
+    recipes_file = get_data_path("recipes.json")
+    if os.path.exists(recipes_file):
+        try:
+            with open(recipes_file, "r", encoding="utf-8") as f:
+                recipes_data = json.load(f)
+            for rkey, rval in recipes_data.items():
+                cursor.execute(
+                    "INSERT OR IGNORE INTO recipes (recipe_key, name, description, object_type, items_json) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        rkey,
+                        rval.get("name", rkey),
+                        rval.get("description", ""),
+                        rval.get("object_type", "SmartStructure"),
+                        json.dumps(rval.get("items", []))
+                    )
+                )
+        except Exception as e:
+            print(f"[DB] Error seeding recipes: {e}")
+
 
 def _seed_phase_3_tables(cursor) -> None:
     """Seed Phase 3 config tables. Safe to run on every startup."""

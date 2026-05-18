@@ -76,7 +76,13 @@ def _suggest(name: str, known: list[str]) -> str | None:
 def _build_names(context: dict) -> dict:
     """Merge context + iron constants + safe builtins into one namespace."""
     ns: dict[str, Any] = {}
-    ns.update(IRON_CONSTANTS)
+    try:
+        from core import db_gateway as _dbg
+        sections = _dbg.get_sections()
+        dyn_constants = {code: data["kg_per_metre"] for code, data in sections.items()}
+    except Exception:
+        dyn_constants = IRON_CONSTANTS
+    ns.update(dyn_constants)
     ns.update(context)
     return ns
 

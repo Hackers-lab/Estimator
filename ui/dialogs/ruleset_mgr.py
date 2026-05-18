@@ -1697,8 +1697,7 @@ class RulesetManagerDialog(QDialog):
             self._items_table.setItem(r, 2, name_item)
 
             # Formula
-            formula_item = QTableWidgetItem(itm.get("formula", "1"))
-            self._items_table.setItem(r, 3, formula_item)
+            self._setup_formula_column(r, itm.get("item_code", "N/A"), itm.get("formula", "1"))
 
         self._editor_body_l.addWidget(self._items_table)
 
@@ -1788,6 +1787,35 @@ class RulesetManagerDialog(QDialog):
         self._items_table.removeRow(row)
         self._update_preview()
 
+    def _setup_formula_column(self, row, item_code, current_formula):
+        if item_code == "RECIPE_IRON":
+            recipe_cb = QComboBox()
+            recipe_cb.addItem("Active structure recipe", "recipe")
+            try:
+                from core import db_gateway as _dbg
+                all_recipes = _dbg.get_recipes()
+                for recipe in all_recipes:
+                    recipe_cb.addItem(f"{recipe['name']} ({recipe['recipe_key']})", recipe["recipe_key"])
+            except Exception as e:
+                print(f"Error loading recipes into rules manager: {e}")
+            
+            idx = recipe_cb.findData(current_formula)
+            if idx >= 0:
+                recipe_cb.setCurrentIndex(idx)
+            else:
+                recipe_cb.addItem(current_formula, current_formula)
+                recipe_cb.setCurrentIndex(recipe_cb.count() - 1)
+            
+            recipe_cb.setStyleSheet("font-size:10px; padding:1px;")
+            self._items_table.setCellWidget(row, 3, recipe_cb)
+            
+            # Remove any standard text item to avoid double drawing
+            self._items_table.setItem(row, 3, None)
+        else:
+            self._items_table.setCellWidget(row, 3, None)
+            formula_item = QTableWidgetItem(current_formula)
+            self._items_table.setItem(row, 3, formula_item)
+
     def _editor_lookup_db_item(self):
         row = self._items_table.currentRow()
         if row < 0:
@@ -1818,6 +1846,7 @@ class RulesetManagerDialog(QDialog):
                 if type_cb:
                     type_cb.setCurrentText(item.get("type", db_type))
                 
+                self._setup_formula_column(row, code_item.text(), "recipe")
                 self._update_preview()
         self._item_display.setReadOnly(True)
         self._item_display.setStyleSheet("background:#f5f5f5; font-size:12px;")
@@ -2153,9 +2182,21 @@ class RulesetManagerDialog(QDialog):
             else:
                 errors = []
                 for row in range(self._items_table.rowCount()):
-                    formula_item = self._items_table.item(row, 3)
-                    formula_text = formula_item.text().strip() if formula_item else "1"
-                    ok_f, msg_f = validate_expression(formula_text, props)
+                    formula_widget = self._items_table.cellWidget(row, 3)
+                    if isinstance(formula_widget, QComboBox):
+                        formula_text = formula_widget.currentData() or "recipe"
+                    else:
+                        formula_item = self._items_table.item(row, 3)
+                        formula_text = formula_item.text().strip() if formula_item else "1"
+                    
+                    is_recipe_formula = (formula_text == "recipe") or any(
+                        formula_text.startswith(prefix) for prefix in ["DP_", "TP_", "4P_", "DTR_", "CUSTOM_", "POLE_"]
+                    )
+                    if is_recipe_formula:
+                        ok_f, msg_f = True, ""
+                    else:
+                        ok_f, msg_f = validate_expression(formula_text, props)
+                    
                     if not ok_f:
                         item_name_item = self._items_table.item(row, 2)
                         item_name = item_name_item.text() if item_name_item else f"Row {row+1}"
@@ -2183,11 +2224,27 @@ class RulesetManagerDialog(QDialog):
             return
 
         row = self._items_table.currentRow()
-        formula_item = self._items_table.item(row, 3)
-        formula_text = formula_item.text().strip() if formula_item else "1"
+        formula_widget = self._items_table.cellWidget(row, 3)
+        if isinstance(formula_widget, QComboBox):
+            formula_text = formula_widget.currentData() or "recipe"
+        else:
+            formula_item = self._items_table.item(row, 3)
+            formula_text = formula_item.text().strip() if formula_item else "1"
 
         if not formula_text:
             self._formula_preview_lbl.setVisible(False)
+            return
+
+        is_recipe_formula = (formula_text == "recipe") or any(
+            formula_text.startswith(prefix) for prefix in ["DP_", "TP_", "4P_", "DTR_", "CUSTOM_", "POLE_"]
+        )
+        if is_recipe_formula:
+            self._formula_preview_lbl.setVisible(True)
+            self._formula_preview_lbl.setStyleSheet(
+                "font-size:11px; color:#1a6b2a; background:#eaf8f0; "
+                "border-radius:3px; padding:5px 8px; font-family:monospace;"
+            )
+            self._formula_preview_lbl.setText(f"\u2192 dynamic recipe: {formula_text}")
             return
 
         if not self.sim_widgets:
@@ -2257,8 +2314,12 @@ class RulesetManagerDialog(QDialog):
             name_item = self._items_table.item(r, 2)
             item_name = name_item.text() if name_item else "Unnamed"
             
-            formula_item = self._items_table.item(r, 3)
-            formula_text = formula_item.text().strip() if formula_item else "1"
+            formula_widget = self._items_table.cellWidget(r, 3)
+            if isinstance(formula_widget, QComboBox):
+                formula_text = formula_widget.currentData() or "recipe"
+            else:
+                formula_item = self._items_table.item(r, 3)
+                formula_text = formula_item.text().strip() if formula_item else "1"
             
             items.append({
                 "type": item_type,
@@ -2275,7 +2336,14 @@ class RulesetManagerDialog(QDialog):
             return
             
         for idx, itm in enumerate(items):
-            ok_f, msg_f = validate_expression(itm["formula"], props)
+            formula_text = itm["formula"]
+            is_recipe_formula = (formula_text == "recipe") or any(
+                formula_text.startswith(prefix) for prefix in ["DP_", "TP_", "4P_", "DTR_", "CUSTOM_", "POLE_"]
+            )
+            if is_recipe_formula:
+                ok_f, msg_f = True, ""
+            else:
+                ok_f, msg_f = validate_expression(formula_text, props)
             if not ok_f:
                 QMessageBox.critical(self, "Validation Error", f"Formula error in row {idx+1} ({itm['item_name']}):\n{msg_f}")
                 return

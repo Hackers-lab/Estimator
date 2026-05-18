@@ -1,0 +1,217 @@
+{
+  "DP_IRON": {
+    "name": "DP Iron Recipe",
+    "description": "Standard Double Pole structure. Channel + Flat.",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Double Pole Structure (Channel)",
+        "section": "CH_75X40",
+        "length_per_piece": 2.5,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.5",
+        "qty_source": "dp_count"
+      },
+      {
+        "description": "Line D.P. (Flat Clamp)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 2.0,
+        "qty_per_object": 1,
+        "length_formula": "2",
+        "qty_source": "dp_count"
+      }
+    ]
+  },
+
+  "TP_IRON": {
+    "name": "TP Iron Recipe",
+    "description": "Standard Triple Pole structure. Channel + Angle + Flat.",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Tripple Pole Structure (Channel)",
+        "section": "CH_75X40",
+        "length_per_piece": 6.0,
+        "qty_per_object": 2,
+        "length_formula": "=2*6",
+        "qty_source": "tp_count"
+      },
+      {
+        "description": "TP Cross Arm (Angle 65x65x6)",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 6.36,
+        "qty_per_object": 1,
+        "length_formula": "6.36",
+        "qty_source": "tp_count"
+      },
+      {
+        "description": "Tripple Pole Structure (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 7.0,
+        "qty_per_object": 1,
+        "length_formula": "7",
+        "qty_source": "tp_count"
+      }
+    ]
+  },
+
+  "4P_IRON": {
+    "name": "4-Pole Iron Recipe",
+    "description": "Standard Four Pole structure. Channel + Angle + Flat.",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Four-Pole Structure (Channel)",
+        "section": "CH_75X40",
+        "length_per_piece": 8.0,
+        "qty_per_object": 2,
+        "length_formula": "=2*8",
+        "qty_source": "4p_count"
+      },
+      {
+        "description": "4P Cross Arm (Angle 65x65x6)",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 6.36,
+        "qty_per_object": 2,
+        "length_formula": "6.36",
+        "qty_source": "4p_count"
+      },
+      {
+        "description": "Four-Pole Structure (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 7.0,
+        "qty_per_object": 2,
+        "length_formula": "7",
+        "qty_source": "4p_count"
+      }
+    ]
+  },
+
+  "DTR_IRON": {
+    "name": "DTR Substation Iron Recipe",
+    "description": "Standard DTR substation. Channel + Angle + Flat per named purpose.",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Sub-Stn Top",
+        "section": "CH_75X40",
+        "length_per_piece": 2.25,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.25",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "Isolator Support",
+        "section": "CH_75X40",
+        "length_per_piece": 2.25,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.25",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "Transformer Base",
+        "section": "CH_75X40",
+        "length_per_piece": 2.25,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.25",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "I-Bolt & Handle",
+        "section": "CH_75X40",
+        "length_per_piece": 0.5,
+        "qty_per_object": 2,
+        "length_formula": "=2*0.5",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "H.T. Fuse Unit",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 2.25,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.25",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "Sub-Stn Main Switch Angle",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 2.25,
+        "qty_per_object": 2,
+        "length_formula": "=2*2.25",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "Angle Support on Sub-Stn",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 0.5,
+        "qty_per_object": 2,
+        "length_formula": "=2*0.5",
+        "qty_source": "dtr_count"
+      },
+      {
+        "description": "No. of H.T. Clamp Sub-Stn",
+        "section": "FLAT_65X6",
+        "length_per_piece": 0.5,
+        "qty_per_object": 28,
+        "length_formula": "=28*0.5",
+        "qty_source": "dtr_count"
+      }
+    ]
+  },
+
+  "POLE_LT_IRON": {
+    "name": "LT Pole Iron Recipe",
+    "description": "Iron per LT pole. V-Bracket + Top Adaptor per pole. User can switch description if using Top Adaptor only.",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "Single Pole (V-Bracket & Top Adaptor)",
+        "section": "CH_75X40",
+        "length_per_piece": 1.8,
+        "qty_per_object": 1,
+        "length_formula": "=1.5+0.3",
+        "qty_source": "lt_pole_count"
+      },
+      {
+        "description": "No. of L.T. Pole (Clamp Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 1.0,
+        "qty_per_object": 1,
+        "length_formula": "1",
+        "qty_source": "lt_pole_count"
+      }
+    ]
+  },
+
+  "POLE_LT_TOP_ADAPTOR": {
+    "name": "LT Pole — Top Adaptor Only",
+    "description": "Use when pole uses Top Adaptor instead of MS angle V-Bracket. No channel iron needed.",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "No. of L.T. Pole (Clamp Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 1.0,
+        "qty_per_object": 1,
+        "length_formula": "1",
+        "qty_source": "lt_pole_count"
+      }
+    ]
+  },
+
+  "POLE_HT_IRON": {
+    "name": "HT Pole Iron Recipe",
+    "description": "Iron per new HT single pole.",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "HT Single Pole (Flat - 2 nos)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 1.0,
+        "qty_per_object": 1,
+        "length_formula": "1",
+        "qty_source": "ht_pole_count"
+      }
+    ]
+  }
+}

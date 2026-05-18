@@ -72,6 +72,13 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.stay_count       = _d["struct_stay_count"]
         self.dtr_size         = "None"
         self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))
+        _default_recipes = {
+            "DP":  "DP_IRON",
+            "TP":  "TP_IRON",
+            "4P":  "4P_IRON",
+            "DTR": "DTR_IRON",
+        }
+        self.iron_recipe = _default_recipes.get(self.structure_type, "None")
 
         # seq_id starts at 0; assigned lazily on first update_visuals call
         # (because structure_type may be changed after __init__)
@@ -97,6 +104,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             "stay_count": self.stay_count,
             "dtr_size": self.dtr_size,
             "kiosk_required": getattr(self, "kiosk_required", True),
+            "iron_recipe": getattr(self, "iron_recipe", "None"),
         })
         return d
 
@@ -112,6 +120,10 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         self.stay_count = state.get("stay_count", 4)
         self.dtr_size = state.get("dtr_size", "None")
         self.kiosk_required = state.get("kiosk_required", True)
+        self.iron_recipe = state.get("iron_recipe", "None")
+        if self.iron_recipe == "None":
+            _default_recipes = {"DP": "DP_IRON", "TP": "TP_IRON", "4P": "4P_IRON", "DTR": "DTR_IRON"}
+            self.iron_recipe = _default_recipes.get(self.structure_type, "None")
         self.seq_id = state.get("seq_id", 0)
         self._seq_type = self.structure_type
 

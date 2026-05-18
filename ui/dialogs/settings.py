@@ -70,7 +70,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.parent_app = parent
         self.setWindowTitle("Advanced Settings")
-        self.setFixedSize(320, 140)
+        self.setFixedSize(320, 190)
 
         lay = QVBoxLayout(self)
         lay.setSpacing(8)
@@ -90,6 +90,11 @@ class SettingsDialog(QDialog):
         prop_btn.clicked.connect(self.parent_app.open_property_editor)
         prop_btn.setStyleSheet("padding:8px; font-size:12px;")
         lay.addWidget(prop_btn)
+
+        recipes_btn = QPushButton("📐  Iron Recipes Manager")
+        recipes_btn.clicked.connect(self.parent_app.open_recipe_manager)
+        recipes_btn.setStyleSheet("padding:8px; font-size:12px;")
+        lay.addWidget(recipes_btn)
 
         lay.addStretch()
 

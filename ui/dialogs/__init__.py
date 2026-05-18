@@ -6,9 +6,10 @@ from ui.dialogs.property_editor import PropertyEntryDialog, PropertyEditorDialog
 from ui.dialogs.placement       import PlacementDefaultsDialog
 from ui.dialogs.database_mgr    import DatabaseManagerDialog
 from ui.dialogs.ruleset_mgr     import RulesetManagerDialog
+from ui.dialogs.recipe_manager  import RecipeManagerDialog
 
 __all__ = [
     'ProjectSetupDialog', 'SearchDialog', 'SettingsDialog',
     'PropertyEntryDialog', 'PropertyEditorDialog', 'PlacementDefaultsDialog',
-    'DatabaseManagerDialog', 'RulesetManagerDialog',
+    'DatabaseManagerDialog', 'RulesetManagerDialog', 'RecipeManagerDialog',
 ]

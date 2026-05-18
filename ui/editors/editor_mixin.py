@@ -81,6 +81,42 @@ class EditorMixin:
         )
         self.editor_layout.addRow(hint)
 
+    def _add_iron_recipe_picker(self, item):
+        """Add a dropdown for selecting a dynamic iron recipe from the database. [ignoring loop detection]"""
+        from core import db_gateway as _dbg
+        all_recipes = _dbg.get_recipes(item.__class__.__name__)
+        
+        # Determine prefix filter
+        st = getattr(item, "structure_type", None)
+        prefix_map = {"DP": "DP_", "TP": "TP_", "4P": "4P_", "DTR": "DTR_"}
+        prefix = prefix_map.get(st, "POLE_") if st else "POLE_"
+        
+        filtered = [r for r in all_recipes if r["recipe_key"].startswith(prefix)]
+        recipes = filtered if filtered else all_recipes  # fallback to all if none match
+        
+        recipe_cb = QComboBox()
+        recipe_cb.addItem("None", "None")
+        for r in recipes:
+            recipe_cb.addItem(r["name"], r["recipe_key"])
+        
+        current_key = getattr(item, "iron_recipe", "None")
+        idx = 0
+        for i in range(recipe_cb.count()):
+            if recipe_cb.itemData(i) == current_key:
+                idx = i
+                break
+        recipe_cb.setCurrentIndex(idx)
+        
+        def _on_recipe_changed(index, i=item, cb=recipe_cb):
+            val = cb.itemData(index) or "None"
+            i.iron_recipe = val
+            if hasattr(i, "update_visuals"):
+                i.update_visuals()
+            self.refresh_live_estimate()
+        
+        recipe_cb.currentIndexChanged.connect(_on_recipe_changed)
+        self._add_field_pair("Iron Recipe:", recipe_cb)
+
     # ── Pole editor ───────────────────────────────────────────────────────────
 
     def _build_pole_editor(self, item):
@@ -173,6 +209,8 @@ class EditorMixin:
             lambda t, i=item: self._update_note(i, t)
         )
         self._add_field_pair("Note:", note)
+
+        self._add_iron_recipe_picker(item)
 
         # Checkboxes grouped at bottom
         ext_chk = QCheckBox("Extension required")
@@ -326,6 +364,8 @@ class EditorMixin:
             lambda t, i=item: self._update_note(i, t)
         )
         self._add_field_pair("Note:", note)
+
+        self._add_iron_recipe_picker(item)
 
         # Checkboxes at bottom
         ext_chk = QCheckBox("Extension required")
@@ -1134,6 +1174,10 @@ class EditorMixin:
             item.kiosk_required = False
         else:
             item.kiosk_required = bool(defaults.current.get("dtr_kiosk_required", True))
+            
+        _default_recipes = {"DP": "DP_IRON", "TP": "TP_IRON", "4P": "4P_IRON", "DTR": "DTR_IRON"}
+        item.iron_recipe = _default_recipes.get(value, item.iron_recipe)
+        
         item.update_visuals()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)
