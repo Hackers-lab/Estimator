@@ -49,7 +49,8 @@ def get_data_path(filename: str = "") -> str:
     """Return the path for a 'factory' file in the application's internal ``data/`` directory.
     """
     if getattr(_sys, "frozen", False):
-        base = _os.path.join(_os.path.dirname(_sys.executable), "data")
+        # In PyInstaller, bundled resources reside in sys._MEIPASS (the _internal folder in onedir mode)
+        base = _os.path.join(getattr(_sys, "_MEIPASS", _os.path.dirname(_sys.executable)), "data")
     else:
         base = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "data")
     return _os.path.join(base, filename) if filename else base

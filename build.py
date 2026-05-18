@@ -47,6 +47,7 @@ cmd = [
     # lookups work correctly at runtime.
     "--add-data", "data/seed_data.json;data",
     "--add-data", "data/rules.json;data",
+    "--add-data", "data/property_catalog.json;data",
     "--add-data", "assets/logo.svg;assets",
     "--add-data", "assets/logo.ico;assets",
     "--add-data", "assets/HELP.html;assets",
