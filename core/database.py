@@ -541,6 +541,7 @@ def _seed_config_tables(cursor) -> None:
         ("label_4p",       "4P",   "label"),
         ("label_dtr",      "DTR",  "label"),
         ("label_consumer", "SC",   "label"),
+        ("rate_chart_base_year", "2024", "general"),
     ]
     for _key, _val, _cat in _SETTINGS_SEED:
         cursor.execute(

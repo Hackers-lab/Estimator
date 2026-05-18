@@ -250,6 +250,10 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         settings_menu.addSeparator()
 
+        act_year = QAction("📆  Rate Chart Year", self)
+        act_year.triggered.connect(self.change_rate_chart_year)
+        settings_menu.addAction(act_year)
+
         act_defs = QAction("  Placement Defaults", self)
         act_defs.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogStart))
         act_defs.triggered.connect(self.open_placement_defaults)
@@ -1730,6 +1734,24 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         self.live_table.itemChanged.connect(self.on_table_edit)
 
+    def change_rate_chart_year(self):
+        curr_yr = int(defaults.current.get("rate_chart_base_year", 2024))
+        now = datetime.now()
+        max_yr = now.year if now.month >= 4 else now.year - 1
+
+        val, ok = QInputDialog.getInt(
+            self,
+            "Rate Chart Year",
+            "Enter the Base Year for Escalation calculations:",
+            curr_yr,
+            2018,
+            max_yr,
+            1
+        )
+        if ok and val != curr_yr:
+            defaults.save({"rate_chart_base_year": val})
+            self.refresh_live_estimate()
+
     def _recalculate_totals(self, sup_rate):
         mat_base = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Material")
         lab_sub  = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Labor")
@@ -1737,9 +1759,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         now = datetime.now()
         fy_start = now.year if now.month >= 4 else now.year - 1
 
+        base_yr_str = defaults.current.get("rate_chart_base_year", "2024")
+        try:
+            base_yr = int(base_yr_str)
+        except ValueError:
+            base_yr = 2024
+
         self.escalations = []
         cur = mat_base
-        for yr in range(2024, fy_start + 1):
+        for yr in range(base_yr, fy_start + 1):
             esc = cur * 0.05
             self.escalations.append((f"{str(yr)[-2:]}-{str(yr+1)[-2:]}", esc))
             cur += esc

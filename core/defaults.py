@@ -124,6 +124,7 @@ _FACTORY: dict = {
     "label_ex_4p":    "E4P",   # Existing 4P          e.g. E4P1, E4P2
     "label_ex_dtr":   "EDTR",  # Existing DTR         e.g. EDTR1, EDTR2
     "label_consumer": "SC",    # Consumer        e.g. SC1,  SC2
+    "rate_chart_base_year": 2024,
 }
 
 # Module-level mutable dict — read by canvas_objects.py on each new item

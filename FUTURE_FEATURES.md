@@ -10,6 +10,7 @@ Last updated: 2026-05-18
 - Save project bundle (PDF + Excel + drawing JSON).
 - Initial custom property system: Property Editor, slot count, per-object Custom 1..N selectors, rule-context exposure, and project save/load persistence.
 - AI Rule Creator (plain English rule generation via Groq API).
+- Configurable Rate Chart Base Year for escalations (Settings → Rate Chart Year dialog + database persistence).
 
 ---
 
@@ -33,7 +34,7 @@ Last updated: 2026-05-18
 - Show plain English warning with options — warn but never block the user.
 - Suggest "add items to existing rule" when exact match is found.
 
-### 1.4 Rate Chart Base Year (Escalation)
+### 1.4 Rate Chart Base Year (Escalation) [COMPLETED]
 - Currently the base year for escalation calculation is hardcoded.
 - Move to a configurable setting: Settings → Rate Chart Year.
 - Store in local DB or config file so user can update it without code changes.
