@@ -429,21 +429,30 @@ class DynamicRuleEngine:
                 if not self.evaluate_rule(ctx, condition):
                     continue
 
-                formula = rule.get("formula", "1")
-                qty     = self.calculate_qty(ctx, formula)
+                rule_items = rule.get("items")
+                if rule_items is None:
+                    rule_items = [{
+                        "type":      rule.get("type", "Material"),
+                        "item_name": rule.get("item_name", ""),
+                        "formula":   rule.get("formula", "1")
+                    }]
 
-                if qty <= 0:
-                    continue
+                for item_dict in rule_items:
+                    formula = item_dict.get("formula", "1")
+                    qty     = self.calculate_qty(ctx, formula)
 
-                item_name = rule.get("item_name", "")
-                item_type = rule.get("type", "Material")
+                    if qty <= 0:
+                        continue
 
-                if not item_name:
-                    continue
+                    item_name = item_dict.get("item_name", "")
+                    item_type = item_dict.get("type", "Material")
 
-                if item_type == "Material":
-                    raw_bom[item_name] = raw_bom.get(item_name, 0) + qty
-                elif item_type == "Labor":
-                    raw_lab[item_name] = raw_lab.get(item_name, 0) + qty
+                    if not item_name:
+                        continue
+
+                    if item_type == "Material":
+                        raw_bom[item_name] = raw_bom.get(item_name, 0) + qty
+                    elif item_type == "Labor":
+                        raw_lab[item_name] = raw_lab.get(item_name, 0) + qty
 
         return raw_bom, raw_lab

@@ -31,13 +31,13 @@ def _conn() -> sqlite3.Connection:
 def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list[dict]:
     """Return list of rule dicts, ordered by sort_order.
 
-    Each dict has keys: id, object, condition, formula, type, item_code, item_name, enabled.
+    Each dict has keys: id, object, condition, items, enabled.
     """
     con = _conn()
     try:
         cur = con.cursor()
         base = (
-            "SELECT id, object_type, condition, formula, type, item_code, item_name, enabled "
+            "SELECT id, object_type, condition, items_json, enabled "
             "FROM rules"
         )
         where: list[str] = []
@@ -54,11 +54,8 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
                 "id":        r[0],
                 "object":    r[1],
                 "condition": r[2],
-                "formula":   r[3],
-                "type":      r[4],
-                "item_code": r[5],
-                "item_name": r[6],
-                "enabled":   r[7],
+                "items":     json.loads(r[3]),
+                "enabled":   r[4],
             }
             for r in rows
         ]
@@ -69,7 +66,7 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
 def save_rules(rules: list[dict]) -> None:
     """Replace ALL rules in DB with the given list, preserving IDs where possible.
 
-    Each dict should have: object, condition, formula, type, item_code, item_name.
+    Each dict should have: object, condition, items, enabled.
     If 'id' is present and exists in DB, that row is updated.
     Rules not present in the 'rules' list are deleted from the DB.
     """
@@ -93,15 +90,12 @@ def save_rules(rules: list[dict]) -> None:
             if rid and rid in existing_ids:
                 # Update existing (preserves ID)
                 cur.execute(
-                    "UPDATE rules SET object_type=?, condition=?, formula=?, type=?, "
-                    "item_code=?, item_name=?, enabled=?, sort_order=? WHERE id=?",
+                    "UPDATE rules SET object_type=?, condition=?, items_json=?, "
+                    "enabled=?, sort_order=? WHERE id=?",
                     (
                         r.get("object", ""),
                         r.get("condition", "True"),
-                        r.get("formula", "1"),
-                        r.get("type", "Material"),
-                        r.get("item_code", ""),
-                        r.get("item_name", ""),
+                        json.dumps(r.get("items", [])),
                         1 if r.get("enabled", 1) else 0,
                         i,
                         rid,
@@ -115,16 +109,13 @@ def save_rules(rules: list[dict]) -> None:
 
                 cur.execute(
                     "INSERT INTO rules "
-                    "(id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    "(id, object_type, condition, items_json, enabled, sort_order) "
+                    "VALUES (?,?,?,?,?,?)",
                     (
                         target_id,
                         r.get("object", ""),
                         r.get("condition", "True"),
-                        r.get("formula", "1"),
-                        r.get("type", "Material"),
-                        r.get("item_code", ""),
-                        r.get("item_name", ""),
+                        json.dumps(r.get("items", [])),
                         1 if r.get("enabled", 1) else 0,
                         i,
                     ),
@@ -148,16 +139,13 @@ def add_rule(rule: dict) -> int:
 
         cur.execute(
             "INSERT INTO rules "
-            "(id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "(id, object_type, condition, items_json, enabled, sort_order) "
+            "VALUES (?,?,?,?,?,?)",
             (
                 target_id,
                 rule.get("object", ""),
                 rule.get("condition", "True"),
-                rule.get("formula", "1"),
-                rule.get("type", "Material"),
-                rule.get("item_code", ""),
-                rule.get("item_name", ""),
+                json.dumps(rule.get("items", [])),
                 1,
                 max_sort + 1,
             ),
@@ -173,15 +161,11 @@ def update_rule(rule_id: int, rule: dict) -> None:
     con = _conn()
     try:
         con.execute(
-            "UPDATE rules SET object_type=?, condition=?, formula=?, type=?, "
-            "item_code=?, item_name=? WHERE id=?",
+            "UPDATE rules SET object_type=?, condition=?, items_json=? WHERE id=?",
             (
                 rule.get("object", ""),
                 rule.get("condition", "True"),
-                rule.get("formula", "1"),
-                rule.get("type", "Material"),
-                rule.get("item_code", ""),
-                rule.get("item_name", ""),
+                json.dumps(rule.get("items", [])),
                 rule_id,
             ),
         )

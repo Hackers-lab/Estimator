@@ -11,12 +11,13 @@ Last updated: 2026-05-18
 - Initial custom property system: Property Editor, slot count, per-object Custom 1..N selectors, rule-context exposure, and project save/load persistence.
 - AI Rule Creator (plain English rule generation via Groq API).
 - Configurable Rate Chart Base Year for escalations (Settings → Rate Chart Year dialog + database persistence).
+- Rule Grouping (Phase 1.1): One condition maps to multiple items; SQLite auto-migration; and interactive items table editor in Ruleset Manager UI.
 
 ---
 
 ## Phase 1 — Fix & Clean (Next Up)
 
-### 1.1 Rule Grouping
+### 1.1 Rule Grouping [COMPLETED]
 - Restructure `rules.json` — one condition maps to an array of items underneath it.
 - Update rule engine — one extra inner loop over items, ~2 lines of code change.
 - Update Ruleset Manager UI — rule cards become expandable, showing item table inside each card.

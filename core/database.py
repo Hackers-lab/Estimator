@@ -145,18 +145,84 @@ def setup_database():
     conn.close()
 
 
+def _check_and_migrate_rules_table(cursor) -> None:
+    """Check if rules table has legacy flat columns, and migrate to grouped JSON column if needed."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='rules'")
+    if not cursor.fetchone():
+        return
+
+    cursor.execute("PRAGMA table_info(rules)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if "formula" in columns:
+        print("[DB] Legacy flat rules table schema detected. Starting migration...")
+        cursor.execute("SELECT id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order FROM rules")
+        rows = cursor.fetchall()
+
+        from collections import OrderedDict
+        grouped = OrderedDict()
+        for r in rows:
+            rid, obj, cond, formula, rtype, code, name, enabled, sort_order = r
+            key = (obj, cond)
+            item = {
+                "type": rtype,
+                "item_code": code,
+                "item_name": name,
+                "formula": formula
+            }
+            if key not in grouped:
+                grouped[key] = {
+                    "id": rid,
+                    "object_type": obj,
+                    "condition": cond,
+                    "enabled": enabled,
+                    "sort_order": sort_order,
+                    "items": [item]
+                }
+            else:
+                grouped[key]["items"].append(item)
+
+        cursor.execute("DROP TABLE rules")
+
+        cursor.execute("""
+            CREATE TABLE rules (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                object_type TEXT NOT NULL,
+                condition   TEXT NOT NULL,
+                items_json  TEXT NOT NULL,
+                enabled     INTEGER NOT NULL DEFAULT 1,
+                sort_order  INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+
+        for key, g in grouped.items():
+            cursor.execute(
+                "INSERT INTO rules (id, object_type, condition, items_json, enabled, sort_order) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    g["id"],
+                    g["object_type"],
+                    g["condition"],
+                    json.dumps(g["items"]),
+                    g["enabled"],
+                    g["sort_order"]
+                )
+            )
+        print(f"[DB] Successfully migrated {len(rows)} legacy flat rules into {len(grouped)} grouped rules.")
+
+
 def _create_config_tables(cursor) -> None:
     """Create all configuration tables (idempotent)."""
+
+    # Check and migrate legacy rules table schema if existing
+    _check_and_migrate_rules_table(cursor)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS rules (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             object_type TEXT NOT NULL,
             condition   TEXT NOT NULL,
-            formula     TEXT NOT NULL,
-            type        TEXT NOT NULL,
-            item_code   TEXT NOT NULL DEFAULT '',
-            item_name   TEXT NOT NULL,
+            items_json  TEXT NOT NULL,
             enabled     INTEGER NOT NULL DEFAULT 1,
             sort_order  INTEGER NOT NULL DEFAULT 0
         )
@@ -375,15 +441,13 @@ def _seed_config_tables(cursor) -> None:
     for _i, _r in enumerate(rules_data):
         cursor.execute(
             "INSERT OR IGNORE INTO rules "
-            "(object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-            "VALUES (?,?,?,?,?,?,1,?)",
+            "(id, object_type, condition, items_json, enabled, sort_order) "
+            "VALUES (?,?,?,?,1,?)",
             (
+                _r.get("id"),
                 _r.get("object", ""),
                 _r.get("condition", "True"),
-                _r.get("formula", "1"),
-                _r.get("type", "Material"),
-                _r.get("item_code", ""),
-                _r.get("item_name", ""),
+                json.dumps(_r.get("items", [])),
                 _i,
             ),
         )

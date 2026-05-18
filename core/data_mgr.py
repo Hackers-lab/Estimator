@@ -61,8 +61,8 @@ def sync_factory_updates():
                 factory_rules = json.load(f)
             
             # Fetch existing rules to check for clashing IDs
-            cursor.execute("SELECT id, item_name, condition FROM rules")
-            existing_db_rules = {row[0]: {"name": row[1], "cond": row[2]} for row in cursor.fetchall()}
+            cursor.execute("SELECT id, object_type, condition FROM rules")
+            existing_db_rules = {row[0]: {"object": row[1], "cond": row[2]} for row in cursor.fetchall()}
 
             for r in factory_rules:
                 fid = r.get("id")
@@ -71,7 +71,7 @@ def sync_factory_updates():
                 if fid in existing_db_rules:
                     # ID exists. Is it the same rule or a user-created clash?
                     db_rule = existing_db_rules[fid]
-                    if db_rule["name"] == r.get("item_name") and db_rule["cond"] == r.get("condition"):
+                    if db_rule["object"] == r.get("object") and db_rule["cond"] == r.get("condition"):
                         # Already in DB and matches. Skip.
                         continue
                     else:
@@ -87,21 +87,18 @@ def sync_factory_updates():
                 
                 # Insert system rule
                 cursor.execute(
-                    "INSERT INTO rules (id, object_type, condition, formula, type, item_code, item_name, enabled, sort_order) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO rules (id, object_type, condition, items_json, enabled, sort_order) "
+                    "VALUES (?,?,?,?,?,?)",
                     (
                         fid,
                         r.get("object", ""),
                         r.get("condition", "True"),
-                        r.get("formula", "1"),
-                        r.get("type", "Material"),
-                        r.get("item_code", ""),
-                        r.get("item_name", ""),
+                        json.dumps(r.get("items", [])),
                         r.get("enabled", 1),
                         fid # Use ID as default sort order for system rules
                     )
                 )
-                print(f"[DataMgr] Synced system rule ID {fid}: {r.get('item_name')}")
+                print(f"[DataMgr] Synced system rule ID {fid}: {r.get('condition')}")
 
         except Exception as e:
             import traceback

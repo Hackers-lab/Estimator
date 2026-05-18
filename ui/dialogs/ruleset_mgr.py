@@ -607,7 +607,10 @@ class RulesetManagerDialog(QDialog):
         
         # 2. Filter by Type (Material/Labor)
         if type_filter != "All":
-            candidate_rules = [(i, r) for i, r in candidate_rules if r.get("type", "Material") == type_filter]
+            candidate_rules = [
+                (i, r) for i, r in candidate_rules
+                if any(itm.get("type", "Material") == type_filter for itm in r.get("items", []))
+            ]
         
         # 3. Smart Search & Sorting
         if search:
@@ -616,7 +619,6 @@ class RulesetManagerDialog(QDialog):
             # We score all candidate rules across ALL object types
             props = infer_properties_from_text(search)
             
-            # Since find_similar_rules usually takes one obj_type, we'll manually combine scores
             final_list = []
             
             # Group rules by object type to call scoring efficiently
@@ -627,23 +629,33 @@ class RulesetManagerDialog(QDialog):
             
             all_scores = {}
             for ot, rules_in_ot in by_obj.items():
-                # Get indices for this group
-                indices_in_ot = [x[0] for x in rules_in_ot]
-                # We can't easily use find_similar_rules directly because it wants the FULL rules list
-                # but we can call it for the relevant slice. 
-                # Actually, find_similar_rules is just a wrapper for search_existing_rules.
                 from core.ai_rule_parser import search_existing_rules
                 intent = {"object": ot, "properties": props, "item_name_hint": search}
-                ot_rules_only = [r for idx, r in rules_in_ot]
-                matches = search_existing_rules(intent, ot_rules_only, top_n=len(ot_rules_only), threshold=0.0)
+                
+                # Reconstruct a flat-like list for the parser by selecting the first item or descriptive text
+                ot_rules_flat = []
+                for idx, r in rules_in_ot:
+                    items = r.get("items", [])
+                    first_item_name = items[0].get("item_name", "") if items else "Group"
+                    flat_r = {
+                        "object": r.get("object"),
+                        "condition": r.get("condition"),
+                        "formula": items[0].get("formula", "1") if items else "1",
+                        "type": items[0].get("type", "Material") if items else "Material",
+                        "item_code": items[0].get("item_code", "") if items else "",
+                        "item_name": first_item_name
+                    }
+                    ot_rules_flat.append(flat_r)
+                
+                matches = search_existing_rules(intent, ot_rules_flat, top_n=len(ot_rules_flat), threshold=0.0)
                 for rel_idx, rule, score in matches:
                     orig_idx = rules_in_ot[rel_idx][0]
                     all_scores[orig_idx] = score
 
             for idx, rule in candidate_rules:
-                item_name = rule.get("item_name", "").lower()
+                has_name_hit = any(search in itm.get("item_name", "").lower() for itm in rule.get("items", []))
                 condition = rule.get("condition", "").lower()
-                string_hit = (search in item_name or search in condition)
+                string_hit = (has_name_hit or search in condition)
                 sem_score = all_scores.get(idx, 0.0)
                 
                 final_score = sem_score
@@ -680,10 +692,21 @@ class RulesetManagerDialog(QDialog):
             self._render_grouped_cards(matched, sim_hits)
         else:
             for orig_idx, rule in matched:
-                card = self._make_card(orig_idx, rule, orig_idx in sim_hits)
-                self._card_layout.insertWidget(
-                    self._card_layout.count() - 1, card
-                )
+                for item_idx, itm in enumerate(rule.get("items", [])):
+                    flat_rule = {
+                        "id": rule.get("id"),
+                        "object": rule.get("object"),
+                        "condition": rule.get("condition"),
+                        "enabled": rule.get("enabled", 1),
+                        "type": itm.get("type", "Material"),
+                        "item_code": itm.get("item_code", ""),
+                        "item_name": itm.get("item_name", ""),
+                        "formula": itm.get("formula", "1")
+                    }
+                    card = self._make_card(orig_idx, flat_rule, orig_idx in sim_hits)
+                    self._card_layout.insertWidget(
+                        self._card_layout.count() - 1, card
+                    )
 
         self._update_centre_title()
         self._update_tree_counts()
@@ -849,30 +872,34 @@ class RulesetManagerDialog(QDialog):
 
     def _render_grouped_cards(self, matched, sim_hits):
         """Render rules grouped by identical condition string (and object if global)."""
-        from collections import OrderedDict
-        groups = OrderedDict()
         is_global = getattr(self, "_is_global_search", False)
-        
+
         for orig_idx, rule in matched:
             cond = rule.get("condition", "") or ""
-            norm_cond = self._normalize_condition(cond)
-            obj  = rule.get("object", "SmartPole")
-            # If global, group by both object and condition to avoid cross-category mixing
-            key = (obj, norm_cond) if is_global else norm_cond
-            groups.setdefault(key, []).append((orig_idx, rule))
+            items = rule.get("items", [])
+            
+            mat_count = sum(1 for itm in items if itm.get("type") == "Material")
+            lab_count = sum(1 for itm in items if itm.get("type") == "Labor")
+            grp_hit   = orig_idx in sim_hits
+            grp_sel   = (orig_idx == self.selected_rule_index)
+            
+            # Reconstruct items list for widget compatibility
+            widget_items = []
+            for itm in items:
+                child_rule = {
+                    "id": rule.get("id"),
+                    "object": rule.get("object"),
+                    "condition": cond,
+                    "enabled": rule.get("enabled", 1),
+                    "type": itm.get("type", "Material"),
+                    "item_code": itm.get("item_code", ""),
+                    "item_name": itm.get("item_name", ""),
+                    "formula": itm.get("formula", "1")
+                }
+                widget_items.append((orig_idx, child_rule))
 
-        for key, items in groups.items():
-            if is_global:
-                obj, cond = key
-            else:
-                cond = key
-                
-            mat_count = sum(1 for _, r in items if r.get("type") == "Material")
-            lab_count = sum(1 for _, r in items if r.get("type") == "Labor")
-            grp_hit   = any(i in sim_hits for i, _ in items)
-            grp_sel   = any(i == self.selected_rule_index for i, _ in items)
             group_w   = self._make_group_widget(
-                cond, mat_count, lab_count, items, sim_hits, grp_hit, grp_sel
+                cond, mat_count, lab_count, widget_items, sim_hits, grp_hit, grp_sel
             )
             self._card_layout.insertWidget(self._card_layout.count() - 1, group_w)
 
@@ -961,8 +988,8 @@ class RulesetManagerDialog(QDialog):
         )
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         edit_btn.clicked.connect(
-            lambda _checked=False, c=cond, idx=rule_indices:
-                self._build_group_editor(c, idx)
+            lambda _checked=False, idx=rule_indices[0]:
+                self._on_card(idx)
         )
         hl.addWidget(edit_btn)
 
@@ -1019,9 +1046,16 @@ class RulesetManagerDialog(QDialog):
         for obj_type in top_types:
             obj_rules = [(i, r) for i, r in enumerate(self.rules)
                          if r.get("object") == obj_type]
-            n_conds = len(set(r.get("condition", "") for _, r in obj_rules))
-            mat_n   = sum(1 for _, r in obj_rules if r.get("type") == "Material")
-            lab_n   = sum(1 for _, r in obj_rules if r.get("type") == "Labor")
+            n_conds = len(obj_rules)
+            
+            mat_n = 0
+            lab_n = 0
+            for _, r in obj_rules:
+                for itm in r.get("items", []):
+                    if itm.get("type") == "Material":
+                        mat_n += 1
+                    else:
+                        lab_n += 1
             
             style = self._get_obj_style(obj_type)
             card = self._make_dashboard_card(
@@ -1376,29 +1410,30 @@ class RulesetManagerDialog(QDialog):
         mat_n = lab_n = 0
 
         for i in sorted(hits):
-            rule    = self.rules[i]
-            r_type  = rule.get("type", "")
-            formula = rule.get("formula", "1")
-            try:
-                qty = evaluate_formula(formula, ctx)
-                qty_s = f"{qty:.3f}".rstrip("0").rstrip(".")
-            except Exception:
-                qty_s = formula
+            rule = self.rules[i]
+            for itm in rule.get("items", []):
+                r_type  = itm.get("type", "Material")
+                formula = itm.get("formula", "1")
+                try:
+                    qty = evaluate_formula(formula, ctx)
+                    qty_s = f"{qty:.3f}".rstrip("0").rstrip(".")
+                except Exception:
+                    qty_s = formula
 
-            r = self._sim_table.rowCount()
-            self._sim_table.insertRow(r)
-            self._sim_table.setItem(r, 0, QTableWidgetItem(r_type))
-            self._sim_table.setItem(r, 1, QTableWidgetItem(rule.get("item_name", "")))
-            self._sim_table.setItem(r, 2, QTableWidgetItem(qty_s))
-            self._sim_table.setItem(r, 3, QTableWidgetItem(formula))
-            if r_type == "Material":
-                mat_n += 1
-            else:
-                lab_n += 1
+                r = self._sim_table.rowCount()
+                self._sim_table.insertRow(r)
+                self._sim_table.setItem(r, 0, QTableWidgetItem(r_type))
+                self._sim_table.setItem(r, 1, QTableWidgetItem(itm.get("item_name", "")))
+                self._sim_table.setItem(r, 2, QTableWidgetItem(qty_s))
+                self._sim_table.setItem(r, 3, QTableWidgetItem(formula))
+                if r_type == "Material":
+                    mat_n += 1
+                else:
+                    lab_n += 1
 
         total = len(hits)
         self._sim_count_lbl.setText(
-            f"{total} rule(s) fire  |  {mat_n} material, {lab_n} labour"
+            f"{total} condition group(s) fire  |  {mat_n} material, {lab_n} labour"
             if total else "No rules matched."
         )
 
@@ -1581,22 +1616,209 @@ class RulesetManagerDialog(QDialog):
         self.condition_widgets    = []
         self.selected_result_item = None
         self._editor_mode         = "rule"
-        self._save_btn.setText("\U0001f4be Save rule")
-
-        self._editor_hdr.setText(f"Editing: {rule.get('item_name','')}")
+        self._save_btn.setText("\U0001f4be Save rule group")
         self._save_btn.setEnabled(True)
         self._del_btn.setEnabled(True)
 
-        # Item section
-        self._editor_body_l.addWidget(self._sec_lbl("Item"))
+        self._editor_hdr.setText(f"Editing Rule Group")
 
-        self._type_combo = QComboBox()
-        self._type_combo.addItems(["Material", "Labor"])
-        self._type_combo.setCurrentText(rule.get("type", "Material"))
-        self._type_combo.setStyleSheet(self._combo_box_stylesheet())
-        self._editor_body_l.addWidget(self._field_row("Type", self._type_combo))
+        # Condition logic block section
+        self._editor_body_l.addWidget(self._sec_lbl("Condition Logic"))
 
-        self._item_display = QLineEdit(rule.get("item_name", ""))
+        self._cond_container = QWidget()
+        self._cond_rows_l    = QVBoxLayout(self._cond_container)
+        self._cond_rows_l.setContentsMargins(0, 0, 0, 0)
+        self._cond_rows_l.setSpacing(3)
+        self._editor_body_l.addWidget(self._cond_container)
+
+        self._add_cond_btn = QPushButton("+ add condition logic block")
+        self._add_cond_btn.setStyleSheet(
+            "color:#185FA5; background:none; border:none; "
+            "font-size:11px; text-align:left;"
+        )
+        self._add_cond_btn.clicked.connect(self.add_condition_row)
+        self._editor_body_l.addWidget(self._add_cond_btn)
+
+        # Advanced Mode Checkbox
+        from PyQt6.QtWidgets import QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView
+        self._adv_cb = QCheckBox("Advanced Mode (Manually edit raw logic string)")
+        self._adv_cb.setStyleSheet("font-size: 11px; color:#555;")
+        self._adv_cb.toggled.connect(self._toggle_advanced_mode)
+        self._editor_body_l.addWidget(self._adv_cb)
+
+        self._raw_cond_input = QLineEdit(rule.get("condition", ""))
+        self._raw_cond_input.setStyleSheet(
+            "font-family:monospace; font-size:12px; background:#f5f5f5;"
+        )
+        self._raw_cond_input.setReadOnly(True)
+        self._editor_body_l.addWidget(self._raw_cond_input)
+
+        # Items Table
+        self._editor_body_l.addWidget(self._sec_lbl("BOM & Labor Items"))
+
+        self._items_table = QTableWidget(0, 4)
+        self._items_table.setHorizontalHeaderLabels(["Type", "Code", "Name", "Formula"])
+        self._items_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._items_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._items_table.setStyleSheet("font-size:11px;")
+        
+        # Set column stretching
+        hdr = self._items_table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self._items_table.setColumnWidth(0, 70)
+        self._items_table.setColumnWidth(1, 80)
+        self._items_table.setColumnWidth(3, 70)
+        self._items_table.setFixedHeight(150)
+
+        # Populate Items
+        items = rule.get("items", [])
+        for itm in items:
+            r = self._items_table.rowCount()
+            self._items_table.insertRow(r)
+            
+            # Type (combobox in cell)
+            type_cb = QComboBox()
+            type_cb.addItems(["Material", "Labor"])
+            type_cb.setCurrentText(itm.get("type", "Material"))
+            type_cb.setStyleSheet("font-size:10px; padding:1px;")
+            self._items_table.setCellWidget(r, 0, type_cb)
+
+            # Code (read-only item)
+            code_item = QTableWidgetItem(itm.get("item_code", "N/A"))
+            code_item.setFlags(code_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._items_table.setItem(r, 1, code_item)
+
+            # Name
+            name_item = QTableWidgetItem(itm.get("item_name", "Unnamed"))
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._items_table.setItem(r, 2, name_item)
+
+            # Formula
+            formula_item = QTableWidgetItem(itm.get("formula", "1"))
+            self._items_table.setItem(r, 3, formula_item)
+
+        self._editor_body_l.addWidget(self._items_table)
+
+        # Item actions row
+        item_actions_w = QWidget()
+        item_actions_l = QHBoxLayout(item_actions_w)
+        item_actions_l.setContentsMargins(0, 0, 0, 0)
+        item_actions_l.setSpacing(6)
+
+        add_item_btn = QPushButton("+ Add Item")
+        add_item_btn.setStyleSheet("font-size:11px; padding:3px 8px;")
+        add_item_btn.clicked.connect(self._editor_add_item_row)
+
+        del_item_btn = QPushButton("🗑 Remove")
+        del_item_btn.setStyleSheet("font-size:11px; padding:3px 8px; color:#c0392b;")
+        del_item_btn.clicked.connect(self._editor_del_item_row)
+
+        lookup_item_btn = QPushButton("🔍 Look up DB...")
+        lookup_item_btn.setStyleSheet("font-size:11px; padding:3px 8px;")
+        lookup_item_btn.clicked.connect(self._editor_lookup_db_item)
+
+        item_actions_l.addWidget(add_item_btn)
+        item_actions_l.addWidget(del_item_btn)
+        item_actions_l.addWidget(lookup_item_btn)
+        item_actions_l.addStretch()
+        self._editor_body_l.addWidget(item_actions_w)
+
+        # Live formula preview & Validation
+        self._formula_preview_lbl = QLabel("")
+        self._formula_preview_lbl.setWordWrap(True)
+        self._formula_preview_lbl.setStyleSheet(
+            "font-size:11px; color:#1a6b2a; background:#eaf8f0; "
+            "border-radius:3px; padding:5px 8px; font-family:monospace;"
+        )
+        self._editor_body_l.addWidget(self._formula_preview_lbl)
+
+        self._validation_lbl = QLabel("")
+        self._validation_lbl.setWordWrap(True)
+        self._validation_lbl.setStyleSheet(
+            "font-size:10px; color:#c0392b; background:#fff0f0; "
+            "border-radius:3px; padding:4px 6px;"
+        )
+        self._validation_lbl.setVisible(False)
+        self._editor_body_l.addWidget(self._validation_lbl)
+
+        self._editor_body_l.addStretch()
+
+        # Connect signals
+        self._items_table.itemSelectionChanged.connect(self._update_formula_preview)
+        self._items_table.itemChanged.connect(self._update_preview)
+
+        # Parse condition logic blocks
+        self._parse_conditions(rule)
+        self._update_preview()
+
+    def _editor_add_item_row(self):
+        r = self._items_table.rowCount()
+        self._items_table.insertRow(r)
+        
+        type_cb = QComboBox()
+        type_cb.addItems(["Material", "Labor"])
+        type_cb.setStyleSheet("font-size:10px; padding:1px;")
+        self._items_table.setCellWidget(r, 0, type_cb)
+
+        code_item = QTableWidgetItem("N/A")
+        code_item.setFlags(code_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        self._items_table.setItem(r, 1, code_item)
+
+        name_item = QTableWidgetItem("New Item - use DB lookup to search")
+        name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        self._items_table.setItem(r, 2, name_item)
+
+        formula_item = QTableWidgetItem("1")
+        self._items_table.setItem(r, 3, formula_item)
+        
+        self._items_table.selectRow(r)
+        self._update_preview()
+
+    def _editor_del_item_row(self):
+        row = self._items_table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Warning", "Please select an item to remove.")
+            return
+        if self._items_table.rowCount() <= 1:
+            QMessageBox.warning(self, "Warning", "A rule group must contain at least one item.")
+            return
+        self._items_table.removeRow(row)
+        self._update_preview()
+
+    def _editor_lookup_db_item(self):
+        row = self._items_table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Warning", "Please select an item row to look up in the database.")
+            return
+        
+        type_cb = self._items_table.cellWidget(row, 0)
+        db_type = type_cb.currentText() if type_cb else "Material"
+        
+        dlg = SearchDialog(db_type, self)
+        if dlg.exec():
+            item = dlg.get_selected()
+            if item:
+                code_item = self._items_table.item(row, 1)
+                if not code_item:
+                    code_item = QTableWidgetItem()
+                    code_item.setFlags(code_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self._items_table.setItem(row, 1, code_item)
+                code_item.setText(item.get("code") or item.get("labor_code", "N/A"))
+                
+                name_item = self._items_table.item(row, 2)
+                if not name_item:
+                    name_item = QTableWidgetItem()
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self._items_table.setItem(row, 2, name_item)
+                name_item.setText(item.get("name") or item.get("task_name", "Unnamed"))
+                
+                if type_cb:
+                    type_cb.setCurrentText(item.get("type", db_type))
+                
+                self._update_preview()
         self._item_display.setReadOnly(True)
         self._item_display.setStyleSheet("background:#f5f5f5; font-size:12px;")
         change_btn = QPushButton("Change…")
@@ -1915,45 +2137,66 @@ class RulesetManagerDialog(QDialog):
         parts = self._build_condition_parts()
         builder = " ".join(parts).strip() if parts else "True"
         
-        # Keep raw input accurately reflecting builder when not in advanced mode
         if hasattr(self, "_adv_cb") and not self._adv_cb.isChecked():
             if hasattr(self, "_raw_cond_input"):
                 self._raw_cond_input.setText(builder)
 
-        # C4: real-time syntax validation
-        if hasattr(self, "_validation_lbl") and hasattr(self, "_formula_input"):
+        if hasattr(self, "_validation_lbl") and hasattr(self, "_items_table"):
             raw_cond = getattr(self, "_raw_cond_input", None)
-            cond_text    = raw_cond.text().strip() if raw_cond else ""
-            formula_text = self._formula_input.text().strip() or "1"
-            ok, msg = self._validate_rule(cond_text, formula_text, self.active_obj_type)
-            self._validation_lbl.setVisible(not ok)
+            cond_text = raw_cond.text().strip() if raw_cond else ""
+            
+            props = list(get_registry().get_all_property_data().get(self.active_obj_type, {}).keys())
+            ok, msg = validate_expression(cond_text, props)
             if not ok:
-                self._validation_lbl.setText(f"\u26a0  {msg}")
+                self._validation_lbl.setVisible(True)
+                self._validation_lbl.setText(f"\u26a0  Condition: {msg}")
+            else:
+                errors = []
+                for row in range(self._items_table.rowCount()):
+                    formula_item = self._items_table.item(row, 3)
+                    formula_text = formula_item.text().strip() if formula_item else "1"
+                    ok_f, msg_f = validate_expression(formula_text, props)
+                    if not ok_f:
+                        item_name_item = self._items_table.item(row, 2)
+                        item_name = item_name_item.text() if item_name_item else f"Row {row+1}"
+                        errors.append(f"Row {row+1} ({item_name}): {msg_f}")
+                
+                if errors:
+                    self._validation_lbl.setVisible(True)
+                    self._validation_lbl.setText("\u26a0  Formula: " + "; ".join(errors))
+                else:
+                    self._validation_lbl.setVisible(False)
 
-        # Also update formula preview when condition changes
         self._update_formula_preview()
 
     def _update_formula_preview(self):
         """Live-evaluate the formula against simulator context and display result."""
         if not hasattr(self, "_formula_preview_lbl"):
             return
-        if not hasattr(self, "_formula_input"):
-            self._formula_preview_lbl.setVisible(False)
+        
+        if not hasattr(self, "_items_table") or self._items_table.currentRow() < 0:
+            self._formula_preview_lbl.setText("\u2192 select an item row to preview formula")
+            self._formula_preview_lbl.setStyleSheet(
+                "font-size:11px; color:#999; background:#f5f5f5; "
+                "border-radius:3px; padding:5px 8px; font-family:monospace;"
+            )
             return
 
-        formula_text = self._formula_input.text().strip()
+        row = self._items_table.currentRow()
+        formula_item = self._items_table.item(row, 3)
+        formula_text = formula_item.text().strip() if formula_item else "1"
+
         if not formula_text:
             self._formula_preview_lbl.setVisible(False)
             return
 
-        # Check if simulator is configured with values
         if not self.sim_widgets:
             self._formula_preview_lbl.setVisible(True)
             self._formula_preview_lbl.setStyleSheet(
                 "font-size:11px; color:#999; background:#f5f5f5; "
                 "border-radius:3px; padding:5px 8px; font-family:monospace;"
             )
-            self._formula_preview_lbl.setText("→ open simulator to preview")
+            self._formula_preview_lbl.setText("\u2192 open simulator to preview")
             return
 
         try:
@@ -1966,7 +2209,7 @@ class RulesetManagerDialog(QDialog):
                 "border-radius:3px; padding:5px 8px; font-family:monospace;"
             )
             self._formula_preview_lbl.setText(
-                f"→ qty = {qty_s}  (simulator values)"
+                f"\u2192 qty = {qty_s}  (simulator values)"
             )
         except Exception as exc:
             self._formula_preview_lbl.setVisible(True)
@@ -1974,7 +2217,7 @@ class RulesetManagerDialog(QDialog):
                 "font-size:11px; color:#c0392b; background:#fff0f0; "
                 "border-radius:3px; padding:5px 8px; font-family:monospace;"
             )
-            self._formula_preview_lbl.setText(f"→ error: {exc}")
+            self._formula_preview_lbl.setText(f"\u2192 error: {exc}")
 
     # ── Editor actions ────────────────────────────────────────────────────────
 
@@ -1997,56 +2240,71 @@ class RulesetManagerDialog(QDialog):
                 self._type_combo.setCurrentText(item["type"])
 
     def save_rule_changes(self):
-        if self._editor_mode == "group":
-            self._save_group_condition()
-            return
         if self.selected_rule_index == -1:
             return
         rule    = self.rules[self.selected_rule_index]
         cond    = self._raw_cond_input.text().strip()
-        formula = self._formula_input.text().strip() or "1"
 
-        # C4: validate syntax before committing
-        ok, msg = self._validate_rule(cond, formula, rule.get("object", self.active_obj_type))
-        if not ok:
-            reply = QMessageBox.question(
-                self, "Validation Warning",
-                f"{msg}\n\nSave anyway?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if reply == QMessageBox.StandardButton.No:
+        # Gather items from items table
+        items = []
+        for r in range(self._items_table.rowCount()):
+            type_cb = self._items_table.cellWidget(r, 0)
+            item_type = type_cb.currentText() if type_cb else "Material"
+            
+            code_item = self._items_table.item(r, 1)
+            item_code = code_item.text() if code_item else "N/A"
+            
+            name_item = self._items_table.item(r, 2)
+            item_name = name_item.text() if name_item else "Unnamed"
+            
+            formula_item = self._items_table.item(r, 3)
+            formula_text = formula_item.text().strip() if formula_item else "1"
+            
+            items.append({
+                "type": item_type,
+                "item_code": item_code,
+                "item_name": item_name,
+                "formula": formula_text
+            })
+
+        # Validate condition and formulas before saving
+        props = list(get_registry().get_all_property_data().get(rule.get("object", self.active_obj_type), {}).keys())
+        ok_c, msg_c = validate_expression(cond, props)
+        if not ok_c:
+            QMessageBox.critical(self, "Validation Error", f"Condition syntax error:\n{msg_c}")
+            return
+            
+        for idx, itm in enumerate(items):
+            ok_f, msg_f = validate_expression(itm["formula"], props)
+            if not ok_f:
+                QMessageBox.critical(self, "Validation Error", f"Formula error in row {idx+1} ({itm['item_name']}):\n{msg_f}")
                 return
 
-        # Save the exact condition text so complex JSON conditions are preserved.
+        # Save to rule dict
         rule["condition"] = cond
-        if self.selected_result_item:
-            rule["type"]      = self.selected_result_item["type"]
-            rule["item_code"] = self.selected_result_item.get("code", "")
-            rule["item_name"] = (
-                self.selected_result_item.get("name")
-                or self.selected_result_item.get("item_name", "")
-            )
-        else:
-            rule["type"] = self._type_combo.currentText()
-        rule["formula"] = formula
+        rule["items"] = items
+        
         self.save_rules()
         self._update_tree_counts()
         self._refresh_cards()
-        self._editor_hdr.setText(f"Editing: {rule.get('item_name','')}")
-        QMessageBox.information(self, "Saved", "Rule saved successfully.")
+        self._editor_hdr.setText("Editing Rule Group")
+        QMessageBox.information(self, "Saved", "Rule group saved successfully.")
 
     def create_new_rule(self):
         new_rule = {
             "object":    self.active_obj_type,
-            "item_name": "New Rule — edit me",
-            "condition": "",
-            "type":      "Material",
-            "item_code": "N/A",
-            "formula":   "1",
+            "condition": "True",
+            "enabled":   1,
+            "items": [
+                {
+                    "type":      "Material",
+                    "item_code": "N/A",
+                    "item_name": "New Item \u2014 edit me",
+                    "formula":   "1",
+                }
+            ]
         }
         self.rules.append(new_rule)
-        # self.save_rules() <-- Removed to only save on explicit 'Save' button click
         self.selected_rule_index = len(self.rules) - 1
         self._update_tree_counts()
         self._refresh_cards()
@@ -2280,13 +2538,17 @@ class RulesetManagerDialog(QDialog):
         new_rule = {
             "object":    tmpl["object"],
             "condition": tmpl["condition"],
-            "formula":   tmpl["formula"],
-            "type":      tmpl.get("type", "Material"),
-            "item_name": tmpl.get("item_name", "Template rule — edit me"),
-            "item_code": tmpl.get("item_code", "N/A"),
+            "enabled":   1,
+            "items": [
+                {
+                    "type":      tmpl.get("type", "Material"),
+                    "item_code": tmpl.get("item_code", "N/A"),
+                    "item_name": tmpl.get("item_name", "Template rule \u2014 edit me"),
+                    "formula":   tmpl.get("formula", "1")
+                }
+            ]
         }
         self.rules.append(new_rule)
-        # self.save_rules()
         self.selected_rule_index = len(self.rules) - 1
         parent_dlg.accept()  # Close template dialog
         self.active_obj_type = tmpl["object"]
@@ -2295,8 +2557,8 @@ class RulesetManagerDialog(QDialog):
         self._build_editor(new_rule)
         QMessageBox.information(
             self, "Template Imported",
-            f"Rule created from template: {tmpl['name']}\n\n"
-            "You can now edit the item, condition, and formula."
+            f"Rule group created from template: {tmpl['name']}\n\n"
+            "You can now edit the item list, condition, and formulas."
         )
 
     # ── AI describe ───────────────────────────────────────────────────────────
@@ -2305,7 +2567,6 @@ class RulesetManagerDialog(QDialog):
         """Use AI Assistant to parse requests and modify/create rules."""
         try:
             from ui.dialogs.ai_assistant import AIAssistantDialog
-            # Pass ALL rules so the AI knows about global duplicates
             dlg = AIAssistantDialog(self, obj_type=self.active_obj_type, current_rules=self.rules)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 ops = dlg.get_selected_operations()
@@ -2319,11 +2580,15 @@ class RulesetManagerDialog(QDialog):
                         new_r = {
                             "object": target_obj,
                             "condition": op.get("condition", "True"),
-                            "formula": str(op.get("formula", "1")),
-                            "type": op.get("type", "Material"),
-                            "item_name": op.get("item_name", "AI Suggested Item"),
-                            "item_code": "",
-                            "enabled": 1
+                            "enabled": 1,
+                            "items": [
+                                {
+                                    "type": op.get("type", "Material"),
+                                    "item_code": "",
+                                    "item_name": op.get("item_name", "AI Suggested Item"),
+                                    "formula": str(op.get("formula", "1"))
+                                }
+                            ]
                         }
                         self.rules.append(new_r)
                         changed = True
@@ -2333,14 +2598,15 @@ class RulesetManagerDialog(QDialog):
                             if 0 <= real_id < len(self.rules):
                                 r = self.rules[real_id]
                                 if "condition" in op: r["condition"] = op["condition"]
-                                if "formula" in op: r["formula"] = str(op["formula"])
-                                if "item_name" in op: r["item_name"] = op["item_name"]
+                                if r.get("items"):
+                                    itm = r["items"][0]
+                                    if "formula" in op: itm["formula"] = str(op["formula"])
+                                    if "item_name" in op: itm["item_name"] = op["item_name"]
                                 changed = True
                         except (ValueError, TypeError):
                             pass
                 
                 if changed:
-                    # self.save_rules() <-- Removed
                     self._update_tree_counts()
                     self._refresh_cards()
                     QMessageBox.information(self, "AI Update Applied", f"Changes applied to memory. Click 'Save' on individual rules to persist.")
