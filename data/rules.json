@@ -201,15 +201,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "extension_height * 2 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "3.0 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "POLE_HT_EXT"
       },
       {
         "type": "Labor",
@@ -227,9 +221,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "extension_height * ANG_65X65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "POLE_LT_EXT"
       },
       {
         "type": "Labor",
@@ -337,15 +331,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "1.9 * ANG_65X65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "0.5 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "CG_BRACKET"
       },
       {
         "type": "Labor",
@@ -363,15 +351,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "1.0 * ANG_65X65X6 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "1.0 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "LT_ACSR_BRACKET"
       },
       {
         "type": "Labor",
@@ -455,15 +437,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "2.0 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "1.5 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "HT_JUNCTION"
       }
     ]
   },
@@ -1467,9 +1443,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "0.5 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "AB_CABLE_CLAMP"
       }
     ]
   },
@@ -1825,15 +1801,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0102010611",
-        "item_name": "M.S Channel 75X40 mm",
-        "formula": "extension_height * 2 * CH_75X40 / 1000"
-      },
-      {
-        "type": "Material",
-        "item_code": "0103011511",
-        "item_name": "M.S Flat 65X6 mm",
-        "formula": "3.0 * FLAT_65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "POLE_HT_EXT"
       },
       {
         "type": "Labor",
@@ -1851,9 +1821,9 @@
     "items": [
       {
         "type": "Material",
-        "item_code": "0101011311",
-        "item_name": "M.S Angle 65X65X6mm",
-        "formula": "extension_height * ANG_65X65X6 / 1000"
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "POLE_LT_EXT"
       },
       {
         "type": "Labor",
@@ -2282,6 +2252,34 @@
         "item_code": "LAB-37",
         "item_name": "Stringing & Sagging LT AB Cable 3CX50+1CX16+1CX35",
         "formula": "length / 1000"
+      }
+    ]
+  },
+  {
+    "id": 230,
+    "object": "SmartPole",
+    "condition": "is_new == True and pole_type == 'LT'",
+    "enabled": 1,
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
+      }
+    ]
+  },
+  {
+    "id": 231,
+    "object": "SmartPole",
+    "condition": "is_new == True and pole_type == 'HT'",
+    "enabled": 1,
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "recipe"
       }
     ]
   }

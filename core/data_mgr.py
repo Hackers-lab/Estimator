@@ -13,27 +13,19 @@ def initialize_user_data():
     if not os.path.exists(user_dir):
         os.makedirs(user_dir, exist_ok=True)
 
-    # 1. Database
-    user_db = get_user_data_path("erp_master.db")
-    if not os.path.exists(user_db):
-        # Prefer the root erp_master.db for seeding if it exists (dev/source mode)
-        root_db = os.path.join(get_app_root(), "erp_master.db")
-        if os.path.exists(root_db):
-            shutil.copy2(root_db, user_db)
-        else:
-            # Fallback to empty creation or data/ folder if any
-            factory_db = get_data_path("erp_master.db")
-            if os.path.exists(factory_db):
-                shutil.copy2(factory_db, user_db)
+    # Database: NEVER copy a pre-existing root erp_master.db to the user folder.
+    # Copying a stale root DB brings in old hardcoded rules before the recipe migration.
+    # setup_database() is called by app.py and handles fresh DB creation + seeding via
+    # INSERT OR REPLACE, so the user always gets the current rules.json state.
 
-    # 2. Rules JSON (Used as a seed/update source)
+    # Rules JSON (seed source)
     user_rules = get_user_data_path("rules.json")
     if not os.path.exists(user_rules):
         factory_rules = get_data_path("rules.json")
         if os.path.exists(factory_rules):
             shutil.copy2(factory_rules, user_rules)
 
-    # 3. Defaults JSON
+    # Defaults JSON
     user_defaults = get_user_data_path("defaults.json")
     if not os.path.exists(user_defaults):
         factory_defaults = get_data_path("defaults.json")
@@ -72,7 +64,12 @@ def sync_factory_updates():
                     # ID exists. Is it the same rule or a user-created clash?
                     db_rule = existing_db_rules[fid]
                     if db_rule["object"] == r.get("object") and db_rule["cond"] == r.get("condition"):
-                        # Already in DB and matches. Skip.
+                        # Condition and object match — update items_json to pick up
+                        # recipe-key migrations without disturbing user-edited conditions.
+                        cursor.execute(
+                            "UPDATE rules SET items_json = ?, enabled = ? WHERE id = ?",
+                            (json.dumps(r.get("items", [])), r.get("enabled", 1), fid)
+                        )
                         continue
                     else:
                         # CLASH! User created a rule with ID fid. 

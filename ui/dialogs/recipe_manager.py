@@ -251,18 +251,20 @@ class RecipeManagerDialog(QDialog):
         if not desc:
             _on_section_selected(section_cb.currentIndex())
 
-        # Col 2: Length (DoubleSpinBox)
+        # Col 2: Length (DoubleSpinBox) — reads length_per_piece (falls back to legacy "length")
         len_box = QDoubleSpinBox()
         len_box.setRange(0.01, 100.0)
         len_box.setSingleStep(0.1)
         len_box.setDecimals(3)
-        len_box.setValue(item_data.get("length", 1.0) if item_data else 1.0)
+        lpp = item_data.get("length_per_piece", item_data.get("length", 1.0)) if item_data else 1.0
+        len_box.setValue(float(lpp))
         self.table_widget.setCellWidget(row, 2, len_box)
 
-        # Col 3: Qty (SpinBox)
+        # Col 3: Qty (SpinBox) — reads qty_per_object (falls back to legacy "qty")
         qty_box = QSpinBox()
         qty_box.setRange(1, 1000)
-        qty_box.setValue(item_data.get("qty", 1) if item_data else 1)
+        qpo = item_data.get("qty_per_object", item_data.get("qty", 1)) if item_data else 1
+        qty_box.setValue(int(qpo))
         self.table_widget.setCellWidget(row, 3, qty_box)
 
     def _add_table_row(self):
@@ -343,11 +345,15 @@ class RecipeManagerDialog(QDialog):
                 qty_box = self.table_widget.cellWidget(row, 3)
 
                 if cb and len_box and qty_box:
+                    lpp = len_box.value()
+                    qpo = qty_box.value()
+                    lf = f"={qpo}*{lpp}" if qpo > 1 else str(lpp)
                     items.append({
                         "section": cb.currentData(),
                         "description": desc_item.text() if desc_item else cb.currentText(),
-                        "length": len_box.value(),
-                        "qty": qty_box.value()
+                        "length_per_piece": lpp,
+                        "qty_per_object": qpo,
+                        "length_formula": lf,
                     })
             self.current_recipe["items"] = items
 

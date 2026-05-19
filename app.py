@@ -26,7 +26,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider
+    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider,
+    QStackedWidget
 )
 from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QFont,
@@ -160,44 +161,84 @@ class EstimateApp(QMainWindow, EditorMixin):
     def _build_menu_bar(self):
         mb = self.menuBar()
         assert mb is not None
-        mb.setStyleSheet(
-            "QMenuBar { background:#f5f5f5; font-size:12px; }"
-            "QMenuBar::item:selected { background:#d0d0d0; }"
-            "QMenu { font-size:12px; }"
-            "QMenu::item:selected { background:#3498db; color:white; }"
-        )
+        mb.setStyleSheet("""
+            QMenuBar {
+                background: #ffffff;
+                border-bottom: 1px solid #e0e0e0;
+                font-size: 12px;
+                font-family: 'Segoe UI', sans-serif;
+                padding: 2px 0px;
+            }
+            QMenuBar::item {
+                padding: 4px 10px;
+                background: transparent;
+                border-radius: 3px;
+            }
+            QMenuBar::item:selected {
+                background: #e8e8e8;
+                color: #1a1a1a;
+            }
+            QMenuBar::item:pressed {
+                background: #d0d0d0;
+            }
+            QMenu {
+                background: #ffffff;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                font-size: 12px;
+                font-family: 'Segoe UI', sans-serif;
+                padding: 4px 0px;
+            }
+            QMenu::item {
+                padding: 6px 24px 6px 16px;
+                color: #1a1a1a;
+            }
+            QMenu::item:selected {
+                background: #0078d4;
+                color: #ffffff;
+                border-radius: 2px;
+            }
+            QMenu::item:disabled {
+                color: #a0a0a0;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #e8e8e8;
+                margin: 3px 8px;
+            }
+        """)
 
         # ── File ──────────────────────────────────────────────────────────
         file_menu = mb.addMenu("&File")
         assert file_menu is not None
 
-        act_new = QAction("📄  New Drawing", self)
+        act_new = QAction("New Drawing", self)
         act_new.setShortcut(QKeySequence("Ctrl+N"))
         act_new.triggered.connect(self.new_drawing)
         file_menu.addAction(act_new)
 
-        act_open = QAction("📂  Open…", self)
+        act_open = QAction("Open…", self)
         act_open.setShortcut(QKeySequence("Ctrl+O"))
         act_open.triggered.connect(self.load_from_file)
         file_menu.addAction(act_open)
 
-        act_save = QAction("💾  Save…", self)
+        act_save = QAction("Save…", self)
         act_save.setShortcut(QKeySequence("Ctrl+S"))
         act_save.triggered.connect(self.save_to_file)
         file_menu.addAction(act_save)
 
-        act_save_bundle = QAction("🧩  Save Project Bundle…", self)
+        act_save_bundle = QAction("Save Project Bundle…", self)
         act_save_bundle.triggered.connect(self.save_project_bundle)
         file_menu.addAction(act_save_bundle)
 
         file_menu.addSeparator()
 
-        self.act_undo = QAction("↶ Undo", self)
+        self.act_undo = QAction("Undo", self)
         self.act_undo.setShortcut(QKeySequence("Ctrl+Z"))
         self.act_undo.triggered.connect(self.undo)
         file_menu.addAction(self.act_undo)
 
-        self.act_redo = QAction("↷ Redo", self)
+        self.act_redo = QAction("Redo", self)
         self.act_redo.setShortcut(QKeySequence("Ctrl+Y"))
         self.act_redo.triggered.connect(self.redo)
         file_menu.addAction(self.act_redo)
@@ -213,15 +254,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         export_menu = mb.addMenu("E&xport")
         assert export_menu is not None
 
-        act_pdf = QAction("🗺️  Export PDF Drawing", self)
+        act_pdf = QAction("Export PDF Drawing", self)
         act_pdf.triggered.connect(self.export_pdf)
         export_menu.addAction(act_pdf)
 
-        act_xl = QAction("📊  Generate Excel Estimate", self)
+        act_xl = QAction("Generate Excel Estimate", self)
         act_xl.triggered.connect(self.generate_excel)
         export_menu.addAction(act_xl)
 
-        act_bundle = QAction("🧩  Save PDF + Excel + JSON Bundle", self)
+        act_bundle = QAction("Save PDF + Excel + JSON Bundle", self)
         act_bundle.triggered.connect(self.save_project_bundle)
         export_menu.addAction(act_bundle)
 
@@ -229,42 +270,35 @@ class EstimateApp(QMainWindow, EditorMixin):
         settings_menu = mb.addMenu("&Settings")
         assert settings_menu is not None
 
-        _st = QApplication.style()
-        assert _st is not None
-        act_proj = QAction("  Project Settings", self)
-        act_proj.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
+        act_proj = QAction("Project Settings", self)
         act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
         settings_menu.addAction(act_proj)
 
         settings_menu.addSeparator()
 
-        act_db = QAction("  Master Database (Excel Sync)", self)
-        act_db.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_DriveHDIcon))
+        act_db = QAction("Master Database", self)
         act_db.triggered.connect(self.open_db_manager)
         settings_menu.addAction(act_db)
 
-        act_rules = QAction("  Ruleset Manager", self)
-        act_rules.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView))
+        act_rules = QAction("Ruleset Manager", self)
         act_rules.triggered.connect(self.open_rule_manager)
         settings_menu.addAction(act_rules)
 
         settings_menu.addSeparator()
 
-        act_year = QAction("📆  Rate Chart Year", self)
+        act_year = QAction("Rate Chart Year", self)
         act_year.triggered.connect(self.change_rate_chart_year)
         settings_menu.addAction(act_year)
 
-        act_defs = QAction("  Placement Defaults", self)
-        act_defs.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogStart))
+        act_defs = QAction("Placement Defaults", self)
         act_defs.triggered.connect(self.open_placement_defaults)
         settings_menu.addAction(act_defs)
 
-        act_recipes = QAction("📐  Iron Recipes Manager", self)
+        act_recipes = QAction("Iron Recipes Manager", self)
         act_recipes.triggered.connect(self.open_recipe_manager)
         settings_menu.addAction(act_recipes)
 
-        act_props = QAction("  Property Editor", self)
-        act_props.setIcon(_st.standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView))
+        act_props = QAction("Property Editor", self)
         act_props.triggered.connect(self.open_property_editor)
         settings_menu.addAction(act_props)
 
@@ -272,25 +306,25 @@ class EstimateApp(QMainWindow, EditorMixin):
         help_menu = mb.addMenu("&Help")
         assert help_menu is not None
 
-        act_help = QAction("📖  User Guide", self)
+        act_help = QAction("User Guide", self)
         act_help.setShortcut(QKeySequence("F1"))
         act_help.triggered.connect(self.show_help)
         help_menu.addAction(act_help)
 
         help_menu.addSeparator()
 
-        act_credits = QAction("🏆  Credits", self)
+        act_credits = QAction("Credits", self)
         act_credits.triggered.connect(self.show_credits)
         help_menu.addAction(act_credits)
 
-        act_about = QAction("ℹ️  About", self)
+        act_about = QAction("About", self)
         act_about.triggered.connect(self.show_about_dialog)
         help_menu.addAction(act_about)
 
         help_menu.addSeparator()
 
         exp_str = f"Valid Till: {APP_EXPIRY}" if APP_EXPIRY else "Permanent Build"
-        act_valid = QAction(f"⏳  {exp_str}", self)
+        act_valid = QAction(exp_str, self)
         act_valid.setEnabled(False)
         help_menu.addAction(act_valid)
 
@@ -700,7 +734,36 @@ class EstimateApp(QMainWindow, EditorMixin):
         lay.setContentsMargins(6, 0, 6, 6)
         lay.setSpacing(4)
 
-        lay.addWidget(QLabel("<b>Live Estimate</b> (double-click Qty to edit)"))
+        # ── Header row: title + toggle buttons ────────────────────────────────
+        hdr_row = QHBoxLayout()
+        self._panel_title_label = QLabel("<b>Live Estimate</b> (double-click Qty to edit)")
+        hdr_row.addWidget(self._panel_title_label, 1)
+
+        self._btn_show_estimate = QPushButton("Estimate")
+        self._btn_show_breakup  = QPushButton("Iron Breakup")
+        for btn, active in [(self._btn_show_estimate, True), (self._btn_show_breakup, False)]:
+            btn.setCheckable(True)
+            btn.setChecked(active)
+            btn.setStyleSheet(
+                "QPushButton{padding:3px 8px; border-radius:4px; font-size:11px;}"
+                "QPushButton:checked{background:#1F4E79; color:white; font-weight:bold;}"
+                "QPushButton:!checked{background:#d0d0d0; color:#333;}"
+            )
+        self._btn_show_estimate.clicked.connect(lambda: self._switch_panel_view(0))
+        self._btn_show_breakup.clicked.connect(lambda: self._switch_panel_view(1))
+        hdr_row.addWidget(self._btn_show_estimate)
+        hdr_row.addWidget(self._btn_show_breakup)
+        lay.addLayout(hdr_row)
+
+        # ── Stacked widget: page 0 = estimate, page 1 = breakup ───────────────
+        self._panel_stack = QStackedWidget()
+        lay.addWidget(self._panel_stack, 1)
+
+        # Page 0 — Estimate table
+        est_page = QWidget()
+        est_lay = QVBoxLayout(est_page)
+        est_lay.setContentsMargins(0, 0, 0, 0)
+        est_lay.setSpacing(3)
 
         self.live_table = QTableWidget(0, 6)
         self.live_table.setHorizontalHeaderLabels(
@@ -708,38 +771,216 @@ class EstimateApp(QMainWindow, EditorMixin):
         )
         live_hdr = self.live_table.horizontalHeader()
         assert live_hdr is not None
-        live_hdr.setSectionResizeMode(
-            2, QHeaderView.ResizeMode.Stretch
-        )
+        live_hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.live_table.setColumnWidth(0, 65)
         self.live_table.setColumnWidth(1, 85)
         self.live_table.setColumnWidth(3, 65)
         self.live_table.itemChanged.connect(self.on_table_edit)
-        lay.addWidget(self.live_table)
+        est_lay.addWidget(self.live_table)
 
-        # Custom item buttons
         btn_row = QHBoxLayout()
         add_mat = QPushButton("+ Add Material")
         add_lab = QPushButton("+ Add Labor")
         add_mat.clicked.connect(lambda: self.open_search("Material"))
         add_lab.clicked.connect(lambda: self.open_search("Labor"))
-        add_mat.setStyleSheet(
-            "background:#3498db; color:white; font-weight:bold; padding:5px;"
-        )
-        add_lab.setStyleSheet(
-            "background:#e67e22; color:white; font-weight:bold; padding:5px;"
-        )
+        add_mat.setStyleSheet("background:#3498db; color:white; font-weight:bold; padding:5px;")
+        add_lab.setStyleSheet("background:#e67e22; color:white; font-weight:bold; padding:5px;")
         btn_row.addWidget(add_mat)
         btn_row.addWidget(add_lab)
-        lay.addLayout(btn_row)
+        est_lay.addLayout(btn_row)
+        self._panel_stack.addWidget(est_page)
 
-        self.grand_total_label = QLabel("<b>Grand Total: Rs. 0.00</b>")
-        self.grand_total_label.setStyleSheet(
-            "font-size:15px; color:#d32f2f; margin-top:4px;"
+        # Page 1 — Iron breakup table
+        brk_page = QWidget()
+        brk_lay = QVBoxLayout(brk_page)
+        brk_lay.setContentsMargins(0, 0, 0, 0)
+        brk_lay.setSpacing(2)
+
+        self.breakup_table = QTableWidget(0, 5)
+        self.breakup_table.setHorizontalHeaderLabels(
+            ["Description", "No", "Length", "Total (m)", "Iron (MT)"]
         )
+        brk_hdr = self.breakup_table.horizontalHeader()
+        assert brk_hdr is not None
+        brk_hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.breakup_table.setColumnWidth(1, 40)
+        self.breakup_table.setColumnWidth(2, 80)
+        self.breakup_table.setColumnWidth(3, 68)
+        self.breakup_table.setColumnWidth(4, 68)
+        self.breakup_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.breakup_table.setAlternatingRowColors(False)
+        brk_lay.addWidget(self.breakup_table)
+        self._panel_stack.addWidget(brk_page)
+
+        # ── Grand total label (shown for both views) ───────────────────────────
+        self.grand_total_label = QLabel("<b>Grand Total: Rs. 0.00</b>")
+        self.grand_total_label.setStyleSheet("font-size:15px; color:#d32f2f; margin-top:4px;")
         lay.addWidget(self.grand_total_label)
 
         return w
+
+    def _switch_panel_view(self, page: int):
+        self._panel_stack.setCurrentIndex(page)
+        self._btn_show_estimate.setChecked(page == 0)
+        self._btn_show_breakup.setChecked(page == 1)
+        if page == 0:
+            self._panel_title_label.setText("<b>Live Estimate</b> (double-click Qty to edit)")
+        else:
+            self._panel_title_label.setText("<b>Iron Breakup</b> (read-only)")
+            self._refresh_breakup_view()
+
+    def _refresh_breakup_view(self):
+        """
+        Populate the Iron Breakup table from self.live_bom_data (same source as estimate).
+        Only items that matched a rule condition appear here — no independent canvas scan.
+        """
+        from collections import defaultdict
+
+        SECTION_LABELS = {
+            "CH_75X40":    "M.S. Channel (75X40mm)",
+            "CH_100X50":   "M.S. Channel (100X50mm)",
+            "ANG_65X65X6": "M.S. Angle (65X65X6mm)",
+            "ANG_50X50X6": "M.S. Angle (50X50X6mm)",
+            "FLAT_65X6":   "M.S. Flat (65X6mm)",
+            "FLAT_50X6":   "M.S. Flat (50X6mm)",
+        }
+        SECTION_ORDER = [
+            "CH_100X50", "CH_75X40",
+            "ANG_65X65X6", "ANG_50X50X6",
+            "FLAT_65X6", "FLAT_50X6",
+        ]
+        IRON_SECTIONS = set(SECTION_ORDER)
+
+        # Load section kg/m info from DB (for the section header labels)
+        try:
+            from core import db_gateway as _dbg
+            sections_dict = _dbg.get_sections()
+        except Exception:
+            sections_dict = {}
+
+        # Map DB material names (as they appear in live_bom_data) → section codes.
+        # Covers both capitalisation variants that appear in the materials table.
+        DB_NAME_TO_SECTION: dict[str, str] = {
+            "M.S Channel 75X40 mm":   "CH_75X40",
+            "M.S Channel 100X50 mm":  "CH_100X50",
+            "M.S Angle 65X65X6mm":    "ANG_65X65X6",
+            "M.S Angle 50X50X6mm":    "ANG_50X50X6",
+            "M.S Flat 65X6 mm":       "FLAT_65X6",
+            "M.S Flat 50X6 mm":       "FLAT_50X6",
+            "M.S Channel 75x40 mm":   "CH_75X40",
+            "M.S Channel 100x50 mm":  "CH_100X50",
+            "M.S Angle 65x65x6 mm":   "ANG_65X65X6",
+            "M.S Angle 50x50x6 mm":   "ANG_50X50X6",
+            "M.S Flat 65x6 mm":       "FLAT_65X6",
+            "M.S Flat 50x6 mm":       "FLAT_50X6",
+        }
+
+        # ── Filter live_bom_data: only MT items that are structural iron sections ─
+        # This is the single source of truth — exactly what the estimate shows.
+        section_items: dict[str, list[tuple[str, float]]] = defaultdict(list)
+        extra_secs: list[str] = []
+
+        for item in self.live_bom_data:
+            if item.get("unit", "").upper() != "MT":
+                continue
+            sec = DB_NAME_TO_SECTION.get(item["name"], "")
+            if not sec:
+                continue  # G.I. Wire, Stay Wire, etc. — not structural iron
+            if sec not in IRON_SECTIONS:
+                if sec not in extra_secs:
+                    extra_secs.append(sec)
+            section_items[sec].append((item["name"], item["qty"]))
+
+        # ── Populate QTableWidget ──────────────────────────────────────────────
+        from PyQt6.QtGui import QColor, QFont as QFontQt
+        from PyQt6.QtCore import Qt as Qt_
+
+        tbl = self.breakup_table
+        tbl.setRowCount(0)
+
+        def _row(texts, bg="#FFFFFF", bold=False, fg="#000000", italic=False):
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            for c, txt in enumerate(texts):
+                cell = QTableWidgetItem(str(txt) if txt is not None else "")
+                cell.setBackground(QColor(bg))
+                f = QFontQt("Segoe UI", 9)
+                f.setBold(bold)
+                f.setItalic(italic)
+                cell.setFont(f)
+                cell.setForeground(QColor(fg))
+                cell.setFlags(cell.flags() & ~Qt_.ItemFlag.ItemIsEditable)
+                tbl.setItem(r, c, cell)
+            tbl.setRowHeight(r, 20)
+
+        def _span_row(text, bg, bold=False, fg="#000000"):
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            cell = QTableWidgetItem(text)
+            cell.setBackground(QColor(bg))
+            f = QFontQt("Segoe UI", 10); f.setBold(bold)
+            cell.setFont(f)
+            cell.setForeground(QColor(fg))
+            cell.setFlags(cell.flags() & ~Qt_.ItemFlag.ItemIsEditable)
+            tbl.setItem(r, 0, cell)
+            tbl.setSpan(r, 0, 1, 5)
+            tbl.setRowHeight(r, 22)
+
+        if not any(section_items.get(s) for s in SECTION_ORDER + extra_secs):
+            _span_row("  No structural iron items in current estimate.", "#F8F8F8")
+            return
+
+        # Track section totals for the summary block
+        section_totals: list[tuple[str, float]] = []
+
+        for sec_code in SECTION_ORDER + extra_secs:
+            items = section_items.get(sec_code, [])
+            if not items:
+                continue
+
+            sec_info = sections_dict.get(sec_code, {})
+            kg_m = sec_info.get("kg_per_metre", 0.0)
+            sec_label = SECTION_LABELS.get(sec_code, sec_code)
+            kg_label  = f"{kg_m} kg/m" if kg_m else ""
+
+            # Section header
+            _span_row(f"  {sec_label}  {'— ' + kg_label if kg_label else ''}",
+                      "#1F4E79", bold=True, fg="#FFFFFF")
+
+            # Column sub-header
+            _row(["  Description", "", "", "", "Iron (MT)"],
+                 bg="#BDD7EE", bold=True)
+
+            sec_total = 0.0
+            for idx, (desc, qty_mt) in enumerate(items):
+                bg = "#FFFFFF" if idx % 2 == 0 else "#EBF3FB"
+                _row([f"  {desc}", "", "", "", f"{qty_mt:.3f}"], bg=bg)
+                sec_total += qty_mt
+
+            sec_total = round(sec_total, 3)
+            section_totals.append((sec_label, sec_total))
+            _row(["  Section Total", "", "", "", f"{sec_total:.3f} MT"],
+                 bg="#D9E1F2", bold=True)
+            _row(["", "", "", "", ""], bg="#F8F8F8")  # spacer
+
+        # ── Iron Summary + grand total + wastage ──────────────────────────────
+        if section_totals:
+            _span_row("  IRON SUMMARY", "#1F4E79", bold=True, fg="#FFFFFF")
+            for sec_lbl, total_mt in section_totals:
+                _row([f"  {sec_lbl}", "", "", "", f"{total_mt:.3f} MT"],
+                     bg="#FFF2CC", bold=False)
+
+            grand_mt = round(sum(t for _, t in section_totals), 3)
+            wastage  = round(grand_mt * 0.03, 3)
+            final_mt = round(grand_mt + wastage, 3)
+
+            _row(["", "", "", "", ""], bg="#F8F8F8")  # spacer
+            _row(["  TOTAL IRON (as per Estimate):", "", "", "", f"{grand_mt:.3f} MT"],
+                 bg="#FFF2CC", bold=True)
+            _row(["    Add: Wastage @ 3%:", "", "", "", f"{wastage:.3f} MT"],
+                 bg="#FFF2CC", bold=False)
+            _row(["  TOTAL IRON (incl. wastage):", "", "", "", f"{final_mt:.3f} MT"],
+                 bg="#C6EFCE", bold=True)
 
     # =========================================================================
     #  PROJECT WIZARD
@@ -1651,16 +1892,29 @@ class EstimateApp(QMainWindow, EditorMixin):
                 canvas_items, rules, use_uh, project_type
             )
 
-            # Apply 3% wastage + sag to steel & conductor material quantities
-            for name in list(raw_bom):
-                upper_name = name.upper()
-                if any(tag in upper_name for tag in SAG_ITEMS):
-                    raw_bom[name] = raw_bom[name] * 1.03
-
             # Build live_bom_data
             self.live_bom_data = []
             conn   = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
+
+            # Apply 3% sag/wastage to conductor and wire materials.
+            # Guard: only items whose DB unit is a continuous measurement (MT, KM, M…)
+            # get the multiplier.  Items whose name happens to contain "ACSR" (e.g.
+            # "Composite Hardware Fittings for ACSR…", unit=SET) are excluded.
+            _COUNT_UNITS = {
+                "nos", "no.", "no", "set", "sets", "pair", "pairs",
+                "pcs", "piece", "each", "ea", "day", "days", "job", "ls",
+            }
+            for name in list(raw_bom):
+                upper_name = name.upper()
+                if any(tag in upper_name for tag in SAG_ITEMS):
+                    db_row = cursor.execute(
+                        "SELECT unit FROM materials WHERE item_name=?", (name,)
+                    ).fetchone()
+                    unit_str = (db_row[0] if db_row else "").lower().strip().rstrip(".")
+                    if unit_str not in _COUNT_UNITS:
+                        raw_bom[name] = raw_bom[name] * 1.03
+
             processed = set()
 
             combined = (
@@ -1714,6 +1968,14 @@ class EstimateApp(QMainWindow, EditorMixin):
             )
         return cursor.fetchone()
 
+    @staticmethod
+    def _fmt_qty(qty: float, unit: str) -> str:
+        """Format qty as integer for count units (Nos/Set/etc), else 3 decimal places."""
+        _COUNT = {"nos", "no.", "no", "set", "sets", "pair", "pairs", "pcs", "piece", "each", "ea", "day", "days", "job", "ls"}
+        if unit.lower().strip().rstrip(".") in _COUNT:
+            return str(int(round(qty)))
+        return f"{qty:.3f}"
+
     def _refresh_table(self):
         try:
             self.live_table.itemChanged.disconnect(self.on_table_edit)
@@ -1726,7 +1988,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             self.live_table.setItem(i, 0, QTableWidgetItem(item["type"]))
             self.live_table.setItem(i, 1, QTableWidgetItem(item["code"]))
             self.live_table.setItem(i, 2, QTableWidgetItem(item["name"]))
-            qty_item = QTableWidgetItem(f"{item['qty']:.3f}")
+            qty_text = self._fmt_qty(item["qty"], item.get("unit", ""))
+            qty_item = QTableWidgetItem(qty_text)
             qty_item.setBackground(QColor("#fff3cd"))
             self.live_table.setItem(i, 3, qty_item)
             self.live_table.setItem(i, 4, QTableWidgetItem(item["unit"]))

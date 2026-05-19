@@ -419,6 +419,8 @@ def _seed_recipes_and_sections_tables(cursor) -> None:
     )
 
     # 2. Seed default recipes from recipes.json
+    # Use INSERT OR REPLACE so factory recipes always have correct field names
+    # (length_per_piece / qty_per_object). Custom recipes not in recipes.json are unaffected.
     recipes_file = get_data_path("recipes.json")
     if os.path.exists(recipes_file):
         try:
@@ -426,7 +428,7 @@ def _seed_recipes_and_sections_tables(cursor) -> None:
                 recipes_data = json.load(f)
             for rkey, rval in recipes_data.items():
                 cursor.execute(
-                    "INSERT OR IGNORE INTO recipes (recipe_key, name, description, object_type, items_json) "
+                    "INSERT OR REPLACE INTO recipes (recipe_key, name, description, object_type, items_json) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (
                         rkey,
@@ -500,7 +502,7 @@ def _seed_config_tables(cursor) -> None:
 
     for _i, _r in enumerate(rules_data):
         cursor.execute(
-            "INSERT OR IGNORE INTO rules "
+            "INSERT OR REPLACE INTO rules "
             "(id, object_type, condition, items_json, enabled, sort_order) "
             "VALUES (?,?,?,?,1,?)",
             (

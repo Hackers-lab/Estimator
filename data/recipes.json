@@ -22,7 +22,6 @@
       }
     ]
   },
-
   "TP_IRON": {
     "name": "TP Iron Recipe",
     "description": "Standard Triple Pole structure. Channel + Angle + Flat.",
@@ -54,7 +53,6 @@
       }
     ]
   },
-
   "4P_IRON": {
     "name": "4-Pole Iron Recipe",
     "description": "Standard Four Pole structure. Channel + Angle + Flat.",
@@ -86,7 +84,6 @@
       }
     ]
   },
-
   "DTR_IRON": {
     "name": "DTR Substation Iron Recipe",
     "description": "Standard DTR substation. Channel + Angle + Flat per named purpose.",
@@ -158,7 +155,6 @@
       }
     ]
   },
-
   "POLE_LT_IRON": {
     "name": "LT Pole Iron Recipe",
     "description": "Iron per LT pole. V-Bracket + Top Adaptor per pole. User can switch description if using Top Adaptor only.",
@@ -182,7 +178,6 @@
       }
     ]
   },
-
   "POLE_LT_TOP_ADAPTOR": {
     "name": "LT Pole — Top Adaptor Only",
     "description": "Use when pole uses Top Adaptor instead of MS angle V-Bracket. No channel iron needed.",
@@ -198,7 +193,6 @@
       }
     ]
   },
-
   "POLE_HT_IRON": {
     "name": "HT Pole Iron Recipe",
     "description": "Iron per new HT single pole.",
@@ -211,6 +205,124 @@
         "qty_per_object": 1,
         "length_formula": "1",
         "qty_source": "ht_pole_count"
+      }
+    ]
+  },
+  "POLE_LT_EXT": {
+    "recipe_key": "POLE_LT_EXT",
+    "name": "LT Pole Extension Iron",
+    "description": "M.S. Iron for LT pole extension bracket",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "Single Pole Extension (Angle)",
+        "section": "ANG_65X65X6",
+        "dynamic_length": "extension_height",
+        "qty_per_object": 1,
+        "length_formula": "extension_height"
+      }
+    ]
+  },
+  "POLE_HT_EXT": {
+    "recipe_key": "POLE_HT_EXT",
+    "name": "HT Pole Extension Iron",
+    "description": "M.S. Iron for HT pole extension (channel x2 + flat)",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "HT Extension (Channel)",
+        "section": "CH_75X40",
+        "dynamic_length": "extension_height * 2",
+        "qty_per_object": 1,
+        "length_formula": "extension_height * 2"
+      },
+      {
+        "description": "HT Extension (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 3.0,
+        "qty_per_object": 1,
+        "length_formula": "=3"
+      }
+    ]
+  },
+  "CG_BRACKET": {
+    "recipe_key": "CG_BRACKET",
+    "name": "CG Bracket Iron",
+    "description": "M.S. Iron for cattle guard bracket",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "CG Bracket (Angle)",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 1.9,
+        "qty_per_object": 1,
+        "length_formula": "=1.9"
+      },
+      {
+        "description": "CG Bracket (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 0.5,
+        "qty_per_object": 1,
+        "length_formula": "=0.5"
+      }
+    ]
+  },
+  "LT_ACSR_BRACKET": {
+    "recipe_key": "LT_ACSR_BRACKET",
+    "name": "LT ACSR D-Iron Bracket",
+    "description": "M.S. Iron for LT ACSR conductor support bracket",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "ACSR Bracket (Angle)",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 1.0,
+        "qty_per_object": 1,
+        "length_formula": "=1"
+      },
+      {
+        "description": "ACSR Bracket (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 1.0,
+        "qty_per_object": 1,
+        "length_formula": "=1"
+      }
+    ]
+  },
+  "AB_CABLE_CLAMP": {
+    "recipe_key": "AB_CABLE_CLAMP",
+    "name": "AB Cable Clamp Iron",
+    "description": "M.S. Flat for AB cable distribution clamp per span",
+    "object_type": "SmartSpan",
+    "items": [
+      {
+        "description": "AB Cable Clamp (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 0.5,
+        "qty_per_object": 1,
+        "length_formula": "=0.5"
+      }
+    ]
+  },
+  "HT_JUNCTION": {
+    "recipe_key": "HT_JUNCTION",
+    "name": "HT Junction (Tee-off) Iron",
+    "description": "M.S. Iron for existing HT tee-off junction pole",
+    "object_type": "SmartPole",
+    "items": [
+      {
+        "description": "HT Junction (Channel)",
+        "section": "CH_75X40",
+        "length_per_piece": 2.0,
+        "qty_per_object": 1,
+        "length_formula": "=2"
+      },
+      {
+        "description": "HT Junction (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 1.5,
+        "qty_per_object": 1,
+        "length_formula": "=1.5"
       }
     ]
   }

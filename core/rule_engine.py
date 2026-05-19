@@ -56,7 +56,25 @@ Backward-compatibility notes
 
 from __future__ import annotations
 import math
+import re
 from core.expression_engine import evaluate_condition, evaluate_formula
+
+# Uppercase-only identifiers (A-Z, 0-9, _) with 2+ chars are treated as recipe keys.
+# Matches: DP_IRON, POLE_HT_EXT, CG_BRACKET, AB_CABLE_CLAMP, etc.
+# Does NOT match Python expressions (lowercase/mixed) or single-char values like "1".
+_RECIPE_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]{1,}$')
+
+# Maps section code → exact item_name in the materials table.
+# The sections table label field uses lowercase (75x40) but the materials table
+# uses uppercase (75X40).  Using a hardcoded mapping avoids the case mismatch.
+_SECTION_TO_DB_NAME: dict[str, str] = {
+    "CH_75X40":    "M.S Channel 75X40 mm",
+    "CH_100X50":   "M.S Channel 100X50 mm",
+    "ANG_65X65X6": "M.S Angle 65X65X6mm",
+    "ANG_50X50X6": "M.S Angle 50X50X6mm",
+    "FLAT_65X6":   "M.S Flat 65X6 mm",
+    "FLAT_50X6":   "M.S Flat 50X6 mm",
+}
 
 
 class DynamicRuleEngine:
@@ -448,9 +466,15 @@ class DynamicRuleEngine:
                     if recipe_key.lower() == "recipe":
                         recipe_key = ctx.get("iron_recipe", "None")
                         is_recipe = True
-                    elif any(recipe_key.startswith(pfx) for pfx in ["DP_", "TP_", "4P_", "DTR_", "CUSTOM_", "POLE_"]):
+                        # Apply defaults when no recipe is assigned to this pole
+                        if not recipe_key or recipe_key == "None":
+                            if ctx.get("object_type") == "SmartPole":
+                                recipe_key = "POLE_HT_IRON" if ctx.get("pole_type") == "HT" else "POLE_LT_IRON"
+                            else:
+                                recipe_key = "None"
+                    elif _RECIPE_KEY_RE.match(recipe_key):
                         is_recipe = True
-                        
+
                     if is_recipe:
                         if not recipe_key or recipe_key == "None":
                             continue
@@ -466,17 +490,30 @@ class DynamicRuleEngine:
                                 sec = sections.get(sec_code)
                                 if not sec:
                                     continue
-                                qty_mt = (rec_item.get("length", 0.0) * rec_item.get("qty", 1) * sec.get("kg_per_metre", 0.0)) / 1000.0
+
+                                # dynamic_length: evaluate formula against this item's context
+                                if "dynamic_length" in rec_item:
+                                    try:
+                                        lpp = float(evaluate_formula(rec_item["dynamic_length"], ctx))
+                                    except Exception:
+                                        lpp = 0.0
+                                else:
+                                    lpp = float(rec_item.get("length_per_piece", rec_item.get("length", 0.0)))
+
+                                qpo = int(rec_item.get("qty_per_object", rec_item.get("qty", 1)))
+                                qty_mt = round((lpp * qpo * sec.get("kg_per_metre", 0.0)) / 1000.0, 6)
                                 if qty_mt <= 0:
                                     continue
-                                
-                                # Prioritize item's custom description/reason, fallback to generic section label
-                                item_name = rec_item.get("description") or sec.get("label", sec_code)
+
+                                # Use the exact materials table item_name as the accumulation key.
+                                # Sections table labels use lowercase (75x40) while the materials
+                                # table uses uppercase (75X40) — the hardcoded map bridges that gap.
+                                agg_key = _SECTION_TO_DB_NAME.get(sec_code, sec.get("label", sec_code))
                                 item_type = item_dict.get("type", "Material")
                                 if item_type in ("Material", "Iron"):
-                                    raw_bom[item_name] = raw_bom.get(item_name, 0) + qty_mt
+                                    raw_bom[agg_key] = raw_bom.get(agg_key, 0) + qty_mt
                                 elif item_type == "Labor":
-                                    raw_lab[item_name] = raw_lab.get(item_name, 0) + qty_mt
+                                    raw_lab[agg_key] = raw_lab.get(agg_key, 0) + qty_mt
                         except Exception as e:
                             print(f"[RuleEngine] Error expanding recipe '{recipe_key}': {e}")
                         continue
