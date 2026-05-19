@@ -3,7 +3,6 @@
     "id": 1,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -23,7 +22,6 @@
     "id": 3,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -43,7 +41,6 @@
     "id": 5,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -63,7 +60,6 @@
     "id": 7,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and pole_type2 == 'STP' and height == 11",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -83,7 +79,6 @@
     "id": 9,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -103,7 +98,6 @@
     "id": 11,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -123,7 +117,6 @@
     "id": 13,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -143,7 +136,6 @@
     "id": 15,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and pole_type2 == 'STP' and height == 11",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -163,7 +155,6 @@
     "id": 17,
     "object": "SmartPole",
     "condition": "is_new == True",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -177,7 +168,6 @@
     "id": 18,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -197,7 +187,6 @@
     "id": 20,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and has_extension",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -217,7 +206,6 @@
     "id": 23,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and has_extension",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -237,7 +225,6 @@
     "id": 24,
     "object": "SmartPole",
     "condition": "earth_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -263,7 +250,6 @@
     "id": 27,
     "object": "SmartPole",
     "condition": "stay_count > 0 and pole_type == 'LT'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -295,7 +281,6 @@
     "id": 31,
     "object": "SmartPole",
     "condition": "stay_count > 0 and pole_type != 'LT'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -327,7 +312,6 @@
     "id": 35,
     "object": "SmartPole",
     "condition": "has_cg",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -347,7 +331,6 @@
     "id": 38,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh == False",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -367,7 +350,6 @@
     "id": 41,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0 and use_uh",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -393,7 +375,6 @@
     "id": 43,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and lt_acsr_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -419,7 +400,6 @@
     "id": 45,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and ab_cable_count > 0 and use_uh",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -433,7 +413,6 @@
     "id": 46,
     "object": "SmartPole",
     "condition": "is_existing and pole_type == 'HT' and ht_spans_count >= 3",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -447,7 +426,6 @@
     "id": 48,
     "object": "SmartStructure",
     "condition": "True",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -473,7 +451,6 @@
     "id": 51,
     "object": "SmartStructure",
     "condition": "earth_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -499,7 +476,6 @@
     "id": 54,
     "object": "SmartStructure",
     "condition": "stay_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -531,7 +507,6 @@
     "id": 58,
     "object": "SmartStructure",
     "condition": "structure_type == 'DP' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -551,7 +526,6 @@
     "id": 60,
     "object": "SmartStructure",
     "condition": "structure_type == 'DP' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -571,7 +545,6 @@
     "id": 62,
     "object": "SmartStructure",
     "condition": "structure_type == 'DP' and pole_type2 == 'STP' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -591,7 +564,6 @@
     "id": 64,
     "object": "SmartStructure",
     "condition": "structure_type == 'DP'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -635,7 +607,6 @@
     "id": 71,
     "object": "SmartStructure",
     "condition": "structure_type == 'TP' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -655,7 +626,6 @@
     "id": 73,
     "object": "SmartStructure",
     "condition": "structure_type == 'TP' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -675,7 +645,6 @@
     "id": 75,
     "object": "SmartStructure",
     "condition": "structure_type == 'TP' and pole_type2 == 'STP' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -695,7 +664,6 @@
     "id": 77,
     "object": "SmartStructure",
     "condition": "structure_type == 'TP' and pole_type2 == 'STP' and height == 11",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -715,7 +683,6 @@
     "id": 79,
     "object": "SmartStructure",
     "condition": "structure_type == 'TP'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -729,7 +696,6 @@
     "id": 82,
     "object": "SmartStructure",
     "condition": "structure_type == '4P' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -749,7 +715,6 @@
     "id": 84,
     "object": "SmartStructure",
     "condition": "structure_type == '4P' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -769,7 +734,6 @@
     "id": 86,
     "object": "SmartStructure",
     "condition": "structure_type == '4P'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -783,7 +747,6 @@
     "id": 89,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and pole_type2 == 'PCC' and height == 8",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -803,7 +766,6 @@
     "id": 91,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and pole_type2 == 'PCC' and height == 9",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -823,7 +785,6 @@
     "id": 93,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -897,7 +858,6 @@
     "id": 108,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '10KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -917,7 +877,6 @@
     "id": 110,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '16KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -937,7 +896,6 @@
     "id": 112,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '25KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -957,7 +915,6 @@
     "id": 114,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '63KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -977,7 +934,6 @@
     "id": 116,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '100KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -997,7 +953,6 @@
     "id": 118,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '160KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1017,7 +972,6 @@
     "id": 120,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '25KVA' and kiosk_required",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1037,7 +991,6 @@
     "id": 122,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '63KVA' and kiosk_required",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1057,7 +1010,6 @@
     "id": 124,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size == '100KVA' and kiosk_required",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1077,7 +1029,6 @@
     "id": 126,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and dtr_size != 'None'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1091,7 +1042,6 @@
     "id": 127,
     "object": "SmartSpan",
     "condition": "is_existing_span == False and is_service_drop == False and length > 60 and has_cg == True",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1105,7 +1055,6 @@
     "id": 128,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and has_cg",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1131,7 +1080,6 @@
     "id": 131,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '10 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1145,7 +1093,6 @@
     "id": 132,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '16 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1159,7 +1106,6 @@
     "id": 133,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable' and cable_size == '25 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1173,7 +1119,6 @@
     "id": 134,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'PVC Cable'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1193,7 +1138,6 @@
     "id": 136,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1207,7 +1151,6 @@
     "id": 137,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1221,7 +1164,6 @@
     "id": 138,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1235,7 +1177,6 @@
     "id": 139,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '50SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 2",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1249,7 +1190,6 @@
     "id": 140,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1263,7 +1203,6 @@
     "id": 141,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 3",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1277,7 +1216,6 @@
     "id": 142,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 4",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1291,7 +1229,6 @@
     "id": 143,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and conductor_size == '30SQMM' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W') and wire_count == 2",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1305,7 +1242,6 @@
     "id": 144,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_ht_span == True",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1319,7 +1255,6 @@
     "id": 145,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1333,7 +1268,6 @@
     "id": 146,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count != 2",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1353,7 +1287,6 @@
     "id": 147,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'ACSR' and is_lt_span and wire_count == 2",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1373,7 +1306,6 @@
     "id": 152,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT' and lt_pvc_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1405,7 +1337,6 @@
     "id": 156,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX50+1CX16+1CX35' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1425,7 +1356,6 @@
     "id": 158,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1439,7 +1369,6 @@
     "id": 159,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and use_uh == False",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1453,7 +1382,6 @@
     "id": 160,
     "object": "SmartConsumer",
     "condition": "(project_type == 'NSC' or agency_supply) and phase == '3 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1467,7 +1395,6 @@
     "id": 161,
     "object": "SmartConsumer",
     "condition": "(project_type == 'NSC' or agency_supply) and phase == '1 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1481,7 +1408,6 @@
     "id": 162,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and phase == '3 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1495,7 +1421,6 @@
     "id": 163,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and phase == '1 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1509,7 +1434,6 @@
     "id": 164,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '10 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1523,7 +1447,6 @@
     "id": 165,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '16 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1537,7 +1460,6 @@
     "id": 166,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable and cable_size == '25 SQMM'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1551,7 +1473,6 @@
     "id": 167,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1565,7 +1486,6 @@
     "id": 168,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable == False and phase == '3 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1579,7 +1499,6 @@
     "id": 169,
     "object": "SmartConsumer",
     "condition": "project_type != 'NSC' and agency_supply == False and consider_cable == False and phase == '1 Phase'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1593,7 +1512,6 @@
     "id": 170,
     "object": "SmartPole",
     "condition": "is_new == True and ab_cable_count > 0 and dist_box_required",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1625,7 +1543,6 @@
     "id": 174,
     "object": "SmartPole",
     "condition": "is_existing and ab_new_cable_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1645,7 +1562,6 @@
     "id": 176,
     "object": "SmartPole",
     "condition": "ab_needs_dead_end and ab_new_cable_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1665,7 +1581,6 @@
     "id": 178,
     "object": "SmartPole",
     "condition": "is_new == True and ab_needs_suspension",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1685,7 +1600,6 @@
     "id": 180,
     "object": "SmartPole",
     "condition": "ab_new_cable_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1699,7 +1613,6 @@
     "id": 181,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and ht_spans_count == 1",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1725,7 +1638,6 @@
     "id": 184,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT' and ht_spans_count >= 2",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1745,7 +1657,6 @@
     "id": 186,
     "object": "SmartStructure",
     "condition": "structure_type == 'DTR' and ht_spans_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1771,7 +1682,6 @@
     "id": 189,
     "object": "SmartPole",
     "condition": "is_existing and existing_subtype in ('HT', 'DTR', 'TP', '4P') and ht_spans_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1797,7 +1707,6 @@
     "id": 193,
     "object": "SmartPole",
     "condition": "is_existing and existing_subtype == 'HT' and has_extension",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1817,7 +1726,6 @@
     "id": 196,
     "object": "SmartPole",
     "condition": "is_existing and existing_subtype != 'HT' and has_extension",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1837,7 +1745,6 @@
     "id": 198,
     "object": "SmartPole",
     "condition": "is_existing and existing_subtype == 'HT' and ht_spans_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1851,7 +1758,6 @@
     "id": 199,
     "object": "SmartPole",
     "condition": "is_existing and existing_subtype in ('DP', 'TP', '4P', 'DTR') and ht_spans_count > 0",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1865,7 +1771,6 @@
     "id": 200,
     "object": "SmartSpan",
     "condition": "is_new_span == True and is_distribution_span == True and conductor == 'AB Cable' and conductor_size == '3CX70+1CX16+1CX50' and (aug_type == 'New' or aug_type == 'Add-on 2W' or aug_type == 'Replace 2W->4W')",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1885,7 +1790,6 @@
     "id": 202,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '16KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1899,7 +1803,6 @@
     "id": 203,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '25KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1913,7 +1816,6 @@
     "id": 204,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '63KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1927,7 +1829,6 @@
     "id": 205,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '100KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -1941,7 +1842,6 @@
     "id": 206,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '25KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1955,7 +1855,6 @@
     "id": 207,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '63KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1969,7 +1868,6 @@
     "id": 208,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '100KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1983,7 +1881,6 @@
     "id": 209,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '63KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -1997,7 +1894,6 @@
     "id": 210,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '100KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2011,7 +1907,6 @@
     "id": 211,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '63KVA' and dtr_new_size == '100KVA'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2025,7 +1920,6 @@
     "id": 212,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '8MTR'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2045,7 +1939,6 @@
     "id": 213,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'PCC' and dtr_new_height == '9MTR'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2065,7 +1958,6 @@
     "id": 214,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP' and dtr_new_height == '9MTR'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2079,7 +1971,6 @@
     "id": 215,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP' and dtr_new_height == '11MTR'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2093,7 +1984,6 @@
     "id": 218,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True and dtr_new_pole_type2 == 'STP'",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2107,7 +1997,6 @@
     "id": 219,
     "object": "SmartPole",
     "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_structure_change_required == True",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2121,7 +2010,6 @@
     "id": 220,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '3'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2135,7 +2023,6 @@
     "id": 221,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '4'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2149,7 +2036,6 @@
     "id": 222,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 2 and aug_to_config == '5'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2169,7 +2055,6 @@
     "id": 223,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 3 and aug_to_config == '4'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2183,7 +2068,6 @@
     "id": 224,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 3 and aug_to_config == '5'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2197,7 +2081,6 @@
     "id": 225,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and wire_count == 4 and aug_to_config == '5'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2211,7 +2094,6 @@
     "id": 226,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and ((wire_count == 2 and aug_to_config == '3') or (wire_count == 3 and aug_to_config == '4') or (wire_count == 4 and aug_to_config == '5'))",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2225,7 +2107,6 @@
     "id": 227,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and ((wire_count == 2 and aug_to_config == '4') or (wire_count == 3 and aug_to_config == '5'))",
-    "enabled": 1,
     "items": [
       {
         "type": "Labor",
@@ -2239,7 +2120,6 @@
     "id": 229,
     "object": "SmartSpan",
     "condition": "is_existing_span == True and conductor == 'ACSR' and conductor_aug_required == True and aug_to_config == 'ABC'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2259,7 +2139,6 @@
     "id": 230,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'LT'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",
@@ -2273,7 +2152,6 @@
     "id": 231,
     "object": "SmartPole",
     "condition": "is_new == True and pole_type == 'HT'",
-    "enabled": 1,
     "items": [
       {
         "type": "Material",

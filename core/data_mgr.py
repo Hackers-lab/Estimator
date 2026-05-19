@@ -114,7 +114,7 @@ def sync_factory_updates():
             existing_m = {row[0]: row[1] for row in cursor.fetchall() if row[0]}
             
             for m in seed_data.get("materials", []):
-                m_code, m_name = m[0], m[1]
+                m_code, m_name, m_rate, m_unit = m[0], m[1], m[2], m[3]
                 if m_code in existing_m:
                     if existing_m[m_code] != m_name:
                         # CLASH: Code matches but name differs. 
@@ -124,7 +124,8 @@ def sync_factory_updates():
                         # Update user rules that were referencing this code
                         cursor.execute("UPDATE rules SET item_code = ? WHERE item_code = ? AND id > 7000", (f"{m_code}-USER", m_code))
                     else:
-                        # Matches name. Skip to preserve user's price/rate.
+                        # Matches name. Update rate and unit to the new factory version!
+                        cursor.execute("UPDATE materials SET rate = ?, unit = ? WHERE item_code = ?", (m_rate, m_unit, m_code))
                         continue
                 
                 # Insert factory version
@@ -136,7 +137,7 @@ def sync_factory_updates():
             existing_l = {row[0]: row[1] for row in cursor.fetchall() if row[0]}
             
             for l in seed_data.get("labor", []):
-                l_code, l_name = l[0], l[1]
+                l_code, l_name, l_rate, l_unit = l[0], l[1], l[2], l[3]
                 if l_code in existing_l:
                     if existing_l[l_code] != l_name:
                         # CLASH
@@ -145,6 +146,8 @@ def sync_factory_updates():
                         # Update user rules
                         cursor.execute("UPDATE rules SET item_code = ? WHERE item_code = ? AND id > 7000", (f"{l_code}-USER", l_code))
                     else:
+                        # Matches name. Update rate and unit!
+                        cursor.execute("UPDATE labor SET rate = ?, unit = ? WHERE labor_code = ?", (l_rate, l_unit, l_code))
                         continue
                 
                 cursor.execute("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", l)

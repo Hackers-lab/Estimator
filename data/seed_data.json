@@ -1,16 +1,58 @@
 {
   "materials": [
     [
-      "0110030141",
-      "P C C POLE:8 Mtrs.Long",
-      5363.44,
-      "NOS"
+      "0101011011",
+      "M.S ANGLE 50X50X6 MM",
+      92168.56,
+      "MT"
     ],
     [
-      "0110030241",
-      "P C C POLE:9 Mtrs.Long",
-      10198.28,
-      "NOS"
+      "0101011311",
+      "M.S.ANGLE 65X65X6 MM",
+      92168.56,
+      "MT"
+    ],
+    [
+      "0102010611",
+      "M.S CHANNEL 75X40 MM",
+      87847.78,
+      "MT"
+    ],
+    [
+      "0102010911",
+      "M.S CHANNEL 100X50MM",
+      94608.18,
+      "MT"
+    ],
+    [
+      "0103011211",
+      "M.S FLAT 50X6 MM",
+      105704.06,
+      "MT"
+    ],
+    [
+      "0103011511",
+      "M.S FLAT 65X6 MM",
+      105704.06,
+      "MT"
+    ],
+    [
+      "0103011611",
+      "M.S FLAT 65X8 MM",
+      105704.06,
+      "MT"
+    ],
+    [
+      "0103011911",
+      "M.S FLAT 75X8 MM",
+      105704.06,
+      "MT"
+    ],
+    [
+      "0103012311",
+      "M.S FLAT 75X12 MM",
+      105704.06,
+      "MT"
     ],
     [
       "0110010341",
@@ -19,22 +61,34 @@
       "NOS"
     ],
     [
-      "0110011541",
-      "STEEL TUBULAR POLE 9.5M LONG (WITH CAP)",
-      16598.41,
+      "0110010741",
+      "STEEL TUBULAR POLE 11 M LONG (WITH CAP)",
+      12492.05,
       "NOS"
     ],
     [
-      "0110010741",
-      "STEEL TUBULAR POLE 11 M LONG (WITH CAP)",
-      17887.87,
+      "0110011541",
+      "STEEL TUBULAR POLE 9.5M LONG (WITH CAP)",
+      11610.26,
       "NOS"
     ],
     [
       "0110020711",
-      "RAIL POLE (11-13 M LONG) 52 KG/MT",
-      93806.05,
+      "RAIL POLE (11-13 M LONG) 52 KG",
+      94678.27,
       "MT"
+    ],
+    [
+      "0110030141",
+      "PCC POLE: 8M LONG",
+      5293.69,
+      "NOS"
+    ],
+    [
+      "0110030241",
+      "PCC POLE: 9M LONG",
+      10187.64,
+      "NOS"
     ],
     [
       "0110051111",
@@ -49,165 +103,351 @@
       "MT"
     ],
     [
-      "0102010911",
-      "M.S Channel 100X50 mm",
-      109813.95,
+      "0110051311",
+      "WIDE FLANGE BEAM: 13 M LONG WPB160X160X30.44KG/M GRADE E-350",
+      80096.09,
       "MT"
     ],
     [
-      "0102010611",
-      "M.S Channel 75X40 mm",
-      110043.09,
+      "0113020641",
+      "11KV 'V' BRACKET FOR PCC POLE 8M LONG",
+      1069.5,
+      "NOS"
+    ],
+    [
+      "0113020741",
+      "11KV 'V' BRACKET FOR PCC POLE 9M LONG",
+      1116.94,
+      "NOS"
+    ],
+    [
+      "0113020841",
+      "11 KV 'V' BRACKET FOR RAIL POLE",
+      1161.03,
+      "NOS"
+    ],
+    [
+      "0113020941",
+      "33KV 'V' BRACKET FOR PCC POLE 9M LONG",
+      1656.47,
+      "NOS"
+    ],
+    [
+      "0113021141",
+      "33 KV 'V' BRACKET FOR RAIL POLE",
+      2016.74,
+      "NOS"
+    ],
+    [
+      "0113021241",
+      "11 KV TOP ADAPTOR FOR PCC POLE 8M LONG",
+      412.32,
+      "NOS"
+    ],
+    [
+      "0113021341",
+      "11 KV TOP ADAPTOR FOR PCC POLE 9M LONG",
+      464.49,
+      "NOS"
+    ],
+    [
+      "0113021441",
+      "11 KV TOP ADAPTOR FOR RAIL POLE",
+      467.27,
+      "NOS"
+    ],
+    [
+      "0113021541",
+      "33 KV TOP ADAPTOR FOR PCC POLE 9M LONG",
+      1128.69,
+      "NOS"
+    ],
+    [
+      "0113021641",
+      "33 KV TOP ADAPTOR FOR RAIL POLE",
+      798.83,
+      "NOS"
+    ],
+    [
+      "0195021741",
+      "UH-LT BKT 4 WAY",
+      0.0,
+      "NOS"
+    ],
+    [
+      "0201050111",
+      "G.I. BARBED WIRE",
+      105864.84,
       "MT"
     ],
     [
-      "0101011311",
-      "M.S Angle 65X65X6mm",
-      108667.24,
-      "MT"
+      "0301010541",
+      "DTR 10KVA 11/0.433KV",
+      33410.2,
+      "NOS"
     ],
     [
-      "0101011011",
-      "M.S Angle 50X50X6mm",
-      109603.22,
-      "MT"
+      "0301011041",
+      "DTR 16KVA 11/0.433KV",
+      112744.92,
+      "NOS"
     ],
     [
-      "0103011211",
-      "M.S Flat 50X6 mm",
-      117623.3,
-      "MT"
+      "0301017141",
+      "DTR 1000KVA 11/0.415KV -OUTDOOR & OIL COLLING TYPE WITH CABLE ENTRY BOX",
+      2645375.54,
+      "NOS"
     ],
     [
-      "0103011511",
-      "M.S Flat 65X6 mm",
-      117493.74,
-      "MT"
+      "0301017241",
+      "DTR 1000KVA 11/0.415KV -OUTDOOR & DRY TYPE WITH CABLE ENTRY BOX",
+      3821098.0,
+      "NOS"
     ],
     [
-      "0103011611",
-      "M.S Flat 65X8 mm",
-      114149.39,
-      "MT"
+      "0301018141",
+      "DTR 25 KVA 11/0.433KV",
+      115453.7,
+      "NOS"
     ],
     [
-      "0103011911",
-      "M.S Flat 75X8 mm",
-      114255.68,
-      "MT"
+      "0301018241",
+      "DTR 63 KVA 11/0.433KV",
+      204281.78,
+      "NOS"
     ],
     [
-      "0103012311",
-      "M.S Flat 75X12 mm",
-      114336.31,
-      "MT"
+      "0301018341",
+      "DTR 100 KVA 11/0.433KV",
+      262141.27,
+      "NOS"
     ],
     [
-      "0504130432",
-      "G.I. Stay Set HT (1830X20MM) WRKG LD-7900KG",
-      795.83,
+      "0301018541",
+      "100 KVA 33/0.415 KV STATION SERVICE TRANSFORMER",
+      639916.34,
+      "NOS"
+    ],
+    [
+      "0301018741",
+      "DTR 160 KVA 11/0.433KV WITH CABLE ENTRY BOX",
+      452399.07,
+      "NOS"
+    ],
+    [
+      "0301019041",
+      "DTR 315 KVA 11/0.433KV - OUTDOOR TYPE WITH CABLE ENTRY BOX",
+      1235891.06,
+      "NOS"
+    ],
+    [
+      "0301019141",
+      "DTR 315KVA 11/0.433KV Outdoor Type",
+      985286.54,
+      "NOS"
+    ],
+    [
+      "0301019341",
+      "DTR 630KVA 11/0.415KV-OUTDOOR & OIL COLLING TYPE",
+      2024189.93,
+      "NOS"
+    ],
+    [
+      "0301019541",
+      "DTR 630KVA 11/0.415KV-OUTDOOR & DRY VPI TYPE WITH CABLE ENTRY BOX",
+      3552550.13,
+      "NOS"
+    ],
+    [
+      "0301019641",
+      "DTR 250 KVA 11/0.433KV - OUTDOOR TYPE WITH CABLE ENTRY BOX",
+      881383.28,
+      "NOS"
+    ],
+    [
+      "0301019741",
+      "DTR 315KVA 11/0.415KV-OUTDOOR & DRY VPI TYPE",
+      2478155.47,
+      "NOS"
+    ],
+    [
+      "0301021241",
+      "6.3 MVA 33/11KV POWER TRANSFORMER",
+      12477169.65,
+      "NOS"
+    ],
+    [
+      "0301021741",
+      "10 MVA 33/11KV POWER TRANSFORMER",
+      13066262.55,
+      "NOS"
+    ],
+    [
+      "0301022041",
+      "RTCC PANEL FOR 6.3 MVA TRANSFORMAR",
+      88179.18,
+      "NOS"
+    ],
+    [
+      "0301022141",
+      "RTCC PANEL FOR 10 MVA TRANSFORMAR",
+      88179.18,
+      "NOS"
+    ],
+    [
+      "0301032241",
+      "33 KV PT: 1 PHASE OD TYPE : RATIO : 33 / √3 / 0.11 / √3 KV",
+      32773.26,
+      "NOS"
+    ],
+    [
+      "0301051641",
+      "33 KV CT (1 PHASE) : OD TYPE : DUAL CORE CT RATIO-400 - 200 / 1 -1 A",
+      39680.63,
+      "NOS"
+    ],
+    [
+      "0301054741",
+      "33 KV CT (1 PHASE) : OD TYPE : DUAL CORE CT RATIO-200 - 100 / 1 -1 -1A",
+      57316.47,
+      "NOS"
+    ],
+    [
+      "0301055641",
+      "33 KV CT (1 PHASE) : OD TYPE : DUAL CORE CT RATIO-100 - 50 / 1 -1A",
+      54377.16,
+      "NOS"
+    ],
+    [
+      "0301056541",
+      "CT 33KV1000-800-400/1A2CI-PhOD",
+      62166.33,
+      "NOS"
+    ],
+    [
+      "0301065141",
+      "LT CURRENT TRANSFORMER, RING TYPE(TAPE WOUND), RATIO-400/5 AMPS, ACCURACY CLASS 0.5S",
+      514.38,
+      "NOS"
+    ],
+    [
+      "0301070541",
+      "11 KV COMBINED CT & PT WITH CT RATIO 200-100/1A, PT 11000/110V",
+      56107.09,
+      "NOS"
+    ],
+    [
+      "0301110832",
+      "CSS (11KV 3WAY RMU WITH SCADA 1MVA 11/.4 KV DTR, LTDB)",
+      4849855.16,
       "SET"
     ],
     [
-      "0504130332",
-      "G.I. Stay Set LT (1680X16MM) WRKG LD-5100KG",
-      462.17,
+      "0302030341",
+      "36 KV VCB : 750 MVA 1000/1250 AMPS :O/D- TYPE, 30V DC",
+      333965.44,
+      "NOS"
+    ],
+    [
+      "0303021832",
+      "33KV INDOOR VCB SINGLE PANAL POWER TRANSFORMER WITHOUT C&R PANEL",
+      1258074.47,
       "SET"
     ],
     [
-      "0504110541",
-      "G.I. Earth Spike 1833X20MM",
-      367.98,
-      "NOS"
-    ],
-    [
-      "0503010711",
-      "G.I. Wire 4 MM (8 SWG)",
-      137360.98,
-      "MT"
-    ],
-    [
-      "0503010811",
-      "G.I. Wire 5 MM (6 SWG)",
-      136865.98,
-      "MT"
-    ],
-    [
-      "0503050911",
-      "G.I. Stay Wire 7/4 MM (8 SWG)",
-      141692.18,
-      "MT"
-    ],
-    [
-      "0503050711",
-      "G.I. Stay Wire 7/3.15MM (10 SWG)",
-      142310.93,
-      "MT"
-    ],
-    [
-      "0503050611",
-      "G.I. Stay Wire 7/2.5MM (12 SWG)",
-      145404.64,
-      "MT"
-    ],
-    [
-      "0508011141",
-      "11 KV Polymer Composite Pin Insulator 5KN 320MM CD",
-      243.79,
-      "NOS"
-    ],
-    [
-      "0508030541",
-      "11 KV Polymer Composite Disc Insulator 45KN",
-      183.15,
-      "NOS"
-    ],
-    [
-      "0508020341",
-      "11 KV Post Insulator",
-      289.57,
-      "NOS"
-    ],
-    [
-      "0508040841",
-      "Porcelain Guy Insulator HT",
-      52.24,
-      "NOS"
-    ],
-    [
-      "0508040741",
-      "Porcelain Guy Insulator LT",
-      18.37,
-      "NOS"
-    ],
-    [
-      "0504010132",
-      "Composite Hardware Fittings for ACSR Weasel/Rabbit (30/50SQMM)",
-      327.83,
+      "0303030732",
+      "SCADA 350MVA 800/1250A-IN1BC00G0 (ONE INCOMING PANEL ONLY)",
+      631142.51,
       "SET"
     ],
     [
-      "0504010232",
-      "Composite Hardware Fittings for ACSR Dog (100SQMM)",
-      518.96,
+      "0303030832",
+      "SCADA 350MVA 800/1250A-IN0BC1OG0 (ONE BUSCOUPLER PANEL ALONG WITH ADAPTOR)",
+      547813.18,
       "SET"
     ],
     [
-      "0309010541",
-      "Lightning Arrestor 42KV 10KA Porcelain Gapless Type 33KV",
-      7628.27,
+      "0303030932",
+      "SCADA 350MVA 800/1250A-IN0BC00G1 (ONE OUTGOING PANEL ONLY)",
+      536423.37,
+      "SET"
+    ],
+    [
+      "0303050341",
+      "12 KV 350MVA,400A SERIES TRIP SWG COMPLETE WITH CTR-50-25/5-5A, PTR 11000/110V",
+      361733.93,
       "NOS"
     ],
     [
-      "0309010841",
-      "Lightning Arrestor 12KV 5KA Porcelain Gapless Type 11KV",
-      524.23,
+      "0303050441",
+      "12 KV 350MVA,400A SERIES TRIP METERING SWG COMPLETE WITH CTR-100-50/5-5A, PTR 11000/110V",
+      386039.26,
       "NOS"
     ],
     [
-      "0304010632",
-      "T.P.G.O. Isolator 11KV 400 AMP",
-      19138.97,
+      "0303060332",
+      "12 KV 350MVA RMU METERING SWG CT RATION 50-25/5-5A, PTR 11000/110V",
+      885934.8,
+      "SET"
+    ],
+    [
+      "0303060432",
+      "12 KV 350MVA RMU METERING SWG CT RATION 100-50/5-5A, PTR 11000/110V",
+      864918.76,
+      "SET"
+    ],
+    [
+      "0303062532",
+      "11KV SCADA OUTDOOR RMU 4WAY(2LBS+2OG)SF6 WHSLNO",
+      975104.85,
+      "SET"
+    ],
+    [
+      "0303062632",
+      "11KV SCADA OUTDOOR RMU 3WAY(2LBS+1OG)SF6 WHSLNO",
+      750888.38,
+      "SET"
+    ],
+    [
+      "0303062832",
+      "11KV SCADA OUTDOOR VCB BUS - SF6, BULK METERING PANEL WITH SLNO",
+      659727.27,
+      "SET"
+    ],
+    [
+      "0303071932",
+      "33KV INDOOR VCB SINGLE PANAL INCOMER WITHOUT C&R PANEL",
+      1216280.48,
+      "SET"
+    ],
+    [
+      "0303072032",
+      "33KV INDOOR VCB SINGLE PANEL OUTGOING WITHOUT C&R PANEL",
+      1201357.62,
+      "SET"
+    ],
+    [
+      "0303072232",
+      "33KV INDOOR BUS PT SINGLE PANAL",
+      653275.49,
+      "SET"
+    ],
+    [
+      "0303072332",
+      "33KV INDOOR VCB SINGLE PANEL - BUS COUPLER WITH BUS SECTION",
+      1609512.61,
+      "SET"
+    ],
+    [
+      "0303072432",
+      "33KV INDOOR VCB SINGLE PANEL STATION TRANSFORMER",
+      1179255.51,
+      "SET"
+    ],
+    [
+      "0304010332",
+      "33 KV 400 A TPGO ISOLATOR (ROCKING TYPE)",
+      40578.59,
       "SET"
     ],
     [
@@ -217,51 +457,273 @@
       "SET"
     ],
     [
-      "0502010621",
-      "ACSR Conductor 30SQMM (Weasel)",
-      38139.33,
+      "0304010632",
+      "TPGO ISOLATOR : 11 KV : 400 AMP WITH PORCELAIN POST INSULATOR",
+      22261.51,
+      "SET"
+    ],
+    [
+      "0304010732",
+      "TPGO ISOLATOR : 11KV 200A WITH POLYMER POST INSULATOR",
+      10398.41,
+      "SET"
+    ],
+    [
+      "0304020832",
+      "33 KV 400 A CR TYPE ISOLATOR WITHOUT EARTH SWITCH (LOW LEVFL)",
+      44530.49,
+      "SET"
+    ],
+    [
+      "0304021132",
+      "33 KV 400 A CR TYPE ISOLATOR WITH EARTH SWITCH (HIGH LEVEL)",
+      58051.3,
+      "SET"
+    ],
+    [
+      "0304022332",
+      "33 KV 400 A CR TYPE ISOLATOR WITHOUT EARTH SWITCH (HIGH LEVEL)",
+      44824.42,
+      "SET"
+    ],
+    [
+      "0305015141",
+      "33KV C&R PANEL, WITH DIRECTIONAL RELAY, SCADA COMPATIBLE FOR FEEDER CONTROL",
+      315975.41,
+      "NOS"
+    ],
+    [
+      "0305015241",
+      "33KV C&R PANEL, WITH DIFFERENTIAL RELAY SCADA COMPATIBLE FOR INDIVIDUAL TRANSFORMER",
+      455592.45,
+      "NOS"
+    ],
+    [
+      "0306020341",
+      "LT FEEDER PILLAR BOX(2IC+6OG)",
+      104828.85,
+      "NOS"
+    ],
+    [
+      "0309010541",
+      "LIGHTNING ARRESTER 42KV 10 KA PORCELAIN HOUSED GAPLESS TYPE FOR 33KV SYSTEM",
+      7478.33,
+      "NOS"
+    ],
+    [
+      "0309010841",
+      "Lightning Arrestor 12KV 5KA Porcelain Gapless Type 11KV",
+      524.23,
+      "NOS"
+    ],
+    [
+      "0309011041",
+      "LIGHTNING ARRESTER 12 KV 10KA PORCELAIN HOUSED STATION CLASS",
+      3337.86,
+      "NOS"
+    ],
+    [
+      "0401010741",
+      "SINGLE PHASE 2W STATIC METER (5-30)A WITH P.P. BOX",
+      1315.22,
+      "NOS"
+    ],
+    [
+      "0401011041",
+      "SINGLE PHASE STATIC METER (5-30)A IMPORT-EXPORT TYPE",
+      1434.78,
+      "NOS"
+    ],
+    [
+      "0401021241",
+      "THREE PHASE STATIC METER (5-30)A IMPORT-EXPORT TYPE",
+      5290.75,
+      "NOS"
+    ],
+    [
+      "0401021341",
+      "THREE PHASE STATIC METER (20-100)A IMPORT-EXPORT TYPE",
+      6774.1,
+      "NOS"
+    ],
+    [
+      "0401021441",
+      "THREE PHASE 4W STATIC METER (10-60)A WITH PP BOX & LPR",
+      8139.13,
+      "NOS"
+    ],
+    [
+      "0401021541",
+      "THREE PHASE 4W (5-30)A, DLMS, WHOLE CURRENT STATIC METER",
+      6848.83,
+      "NOS"
+    ],
+    [
+      "0401021741",
+      "THREE PHASE 4W STATIC METER (20-100)A",
+      5380.43,
+      "NOS"
+    ],
+    [
+      "0401022241",
+      "1PHASE SMART METER (5-30)A WITH BOX AND NIC CARD WITH SL NO",
+      5098.07,
+      "NOS"
+    ],
+    [
+      "0401022341",
+      "3PHASE SMART METER (10-60)A WITH BOX AND NIC CARD WITH SL NO",
+      6627.49,
+      "NOS"
+    ],
+    [
+      "0401022441",
+      "3PHASE SMART METER (20-100)A WITH BOX AND NIC CARD WITH SL NO",
+      7009.85,
+      "NOS"
+    ],
+    [
+      "0401022541",
+      "THREE PHASE STATIC METER (10-100)A IMPORT-EXPORT TYPE",
+      6172.54,
+      "NOS"
+    ],
+    [
+      "0401030541",
+      "3 PHASE 4WIRE STATIC 132 KV CT-PT OPERATED HT TRIVECTOR TOD FOR 132 KV BULK, 0.2S",
+      33623.91,
+      "NOS"
+    ],
+    [
+      "0401030641",
+      "1 PH 2W STATIC 132 KV CT-PT OPERATED TRIVECTOR TOD ENERGY METER FOR 132 KV TRACTION POWER,0.2S",
+      43031.44,
+      "NOS"
+    ],
+    [
+      "0401031341",
+      "3PH 4 W CT OPERATED FULLY STATIC AMR, TRI-VECTOR DLMS METER FOR DTR",
+      6143.88,
+      "NOS"
+    ],
+    [
+      "0401032141",
+      "HT 11KV FEEDER METER",
+      8705.83,
+      "NOS"
+    ],
+    [
+      "0401033441",
+      "1 PH 2 W STATIC 25 KV CT-PT OPERATED TRIVECTOR TOD ENERGY METER FORTRACTION APPLICATION, 0.2S",
+      37689.25,
+      "NOS"
+    ],
+    [
+      "0401033941",
+      "3PH 4W CT/PT OPERATED CT RATIO 100/1A, FOR 33 KV BULK",
+      9490.48,
+      "NOS"
+    ],
+    [
+      "0401034041",
+      "3PH 4 W LT TOD METER CT RATIO 200/5 A FOR LT BULK",
+      3968.06,
+      "NOS"
+    ],
+    [
+      "0401034141",
+      "3PH 4W DLMS WITH CT RATIO 50/5 A FOR 11KV BULK",
+      8876.7,
+      "NOS"
+    ],
+    [
+      "0401034241",
+      "3-PH 4-WIRE (1A) AMR,TRI-VECTOR FEEDER METER FOR 33 KV SUB-STN",
+      9368.67,
+      "NOS"
+    ],
+    [
+      "0401034341",
+      "3PH4W 11KV(1A)BOUNDARY MTR WH SL NO",
+      12925.48,
+      "NOS"
+    ],
+    [
+      "0401034741",
+      "MULTI-FEEDER METERING RACK WITH SUMMATION UNIT FOR TWO FEEDER SUMMATION WITHOUT PANEL",
+      780532.75,
+      "NOS"
+    ],
+    [
+      "0401034841",
+      "3P4W 132KV EXPORT IMPORT BLK MTR WHSLNO",
+      43590.15,
+      "NOS"
+    ],
+    [
+      "0401034941",
+      "3P4W LTCT EXPORT IMPORT BLK MTR WHSLNO",
+      6414.17,
+      "NOS"
+    ],
+    [
+      "0401035041",
+      "3P4W 11KV EXPORT IMPORT BLK MTR WHSLNO",
+      9490.48,
+      "NOS"
+    ],
+    [
+      "0401035141",
+      "3P4W 33KV EXPORT IMPORT BLK MTR WHSLNO",
+      9490.48,
+      "NOS"
+    ],
+    [
+      "0407010241",
+      "LT MTR KIOSK 415V STEEL SHEET COVER",
+      13530.19,
+      "NOS"
+    ],
+    [
+      "0407010541",
+      "LT DISTRIBUTION KIOSK FOR 100KVA TRANSFORMER",
+      8378.5,
+      "NOS"
+    ],
+    [
+      "0407010641",
+      "LT DISTRIBUTION KIOSK FOR 25KVA TRANSFORMER",
+      7557.42,
+      "NOS"
+    ],
+    [
+      "0407010741",
+      "LT DISTRIBUTION KIOSK FOR 63KVA TRANSFORMER",
+      8260.69,
+      "NOS"
+    ],
+    [
+      "0407010841",
+      "LT DISTRIBUTION KIOSK FOR 315KVA TRANSFORMER",
+      16166.18,
+      "NOS"
+    ],
+    [
+      "0501012921",
+      "CABLE (PVC 1.1 KV GRADE) 2CX4SQMM",
+      36883.07,
       "KM"
     ],
     [
-      "0502010921",
-      "ACSR Conductor 50SQMM (Rabbit)",
-      62290.12,
-      "KM"
-    ],
-    [
-      "0502011221",
-      "ACSR Conductor 100SQMM (Dog)",
-      122653.45,
-      "KM"
-    ],
-    [
-      "0501030321",
-      "LT AB CABLE 1.1KV 3CX50+1CX35SQMM",
-      160930.91,
-      "KM"
-    ],
-    [
-      "0501030421",
-      "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
-      237394.49,
-      "KM"
-    ],
-    [
-      "0501030521",
-      "LT AB CABLE 1.1KV 3CX70+1CX16+1CX50SQMM",
-      315558.99,
-      "KM"
-    ],
-    [
-      "0501031121",
-      "HT AB CABLE 11KV 3CX95+1CX70SQMM",
-      879877.46,
+      "0501013021",
+      "CABLE (PVC 1.1 KV GRADE) 2CX6SQMM",
+      38798.84,
       "KM"
     ],
     [
       "0501017421",
-      "CABLE (PVC 1.1KV GRADE) 4CORE X10SQMM",
-      125852.36,
+      "CABLE (PVC 1.1 KV GRADE) 4CORE X10SQMM",
+      122937.73,
       "KM"
     ],
     [
@@ -272,8 +734,8 @@
     ],
     [
       "0501017821",
-      "CABLE (PVC 1.1KV GRADE) 4CX25SQMM",
-      229429.95,
+      "CABLE (PVC 1.1 KV GRADE) 4C X 25SQMM",
+      205477.43,
       "KM"
     ],
     [
@@ -301,28 +763,886 @@
       "KM"
     ],
     [
-      "0301010541",
-      "DTR 10KVA 11/0.433KV",
-      33410.2,
+      "0501021121",
+      "CABLE (XLPE 1.1 KV) 1C X 630 SQMM",
+      886533.34,
+      "KM"
+    ],
+    [
+      "0501022321",
+      "CABLE (XLPE 1.1 KV ) 4 C X 50SQMM",
+      337652.79,
+      "KM"
+    ],
+    [
+      "0501022421",
+      "CABLE (XLPE 1.1 KV ) 4 C X 120SQMM",
+      708527.21,
+      "KM"
+    ],
+    [
+      "0501022521",
+      "CABLE (XLPE 1.1 KV ) 4 C X 185SQMM",
+      1058312.13,
+      "KM"
+    ],
+    [
+      "0501022621",
+      "CABLE (XLPE 1.1 KV ) 4 C X 300SQMM",
+      1684776.66,
+      "KM"
+    ],
+    [
+      "0501022821",
+      "CABLE (XLPE 1.1 KV GRADE) 4C X 400SQMM",
+      2151336.71,
+      "KM"
+    ],
+    [
+      "0501023621",
+      "CABLE (XLPE 11 KV) 1C X 1000SQMM",
+      2002535.28,
+      "KM"
+    ],
+    [
+      "0501023821",
+      "CABLE (XLPE 11 KV) 3C X 95SQMM",
+      1011009.23,
+      "KM"
+    ],
+    [
+      "0501023921",
+      "CABLE (XLPE 11 KV) 3C X 185SQMM",
+      1378448.64,
+      "KM"
+    ],
+    [
+      "0501024121",
+      "CABLE (XLPE 11 KV) 3C X 300SQMM",
+      2026690.2,
+      "KM"
+    ],
+    [
+      "0501024221",
+      "CABLE ( XLPE 11KV) 3C X 400SQMM",
+      2551032.53,
+      "KM"
+    ],
+    [
+      "0501025221",
+      "CABLE (XLPE 33 KV) 3C X 400SQMM",
+      3371031.45,
+      "KM"
+    ],
+    [
+      "0501025421",
+      "CABLE (XLPE 33 KV) 1C X 1000 SQMM",
+      2524814.17,
+      "KM"
+    ],
+    [
+      "0501030321",
+      "LT AB CABLE 1.1KV 3CX50+1CX35SQMM",
+      160930.91,
+      "KM"
+    ],
+    [
+      "0501030421",
+      "LT AB CABLE 1.1KV 3CX50+1CX16+1CX35SQMM",
+      237394.49,
+      "KM"
+    ],
+    [
+      "0501030521",
+      "CABLE (LT AERIAL BUNCHED 1.1 KV) 3C X 70+1C X 16+ 1C X 50SQMM",
+      275958.51,
+      "KM"
+    ],
+    [
+      "0501031121",
+      "CABLE (HT AERIAL BUNCHED 11 KV) 3C X 95 +1 CX 70SQMM",
+      1162209.12,
+      "KM"
+    ],
+    [
+      "0501040721",
+      "CABLE (COPPER CONTROL 1.1 KV ) 4C X 2.5SQMM",
+      181355.19,
+      "KM"
+    ],
+    [
+      "0501041021",
+      "CABLE (COPPER CONTROL 1.1 KV ) 8 C X 2.5SQMM",
+      331730.09,
+      "KM"
+    ],
+    [
+      "0501041121",
+      "CABLE (COPPER CONTROL 1.1 KV ) 12 C X 2.5SQMM",
+      462455.73,
+      "KM"
+    ],
+    [
+      "0502010321",
+      "ACSR SQUIRREL (20 SQMM) CONDUCTOR",
+      26913.33,
+      "KM"
+    ],
+    [
+      "0502010621",
+      "ACSR Conductor 30SQMM (Weasel)",
+      38139.33,
+      "KM"
+    ],
+    [
+      "0502010921",
+      "ACSR RABBIT (50SQMM) CONDUCTOR",
+      56838.22,
+      "KM"
+    ],
+    [
+      "0502011221",
+      "ACSR DOG (100SQMM) CONDUCTOR",
+      119461.62,
+      "KM"
+    ],
+    [
+      "0502011521",
+      "ACSR WOLF (150SQMM) CONDUCTOR",
+      198099.27,
+      "KM"
+    ],
+    [
+      "0502011821",
+      "ACSR PANTHER (200SMM) CONDUCTOR",
+      237154.68,
+      "KM"
+    ],
+    [
+      "0503010711",
+      "G.I. WIRE 4 MM",
+      80474.72,
+      "MT"
+    ],
+    [
+      "0503010811",
+      "G.I. WIRE 5 MM",
+      80107.31,
+      "MT"
+    ],
+    [
+      "0503020312",
+      "AL. BINDING WIRE 5MM/6SWG",
+      480.47,
+      "KG"
+    ],
+    [
+      "0503050611",
+      "G.I. STAY WIRE 7/ 2.5MM (12 SWG)",
+      86748.14,
+      "MT"
+    ],
+    [
+      "0503050711",
+      "G.I. STAY WIRE 7/ 3.15MM (10 SWG)",
+      82930.77,
+      "MT"
+    ],
+    [
+      "0503050911",
+      "G.I. STAY WIRE 7 / 4 MM (8 SWG)",
+      83665.6,
+      "MT"
+    ],
+    [
+      "0504010132",
+      "COMPOSITE HARDWARE FITTINGS FOR ACSR RABBIT (50SQMM) CONDUCTOR",
+      299.81,
+      "SET"
+    ],
+    [
+      "0504010232",
+      "COMPOSITE HARDWARE FITTINGS SUITABLE FOR ACSR DOG (100SQMM) CONDUCTOR",
+      408.56,
+      "SET"
+    ],
+    [
+      "0504010332",
+      "SINGLE TENSION HARDWARE FITTINGS FOR ACSR WOLF (150SQMM) CONDUCTOR",
+      1011.12,
+      "SET"
+    ],
+    [
+      "0504010432",
+      "SINGLE SUSPENSION HARDWARE FITTINGS FOR ACSR WOLF (150SQM'f) CONDUCTOR",
+      459.41,
+      "SET"
+    ],
+    [
+      "0504010532",
+      "SINGLE TENSION HARDWARE FITTINGS FOR PANTHER (200SQMM) CONDUCTOR",
+      1153.69,
+      "SET"
+    ],
+    [
+      "0504010632",
+      "SINGLE SUSPENSION HARDWARE FITTINGS FOR PANTHER (200SQMM) CONDUCTOR",
+      661.34,
+      "SET"
+    ],
+    [
+      "0504023041",
+      "PAD-CON.FOR 11KV(1X95 SMM) ABC",
+      489.91,
       "NOS"
     ],
     [
-      "0301011041",
-      "DTR 16KVA 11/0.433KV",
-      89547.19,
+      "0504026741",
+      "INSULATION-PIERCING CONNECTOR (ABC) - 50-70 SQ MM",
+      104.88,
       "NOS"
     ],
     [
-      "0301018141",
-      "DTR 25KVA 11/0.433KV",
-      103528.11,
+      "0504026941",
+      "INSULATION-PIERCING CONNECTOR (ABC) - 35-50SQ MM",
+      95.02,
       "NOS"
     ],
     [
-      "0301018241",
-      "DTR 63KVA 11/0.433KV",
-      107589.53,
+      "0504027041",
+      "INSULATION-PIERCING CONNECTOR (ABC) - 95SQ MM",
+      107.11,
       "NOS"
+    ],
+    [
+      "0504027141",
+      "INSULATION-PIERCING CONNECTOR -ABC TO ABC TEE JOINT",
+      114.95,
+      "NOS"
+    ],
+    [
+      "0504027441",
+      "BI-METALLIC CRIMPING TYPE WATER PROOF LUG-16 SMM ST LT(ABC)",
+      165.65,
+      "NOS"
+    ],
+    [
+      "0504027541",
+      "BI-METALLIC CRIMPING TYPE WATER PROOF LUG-35 SMM MSNGR(ABC)",
+      178.1,
+      "NOS"
+    ],
+    [
+      "0504027641",
+      "BI-METALLIC CRIMPING TYPE WATER PROOF LUG-50 SMM MSNGR(ABC)",
+      194.29,
+      "NOS"
+    ],
+    [
+      "0504027741",
+      "BI-METALLIC CRIMPING TYPE WATER PROOF LUG-50 SMM PWR(ABC)",
+      179.35,
+      "NOS"
+    ],
+    [
+      "0504027841",
+      "BI-METALLIC CRIMPING TYPE WATER PROOF LUG-70 SMM PWR(ABC)",
+      246.6,
+      "NOS"
+    ],
+    [
+      "0504030341",
+      "PIERCING INSULATION STRAIGHT THROUGH JOINT (ABC) -16SQMM",
+      125.79,
+      "NOS"
+    ],
+    [
+      "0504030741",
+      "PIERCING INSULATION STRAIGHT THROUGH JOINT (ABC) -35 SQMM N.WIRE",
+      99.64,
+      "NOS"
+    ],
+    [
+      "0504030841",
+      "PIERCING INSULATION STRAIGHT THROUGH JOINT (ABC) -50SQ MM N.WIRE",
+      161.01,
+      "NOS"
+    ],
+    [
+      "0504030941",
+      "PIERCING INSULATION STRAIGHT THROUGH JOINT (ABC) -50SQ MM POWER CABLE",
+      143.95,
+      "NOS"
+    ],
+    [
+      "0504031241",
+      "PIERCING INSULATION STRAIGHT THROUGH JOINT (ABC) -CABLE END CAP",
+      20.18,
+      "NOS"
+    ],
+    [
+      "0504042541",
+      "11KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 3X95 SMM XLPE CAB",
+      2498.41,
+      "NOS"
+    ],
+    [
+      "0504042641",
+      "11KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 3X95 SMM XLPE CAB",
+      2241.84,
+      "NOS"
+    ],
+    [
+      "0504042741",
+      "11KV STRAIGHT THROUGH HEAT SHRINK JOINT FOR 3X95 SMM XLPE CAB",
+      5554.79,
+      "NOS"
+    ],
+    [
+      "0504043141",
+      "11KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 3X185 SMM XLPE CAB",
+      2677.76,
+      "NOS"
+    ],
+    [
+      "0504043241",
+      "11KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 3X185 SMM XLPE CAB",
+      2466.03,
+      "NOS"
+    ],
+    [
+      "0504043741",
+      "11KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 3X300 SMM XLPE CAB",
+      2883.26,
+      "NOS"
+    ],
+    [
+      "0504043841",
+      "11KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 3X300 SMM XLPE CAB",
+      2642.88,
+      "NOS"
+    ],
+    [
+      "0504043941",
+      "11KV STRAIGHT THROUGH HEAT SHRINK JOINT FOR 3X300 SMM XLPE CAB",
+      6351.89,
+      "NOS"
+    ],
+    [
+      "0504045841",
+      "33KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 3X400 SMM XLPE CAB",
+      7721.91,
+      "NOS"
+    ],
+    [
+      "0504045941",
+      "33KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 3X400 SMM XLPE CAB",
+      6850.08,
+      "NOS"
+    ],
+    [
+      "0504046041",
+      "33KV STRAIGHT THROUGH HEAT SHRINK JOINT FOR 3X400 SMM XLPE CAB",
+      18059.3,
+      "NOS"
+    ],
+    [
+      "0504047141",
+      "11KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 3X400 SMM XLPE CAB",
+      3892.09,
+      "NOS"
+    ],
+    [
+      "0504047241",
+      "11KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 3X400 SMM XLPE CAB",
+      3425.04,
+      "NOS"
+    ],
+    [
+      "0504047341",
+      "11KV STRAIGHT THROUGH HEAT SHRINK JOINT FOR 3X400 SMM XLPE CAB",
+      6974.62,
+      "NOS"
+    ],
+    [
+      "0504049541",
+      "33KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR 1X1000 SMM XLPE CAB",
+      5228.48,
+      "NOS"
+    ],
+    [
+      "0504049641",
+      "33KV STRAIGHT THROUGH HEAT SHRINK JOINT FOR 1X1000 SMM XLPE CAB",
+      14123.62,
+      "NOS"
+    ],
+    [
+      "0504049741",
+      "33KV INDOOR HEAT SHRINK TERMINATION JOINT FOR 1X1000 SMM XLPE CAB",
+      4517.32,
+      "NOS"
+    ],
+    [
+      "0504054141",
+      "1.1KV STRAIGHT THROUGH JOINT FOR(4/3.5X50 SMM)",
+      1462.3,
+      "NOS"
+    ],
+    [
+      "0504054441",
+      "1.1KV STRAIGHT THROUGH JOINT FOR(4/3.5X120 SMM)",
+      3140.44,
+      "NOS"
+    ],
+    [
+      "0504054541",
+      "1.1KV STRAIGHT THROUGH JOINT FOR(4/3.5X185 SMM)",
+      3485.54,
+      "NOS"
+    ],
+    [
+      "0504054741",
+      "1.1KV STRAIGHT THROUGH JOINT FOR(4/3.5X300 SMM)",
+      4164.15,
+      "NOS"
+    ],
+    [
+      "0504054841",
+      "1.1KV STRAIGHT THROUGH JOINT FOR(4/3.5X400 SMM)",
+      4254.52,
+      "NOS"
+    ],
+    [
+      "0504055141",
+      "1.1KV TEE JOINT FOR(4/3.5X50-25/16 SMM)",
+      3993.92,
+      "NOS"
+    ],
+    [
+      "0504057941",
+      "11KVST.THR.TRANSITION JOINT FOR 3X185 SMM CAB",
+      6182.51,
+      "NOS"
+    ],
+    [
+      "0504060941",
+      "LTDISTBOX 3PH CON.WH ST.STRAP&BUCKLE-ABC",
+      1499.51,
+      "NOS"
+    ],
+    [
+      "0504061341",
+      "SERVICE JUNCTION BOX",
+      22758.21,
+      "NOS"
+    ],
+    [
+      "0504070341",
+      "LT SPACER - 1 PHASE 2 WIRE",
+      29.81,
+      "NOS"
+    ],
+    [
+      "0504070441",
+      "LT SPACER - 3 PHASE 4 WIRE",
+      67.53,
+      "NOS"
+    ],
+    [
+      "0504070541",
+      "LT SPACER - 3 PHASE 5 WIRE",
+      85.51,
+      "NOS"
+    ],
+    [
+      "0504070641",
+      "LT SPACER - 2 PHASE 3 WIRE",
+      46.08,
+      "NOS"
+    ],
+    [
+      "0504110541",
+      "G I EARTH SPIKE 1853X20MM",
+      465.88,
+      "NOS"
+    ],
+    [
+      "0504122141",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 16AMP",
+      118.75,
+      "NOS"
+    ],
+    [
+      "0504122241",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 32 AMP",
+      188.41,
+      "NOS"
+    ],
+    [
+      "0504122341",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 63 AMP",
+      418.12,
+      "NOS"
+    ],
+    [
+      "0504122441",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 100 AMP",
+      715.72,
+      "NOS"
+    ],
+    [
+      "0504122541",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 200 AMP",
+      1526.53,
+      "NOS"
+    ],
+    [
+      "0504122641",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 300 AMP",
+      2568.95,
+      "NOS"
+    ],
+    [
+      "0504122741",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 400 AMP",
+      3759.37,
+      "NOS"
+    ],
+    [
+      "0504122841",
+      "RE-WIRABLE PORCELAIN CUT OUT FUSE UNIT 500 AMP",
+      4406.02,
+      "NOS"
+    ],
+    [
+      "0504130332",
+      "GI STAY SET LT(1680X16MM)WRKG LD-5100KG",
+      580.51,
+      "SET"
+    ],
+    [
+      "0504130432",
+      "GI STAY SET HT(1830X20MM)WRKG LD-7900KG",
+      1028.76,
+      "SET"
+    ],
+    [
+      "0504140641",
+      "CAB END CAP FOR DIFF.SIZE AB CABLE",
+      17.19,
+      "NOS"
+    ],
+    [
+      "0504151441",
+      "CAB TIE WH ADJ.LOCKING ARRANGEMENT",
+      7.88,
+      "NOS"
+    ],
+    [
+      "0505010641",
+      "PG CLMP RBT(50SMM)",
+      138.51,
+      "NOS"
+    ],
+    [
+      "0505011141",
+      "CLAMP P.G. - A.C.S.R. DOG",
+      305.69,
+      "NOS"
+    ],
+    [
+      "0505030241",
+      "SUSPENTION CLAMP WITH BRKT 180SQMM MESENGER",
+      381.88,
+      "NOS"
+    ],
+    [
+      "0505030341",
+      "ANCHORING CLAMP 180SQ.MM. : MESSENGER",
+      439.4,
+      "NOS"
+    ],
+    [
+      "0505030641",
+      "SUSPENTION CLAMP WITH BRKT 35SQMM MESENGER",
+      367.41,
+      "NOS"
+    ],
+    [
+      "0505030841",
+      "EYE HOOK FOR ANCHOR & SUSPN. CLAMP",
+      92.38,
+      "NOS"
+    ],
+    [
+      "0505031541",
+      "D IRON CLAMP 3\" x 3.5\"",
+      41.63,
+      "NOS"
+    ],
+    [
+      "0505031641",
+      "UPPER CLAMP - L.T.BKT.50X6 FLAT(PCC POLE)",
+      93.41,
+      "NOS"
+    ],
+    [
+      "0505031741",
+      "LOWER CLAMP - L.T.BKT.50X6 FLAT(PCC POLE)",
+      96.46,
+      "NOS"
+    ],
+    [
+      "0505034141",
+      "DEAD END CLAMP-LT ABC(3X70+1X16+1X50SMM)",
+      340.09,
+      "NOS"
+    ],
+    [
+      "0505034941",
+      "CLAMP FOR 8M PCC POLE",
+      139.42,
+      "NOS"
+    ],
+    [
+      "0505035041",
+      "CLAMP FOR 9M PCC POLE",
+      161.66,
+      "NOS"
+    ],
+    [
+      "0505035141",
+      "CLAMP FOR 8M PCC POLE(BOT)",
+      205.75,
+      "NOS"
+    ],
+    [
+      "0505035241",
+      "CLAMP FOR 9M PCC POLE(BOT)",
+      220.45,
+      "NOS"
+    ],
+    [
+      "0505036541",
+      "SUSP. CLMP HT ABC 70-150 SQMM MESENGER",
+      155.68,
+      "NOS"
+    ],
+    [
+      "0506010331",
+      "SHACKLE STRAP BIG 185 X 30 X 3",
+      39.66,
+      "PAA"
+    ],
+    [
+      "0506010531",
+      "GI SHACKLE STRAP 9\" WITH NUT & BOLT",
+      56.78,
+      "PAA"
+    ],
+    [
+      "0508011041",
+      "33 KV POLYMER COMPOSITE WITH FITTINGS PIN INSULATOR 10KN (900MM CREEPAGE DISTANCE)",
+      489.47,
+      "NOS"
+    ],
+    [
+      "0508011141",
+      "11 KV POLYMER COMPOSITE WITH FITTINGS PIN INSULATOR 5KN (320MM CREEPAGE DISTANCE)",
+      195.54,
+      "NOS"
+    ],
+    [
+      "0508020341",
+      "11 KV Post Insulator",
+      289.57,
+      "NOS"
+    ],
+    [
+      "0508021541",
+      "11KV 5KN POLYMER POST INSULATOR",
+      266.3,
+      "NOS"
+    ],
+    [
+      "0508021641",
+      "33KV POLYMER POST INSULATOR",
+      820.07,
+      "NOS"
+    ],
+    [
+      "0508030541",
+      "11 KV POLYMER COMPOSITE 45KN DISC INSULATOR",
+      148.2,
+      "NOS"
+    ],
+    [
+      "0508030641",
+      "33 KV POLYMER COMPOSITE WITH FITTINGS 70KN DISC INSULATOR",
+      276.5,
+      "NOS"
+    ],
+    [
+      "0508040341",
+      "PORCELAIN SHACKLE INSULATOR 2\" X 21/2\"",
+      17.64,
+      "NOS"
+    ],
+    [
+      "0508040441",
+      "PORCELAIN SHACKLE INSULATOR 3\" x 31/2\"",
+      20.13,
+      "NOS"
+    ],
+    [
+      "0508040641",
+      "CI REEL INSULATOR",
+      43.59,
+      "NOS"
+    ],
+    [
+      "0508040741",
+      "PORCELAIN GUY INSULATOR LT",
+      17.64,
+      "NOS"
+    ],
+    [
+      "0508040841",
+      "PORCELAIN GUY INSULATOR HT",
+      48.57,
+      "NOS"
+    ],
+    [
+      "0597011541",
+      "UH-CLAMP FOR 8 MTR PCC POLE",
+      0.0,
+      "NOS"
+    ],
+    [
+      "0597011741",
+      "UH-Diron Clump",
+      0.0,
+      "NOS"
+    ],
+    [
+      "0705052241",
+      "MODEM FOR METER DATA COMMUNICATION 4G WITH SL NO",
+      6882.4,
+      "NOS"
+    ],
+    [
+      "0901021132",
+      "30V 100 AH PLANTE TYPE LEAD ACID BATTERY",
+      128139.05,
+      "SET"
+    ],
+    [
+      "0901031241",
+      "30V, 35A AUTO & MANUAL, FLOAT-CUM-BOOST, THYRISTOR CONTROLLED BATTERY CHARGER",
+      123450.86,
+      "NOS"
+    ],
+    [
+      "0901040332",
+      "STANDERD ACCESSORIES OF 30V 100 AH PLANTE TYPE BATTERY BATTERY",
+      14299.72,
+      "SET"
+    ],
+    [
+      "0902021441",
+      "POLYCARBONATE SECURITY SEAL (PATENTED) 20 CM(LIGHT GREEN COLOUR)",
+      6.78,
+      "NOS"
+    ],
+    [
+      "0903013212",
+      "AL BINDING TAPE - 1/4\"",
+      477.64,
+      "KG"
+    ],
+    [
+      "0903013545",
+      "PLASTIC TAPE - NON ADHESIVE - 1\"",
+      30.19,
+      "ROL"
+    ],
+    [
+      "0908010252",
+      "TRANSFORMER OIL (EHV GRADE)",
+      119819.07,
+      "KL"
+    ],
+    [
+      "0910010241",
+      "CAUTION BOARD - 11KV",
+      123.38,
+      "NOS"
+    ],
+    [
+      "0910011641",
+      "CAUTION BOARD - 400V",
+      123.38,
+      "NOS"
+    ],
+    [
+      "0910012141",
+      "CAUTION BOARD - 33KV",
+      123.38,
+      "NOS"
+    ],
+    [
+      "0912011441",
+      "TURN BUCKLE 18 X 5/8\"",
+      236.78,
+      "NOS"
+    ],
+    [
+      "0912013341",
+      "TURN BUCKLE 18 x 3/4\"",
+      251.07,
+      "NOS"
+    ],
+    [
+      "0110020711",
+      "RAIL POLE (11-13 M LONG) 52 KG/MT",
+      93806.05,
+      "MT"
+    ],
+    [
+      "0101011011",
+      "M.S Angle 50X50X6mm",
+      109603.22,
+      "MT"
+    ],
+    [
+      "0103011611",
+      "M.S Flat 65X8 mm",
+      114149.39,
+      "MT"
+    ],
+    [
+      "0103011911",
+      "M.S Flat 75X8 mm",
+      114255.68,
+      "MT"
+    ],
+    [
+      "0103012311",
+      "M.S Flat 75X12 mm",
+      114336.31,
+      "MT"
+    ],
+    [
+      "0502011221",
+      "ACSR Conductor 100SQMM (Dog)",
+      122653.45,
+      "KM"
+    ],
+    [
+      "0501031121",
+      "HT AB CABLE 11KV 3CX95+1CX70SQMM",
+      879877.46,
+      "KM"
     ],
     [
       "0301018341",
@@ -343,21 +1663,9 @@
       "NOS"
     ],
     [
-      "0301019141",
-      "DTR 315KVA 11/0.433KV Outdoor Type",
-      985286.54,
-      "NOS"
-    ],
-    [
       "0301019341",
       "DTR 630KVA 11/0.415KV Outdoor Oil Cooled",
       1843842.08,
-      "NOS"
-    ],
-    [
-      "0407010641",
-      "LT Distribution KIOSK For 25KVA DTR",
-      8878.41,
       "NOS"
     ],
     [
@@ -373,75 +1681,9 @@
       "NOS"
     ],
     [
-      "0504070441",
-      "LT Spacer 3 Phase 4 Wire",
-      60.11,
-      "NOS"
-    ],
-    [
       "0504070341",
       "LT Spacer 1 PHASE 2 WIRE",
       35.51,
-      "NOS"
-    ],
-    [
-      "0912011441",
-      "G.I. Turn Buckle 18x5/8\"",
-      182.36,
-      "NOS"
-    ],
-    [
-      "0910010241",
-      "Caution Board 11KV",
-      143.95,
-      "NOS"
-    ],
-    [
-      "0504060941",
-      "LT Distribution Box 3Ph with Steel Strap & Buckle ABC",
-      1632.58,
-      "NOS"
-    ],
-    [
-      "0505030641",
-      "Suspension Clamp with Bracket 35SQMM Messenger",
-      352.89,
-      "NOS"
-    ],
-    [
-      "0505034141",
-      "Dead End Clamp LT ABC (3X70+1X16+1X50SQMM)",
-      307.84,
-      "NOS"
-    ],
-    [
-      "0505030841",
-      "Eye Hook for Anchor/Suspension Clamp",
-      100.67,
-      "NOS"
-    ],
-    [
-      "0504027141",
-      "IPC for ABC to ABC TEE Joint",
-      149.17,
-      "NOS"
-    ],
-    [
-      "195021741",
-      "UH-LT BKT 4 WAY",
-      0.0,
-      "NOS"
-    ],
-    [
-      "597011541",
-      "UH-CLAMP FOR 8 MTR PCC POLE",
-      0.0,
-      "NOS"
-    ],
-    [
-      "597011741",
-      "UH-Diron Clump",
-      0.0,
       "NOS"
     ],
     [
@@ -451,7 +1693,7 @@
       "NOS"
     ]
   ],
-  "labour": [
+  "labor": [
     [
       "LAB-01",
       "Survey for H.T.O.H Line",

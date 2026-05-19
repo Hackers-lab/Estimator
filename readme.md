@@ -10,6 +10,7 @@
 
 ## 🚀 What's New in Version 7.6
 
+* **📈 New 2026 Cost Data Rates:** The application is now fully upgraded with the new 2026 financial cost rate chart for all materials and labor tasks, ensuring highly accurate estimates aligned with current market values.
 * **🛠️ Iron Recipes:** Added new Iron Recipes to give you more granular control over iron calculations.
 * **📊 Live Iron Breakup:** A live iron breakup is now visible alongside the live estimate for immediate feedback on calculations.
 * **🔧 General Enhancements:** Minor adjustments and rule updates to improve the estimation engine and overall stability.
@@ -51,7 +52,7 @@ We heavily upgraded the core estimation engine and expanded the canvas capabilit
 * **PDF Schematics:** Exports massive network drawings into multi-page PDFs with automatic page orientation and continuation markers.
 
 ### 4. Built-in Database
-* Powered by a robust SQLite backend containing official master material and labor codes/rates.
+* Powered by a robust SQLite backend containing the new official 2026 master material and labor codes/rates.
 
 ---
 
@@ -65,4 +66,4 @@ We heavily upgraded the core estimation engine and expanded the canvas capabilit
 
 ## 📝 Release Notes & Installation
 Please check the releases tab to download the standalone executable for **v7.6**. 
-*(Note: Be sure to review your existing `rules.json` configurations using the new Robust Rule Manager to leverage the advanced estimation logic and new map integration features).*
+*(Note: Existing users upgrading to v7.6 will automatically receive the new 2026 cost rate chart baseline updates directly in their local system on launch, with all saved local estimates and custom overrides fully preserved!).*
