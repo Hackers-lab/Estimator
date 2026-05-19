@@ -875,6 +875,12 @@ class EstimateApp(QMainWindow, EditorMixin):
             "M.S Flat 50x6 mm":       "FLAT_50X6",
         }
 
+        # Alphanumeric normalisation map to support user's custom database names robustly
+        def normalize_name(s):
+            return "".join(c.lower() for c in s if c.isalnum())
+
+        NORM_NAME_TO_SECTION = {normalize_name(k): v for k, v in DB_NAME_TO_SECTION.items()}
+
         # ── Filter live_bom_data: only MT items that are structural iron sections ─
         # This is the single source of truth — exactly what the estimate shows.
         section_items: dict[str, list[tuple[str, float]]] = defaultdict(list)
@@ -883,7 +889,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         for item in self.live_bom_data:
             if item.get("unit", "").upper() != "MT":
                 continue
-            sec = DB_NAME_TO_SECTION.get(item["name"], "")
+            sec = NORM_NAME_TO_SECTION.get(normalize_name(item["name"]), "")
             if not sec:
                 continue  # G.I. Wire, Stay Wire, etc. — not structural iron
             if sec not in IRON_SECTIONS:
@@ -1889,6 +1895,16 @@ class EstimateApp(QMainWindow, EditorMixin):
             # Guard: only items whose DB unit is a continuous measurement (MT, KM, M…)
             # get the multiplier.  Items whose name happens to contain "ACSR" (e.g.
             # "Composite Hardware Fittings for ACSR…", unit=SET) are excluded.
+            
+            # Build standard mapping from rules of item_name -> item_code
+            rule_code_map = {}
+            for r in rules:
+                for item in r.get("items", []):
+                    iname = item.get("item_name")
+                    icode = item.get("item_code")
+                    if iname and icode:
+                        rule_code_map[iname] = icode
+
             _COUNT_UNITS = {
                 "nos", "no.", "no", "set", "sets", "pair", "pairs",
                 "pcs", "piece", "each", "ea", "day", "days", "job", "ls",
@@ -1896,10 +1912,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             for name in list(raw_bom):
                 upper_name = name.upper()
                 if any(tag in upper_name for tag in SAG_ITEMS):
-                    db_row = cursor.execute(
-                        "SELECT unit FROM materials WHERE item_name=?", (name,)
-                    ).fetchone()
-                    unit_str = (db_row[0] if db_row else "").lower().strip().rstrip(".")
+                    db_row = self._db_lookup(cursor, "Material", name, rule_code_map.get(name))
+                    unit_str = (db_row[2] if db_row else "").lower().strip().rstrip(".")
                     if unit_str not in _COUNT_UNITS:
                         raw_bom[name] = raw_bom[name] * 1.03
 
@@ -1914,30 +1928,35 @@ class EstimateApp(QMainWindow, EditorMixin):
                 if name in self.bom_overrides and self.bom_overrides[name]["type"] == item_type:
                     qty = self.bom_overrides[name]["qty"]
 
-                row = self._db_lookup(cursor, item_type, name)
+                row = self._db_lookup(cursor, item_type, name, rule_code_map.get(name))
                 if row:
-                    code, rate, unit = row
+                    code, rate, unit, db_name = row
+                    if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type:
+                        qty = self.bom_overrides[db_name]["qty"]
                     qty_rounded = round(qty, 3)
                     self.live_bom_data.append({
-                        "type": item_type, "code": code, "name": name,
+                        "type": item_type, "code": code, "name": db_name,
                         "qty": qty_rounded, "unit": unit, "rate": rate,
                         "amt": qty_rounded * rate
                     })
-                processed.add(name)
+                    processed.add(name)
+                    processed.add(db_name)
 
             # Custom overrides not in auto-BOM
             for name, override in self.bom_overrides.items():
                 if name not in processed:
                     row = self._db_lookup(cursor, override["type"], name)
                     if row:
-                        code, rate, unit = row
+                        code, rate, unit, db_name = row
                         qty = override["qty"]
                         qty_rounded = round(qty, 3)
                         self.live_bom_data.append({
-                            "type": override["type"], "code": code, "name": name,
+                            "type": override["type"], "code": code, "name": db_name,
                             "qty": qty_rounded, "unit": unit, "rate": rate,
                             "amt": qty_rounded * rate
                         })
+                        processed.add(name)
+                        processed.add(db_name)
 
             conn.close()
             self._refresh_table()
@@ -1945,16 +1964,83 @@ class EstimateApp(QMainWindow, EditorMixin):
         finally:
             self._refreshing_live = False
 
-    def _db_lookup(self, cursor, item_type, name):
+    def _db_lookup(self, cursor, item_type, name, rule_code=None):
+        def normalize(s):
+            s = s.lower()
+            s = s.replace("distribution transformer", "dtr")
+            s = s.replace("transformer", "dtr")
+            return "".join(c for c in s if c.isalnum())
+
         if item_type == "Material":
-            cursor.execute(
-                "SELECT item_code, rate, unit FROM materials WHERE item_name=?", (name,)
-            )
+            tbl = "materials"
+            name_col = "item_name"
+            code_col = "item_code"
         else:
-            cursor.execute(
-                "SELECT labor_code, rate, unit FROM labor WHERE task_name=?", (name,)
-            )
-        return cursor.fetchone()
+            tbl = "labor"
+            name_col = "task_name"
+            code_col = "labor_code"
+
+        # Tier 1: Exact Match by Name
+        cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl} WHERE {name_col}=?", (name,))
+        row = cursor.fetchone()
+        if row:
+            return row[0], row[1], row[2], row[3]
+
+        # Tier 2: Code Match
+        if rule_code:
+            rule_code_str = str(rule_code).strip()
+            cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl} WHERE {code_col}=?", (rule_code_str,))
+            row = cursor.fetchone()
+            if row:
+                return row[0], row[1], row[2], row[3]
+
+        # Fetch all items to perform case-insensitive, normalized, and fuzzy matching
+        cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl}")
+        all_items = cursor.fetchall()
+
+        # Tier 2.5: Code Match with leading-zero safety (e.g. "05105252525" matches "5105252525")
+        if rule_code:
+            rule_code_stripped = str(rule_code).strip().lstrip('0')
+            if rule_code_stripped:
+                for row in all_items:
+                    db_code = str(row[0]).strip().lstrip('0')
+                    if db_code == rule_code_stripped:
+                        return row[0], row[1], row[2], row[3]
+
+        # Tier 3: Case-Insensitive Match
+        name_lower = name.lower()
+        for row in all_items:
+            db_name = row[3]
+            if db_name and db_name.lower() == name_lower:
+                return row[0], row[1], row[2], row[3]
+
+        # Tier 4: Normalized Match
+        name_norm = normalize(name)
+        for row in all_items:
+            db_name = row[3]
+            if db_name and normalize(db_name) == name_norm:
+                return row[0], row[1], row[2], row[3]
+
+        # Tier 5: Normalized Substring Match with Number Safety
+        import re
+        rule_nums = re.findall(r'\d+', name)
+        for row in all_items:
+            db_name = row[3]
+            if not db_name:
+                continue
+            db_norm = normalize(db_name)
+            if name_norm in db_norm or db_norm in name_norm:
+                # Extra guard: numbers must match!
+                db_nums = re.findall(r'\d+', db_name)
+                num_match = True
+                for num in rule_nums:
+                    if num in {"8", "9", "11", "16", "25", "63", "100", "160", "315"} and num not in db_nums:
+                        num_match = False
+                        break
+                if num_match:
+                    return row[0], row[1], row[2], row[3]
+
+        return None
 
     @staticmethod
     def _fmt_qty(qty: float, unit: str) -> str:
