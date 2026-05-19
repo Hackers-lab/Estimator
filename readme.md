@@ -1,6 +1,6 @@
-# ERP Estimate Generator v7.5
+# ERP Estimate Generator v7.6
 
-![Version](https://img.shields.io/badge/version-7.5-blue.svg)
+![Version](https://img.shields.io/badge/version-7.6-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,7 +8,13 @@
 
 ---
 
-## 🚀 What's New in Version 7.5
+## 🚀 What's New in Version 7.6
+
+* **🛠️ Iron Recipes:** Added new Iron Recipes to give you more granular control over iron calculations.
+* **📊 Live Iron Breakup:** A live iron breakup is now visible alongside the live estimate for immediate feedback on calculations.
+* **🔧 General Enhancements:** Minor adjustments and rule updates to improve the estimation engine and overall stability.
+
+## 🔄 Previous Highlights (v7.5)
 
 * **🤖 AI Rule Creator:** You can now create and manage estimation rules using plain English! Simply describe the rule to the AI Assistant, and it will handle the complex logic for you.
 * **⚡ SIN on Existing Poles:** Support has been added for configuring SIN (Service Identification Number) directly on existing poles.
@@ -58,5 +64,5 @@ We heavily upgraded the core estimation engine and expanded the canvas capabilit
 ---
 
 ## 📝 Release Notes & Installation
-Please check the releases tab to download the standalone executable for **v7.5**. 
+Please check the releases tab to download the standalone executable for **v7.6**. 
 *(Note: Be sure to review your existing `rules.json` configurations using the new Robust Rule Manager to leverage the advanced estimation logic and new map integration features).*

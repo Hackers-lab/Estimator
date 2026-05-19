@@ -2,6 +2,21 @@
 
 ---
 
+## v7.6 — May 19, 2026
+
+### What's New
+
+#### 🛠️ Iron Recipes
+Added new Iron Recipes to give you more granular control over iron calculations.
+
+#### 📊 Live Iron Breakup
+A live iron breakup is now visible alongside the live estimate for immediate feedback on calculations.
+
+#### 🔧 General Enhancements
+Minor adjustments and rule updates to improve the estimation engine and overall stability.
+
+---
+
 ## v7.5 — May 17, 2026
 
 ### What's New

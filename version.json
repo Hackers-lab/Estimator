@@ -1,11 +1,12 @@
 {
-    "version": "7.5",
+    "version": "7.6",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-06-30",
-    "release_date": "2026-05-17",
+    "release_date": "2026-05-19",
     "changelog": {
+        "7.6": "Added Iron Recipes for granular control over iron calculations, live iron breakup along with the live estimate, minor adjustments, and rule updates.",
         "7.5": "AI Rule Creator (plain English rule generation), Service Identification Number (SIN) on existing poles, rule preservation on update, and extended app validity until June 30, 2026.",
         "7.2": "Fixed Excel/App total mismatch by rounding every item quantity to 3 decimals before amount calculation, matching Excel export precision and preventing hidden-decimal inflation of final totals.",
         "6.9": "Fixed openpyxl NameError on Excel export; all module imports verified clean",
