@@ -1,6 +1,6 @@
 # Future Feature Backlog
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 ---
 
@@ -13,6 +13,11 @@ Last updated: 2026-05-18
 - Configurable Rate Chart Base Year for escalations (Settings → Rate Chart Year dialog + database persistence).
 - Rule Grouping (Phase 1.1): One condition maps to multiple items; SQLite auto-migration; and interactive items table editor in Ruleset Manager UI.
 - Phase 2 — Iron Recipe System: Built dynamic database-backed iron recipes template system (`data/recipes.json` + `recipes`/`sections` database tables), complete CRUD API integration, canvas property serialization, Property Editor dropdown integration, dynamic Rule Engine `"formula": "recipe"` expansion, and premium `RecipeManagerDialog` UI for full template and steel profile management.
+- Iron Breakup Sheet (2.5): Section-centric Excel layout with nested object groups, IRON SUMMARY block per section type, 3-decimal formatting, wastage + final total rows. No combined grand total mixing section types.
+- Externalize Iron Variables (2.6): All kg/m values for MS iron sections stored in `sections` DB table; recipe engine and rule engine both read from this single source. No hardcoded values in rules or formulas.
+- Iron-estimate sync fix: Recipe expansion in rule engine now accumulates by exact materials-table name (hardcoded section→DB-name map). DB rule seeding changed to `INSERT OR REPLACE` so `rules.json` changes always propagate. App data reset no longer copies stale root DB.
+- SAG wastage guard: Wastage multiplier (×1.03) now checks the item's DB unit before applying — counted items (SET, NOS) containing "ACSR" in their name no longer receive spurious wastage.
+- Ruleset Manager recipe labels: Iron rule cards now display the actual recipe name (e.g., "HT Pole Extension Iron") and a green "recipe" badge instead of the generic "Structural Iron (from Recipe)" placeholder.
 
 ---
 
@@ -69,18 +74,15 @@ Last updated: 2026-05-18
 - Clone, Add New, Delete buttons.
 - Changes are local per installation — does not affect other users.
 
-### 2.5 Iron Breakup Sheet (Excel) — Full Redesign
-- One descriptive block per object in the sheet.
-- Each block shows: object name, location label, recipe name used.
-- Each row in block: description, section, length, qty, total length, kg/m, weight in kg.
-- Bottom of sheet: summary grouped by section type across all objects.
-- Grand total in kg and MT.
-- Every kilogram fully traceable to a specific object and recipe item.
+### 2.5 Iron Breakup Sheet (Excel) — Full Redesign [COMPLETED]
+- Section-centric outer layout with nested object groups per section block.
+- Per-object sub-headers, individual recipe item rows (No × Length), object iron totals.
+- Bottom IRON SUMMARY: one row per section type (MT > 0), then TOTAL IRON, wastage @ 3%, TOTAL (incl. wastage).
+- All values 3 decimal places. No combined grand total mixing different section types.
 
-### 2.6 Externalize Iron Variables for Rule Engine
-- Move iron section weight variables/aliases (CH_75X40, ANG_65X65X6, FLAT_65X6, etc.) to external config.
-- Rule engine and recipe engine both read from the same source.
-- No hardcoded kg/m values in code or rule formulas.
+### 2.6 Externalize Iron Variables for Rule Engine [COMPLETED]
+- Iron section kg/m values stored in `sections` DB table; editable via Iron Recipes Manager.
+- Rule engine and recipe engine both read kg/m from DB — no hardcoded values in rules or code.
 
 ### 2.7 Externalize Conversion Rate
 - Move escalation/conversion rate logic to external config source.

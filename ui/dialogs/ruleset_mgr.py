@@ -175,6 +175,7 @@ class RulesetManagerDialog(QDialog):
         self._view_mode            = "grouped"   # "flat" | "grouped"
         self._editor_mode          = "rule"      # "rule" | "group"
         self._group_edit_indices   = []          # rule indices for current group edit
+        self._recipe_name_cache: dict[str, str] = {}  # recipe_key → display name
 
         self._build_ui()
         self.load_rules()
@@ -711,6 +712,24 @@ class RulesetManagerDialog(QDialog):
         self._update_centre_title()
         self._update_tree_counts()
 
+    # Regex matching recipe key identifiers (same pattern as rule_engine.py)
+    _RECIPE_KEY_RE = re.compile(r'^[A-Z][A-Z0-9_]{1,}$')
+
+    def _get_recipe_display(self, formula: str) -> str | None:
+        """Return a friendly recipe name for recipe-key formulas, or None."""
+        formula = (formula or "").strip()
+        if formula == "recipe":
+            return "Active structure recipe"
+        if not self._RECIPE_KEY_RE.match(formula):
+            return None
+        if not self._recipe_name_cache:
+            try:
+                from core import db_gateway as _dbg
+                self._recipe_name_cache = {r["recipe_key"]: r["name"] for r in _dbg.get_recipes()}
+            except Exception:
+                pass
+        return self._recipe_name_cache.get(formula)
+
     def _make_rule_card_base(self, rule_index: int, rule: dict, sim_hit: bool, is_child: bool = False):
         card     = ClickableCard(lambda idx=rule_index: self._on_card(idx))
         selected = rule_index == self.selected_rule_index
@@ -762,13 +781,19 @@ class RulesetManagerDialog(QDialog):
         lay.addWidget(badge)
 
         # 3. Content Row
-        name_l = QLabel(rule.get("item_name", "Unnamed"))
+        formula = rule.get("formula", "1")
+        recipe_display = self._get_recipe_display(formula)
+
+        # When a recipe key is used, show the recipe's name instead of the
+        # generic "Structural Iron (from Recipe)" placeholder text.
+        display_name = recipe_display if recipe_display else rule.get("item_name", "Unnamed")
+        name_l = QLabel(display_name)
         name_style = f"font-size:12px; {'font-weight:bold;' if not is_child else ''}"
         if not enabled:
             name_style += " color:#aaa; text-decoration:line-through;"
         name_l.setStyleSheet(name_style)
         lay.addWidget(name_l, 1) # Item Name takes available space
-        
+
         # Condition (only in flat view)
         if not is_child:
             cond_l = QLabel(rule.get("condition", "") or "(always)")
@@ -776,7 +801,7 @@ class RulesetManagerDialog(QDialog):
             lay.addWidget(cond_l)
 
         lay.addStretch() # Spacer to keep metadata on the right
-        
+
         # Code
         code = rule.get("item_code", "")
         if code and code != "N/A":
@@ -784,11 +809,19 @@ class RulesetManagerDialog(QDialog):
             code_l.setStyleSheet("font-size:10px; color:#999; background:#f0f0f0; padding:1px 4px; border-radius:2px;")
             lay.addWidget(code_l)
 
-        # Formula / Quantity
-        form_l = QLabel(f"{'×' if is_child else 'qty='}{rule.get('formula','1')}")
+        # Formula / Quantity — recipe items show "recipe" badge instead of raw key
+        if recipe_display:
+            form_text = "recipe"
+            form_color = "#27AE60" if enabled else "#ccc"
+            form_bg    = "#e8f8f0"
+        else:
+            form_text  = f"{'×' if is_child else 'qty='}{formula}"
+            form_color = "#185FA5" if enabled else "#ccc"
+            form_bg    = "#eef4fb"
+        form_l = QLabel(form_text)
         form_l.setStyleSheet(
-            f"font-size:11px; font-weight:bold; color:{'#ccc' if not enabled else '#185FA5'}; "
-            "background:#eef4fb; padding:1px 6px; border-radius:3px;"
+            f"font-size:11px; font-weight:bold; color:{form_color}; "
+            f"background:{form_bg}; padding:1px 6px; border-radius:3px;"
         )
         lay.addWidget(form_l)
 

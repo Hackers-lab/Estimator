@@ -963,24 +963,12 @@ class EstimateApp(QMainWindow, EditorMixin):
                  bg="#D9E1F2", bold=True)
             _row(["", "", "", "", ""], bg="#F8F8F8")  # spacer
 
-        # ── Iron Summary + grand total + wastage ──────────────────────────────
+        # ── Iron Summary (per section only — no combined grand total) ──────────
         if section_totals:
             _span_row("  IRON SUMMARY", "#1F4E79", bold=True, fg="#FFFFFF")
             for sec_lbl, total_mt in section_totals:
                 _row([f"  {sec_lbl}", "", "", "", f"{total_mt:.3f} MT"],
                      bg="#FFF2CC", bold=False)
-
-            grand_mt = round(sum(t for _, t in section_totals), 3)
-            wastage  = round(grand_mt * 0.03, 3)
-            final_mt = round(grand_mt + wastage, 3)
-
-            _row(["", "", "", "", ""], bg="#F8F8F8")  # spacer
-            _row(["  TOTAL IRON (as per Estimate):", "", "", "", f"{grand_mt:.3f} MT"],
-                 bg="#FFF2CC", bold=True)
-            _row(["    Add: Wastage @ 3%:", "", "", "", f"{wastage:.3f} MT"],
-                 bg="#FFF2CC", bold=False)
-            _row(["  TOTAL IRON (incl. wastage):", "", "", "", f"{final_mt:.3f} MT"],
-                 bg="#C6EFCE", bold=True)
 
     # =========================================================================
     #  PROJECT WIZARD
