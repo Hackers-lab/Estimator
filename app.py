@@ -2076,7 +2076,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.live_table.itemChanged.connect(self.on_table_edit)
 
     def change_rate_chart_year(self):
-        curr_yr = int(defaults.current.get("rate_chart_base_year", 2024))
+        curr_yr = int(defaults.current.get("rate_chart_base_year", 2026))
         now = datetime.now()
         max_yr = now.year if now.month >= 4 else now.year - 1
 
@@ -2100,11 +2100,11 @@ class EstimateApp(QMainWindow, EditorMixin):
         now = datetime.now()
         fy_start = now.year if now.month >= 4 else now.year - 1
 
-        base_yr_str = defaults.current.get("rate_chart_base_year", "2024")
+        base_yr_str = defaults.current.get("rate_chart_base_year", "2026")
         try:
             base_yr = int(base_yr_str)
         except ValueError:
-            base_yr = 2024
+            base_yr = 2026
 
         self.escalations = []
         cur = mat_base
