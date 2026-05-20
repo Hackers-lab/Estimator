@@ -10,12 +10,12 @@
 
 ## 🚀 What's New in Version 7.7
 
-* **🤖 AI "Describe in plain English" Button Restored:** The AI Describe button has been restored to the Condition Logic section of the Rule Editor under a polished new layout. A duplicate dead code block from the older single-item editor that caused UI crashes on database lookups has been completely removed.
-* **🔒 Secure API Key & Environment Loading:** We resolved a security vulnerability where the `GROQ_API_KEY` was hardcoded inside `api_secrets.py` and tracked in Git. The app now dynamically loads the API key from:
-  1. Environment variables (`os.environ.get("GROQ_API_KEY")`)
-  2. A local `.env` file in the application directory
-  3. A local untracked `api_secrets.py` fallback file
-* **🔧 Cleaned Git Workspace:** Secrets (`.env` and `api_secrets.py`) have been correctly ignored and cleaned from the Git index cache to prevent key leakage in builds and repository history.
+* **🤖 AI Rule Creator Option Restored:** The **"✨ Describe in plain English"** button has been fully restored under a polished new layout in the Rule Editor's condition panel. In addition, an outdated internal layout chunk that was causing application crashes when looking up items in the database has been completely removed.
+* **🛠️ Fixed HT Pole Iron & Defaults Calculation:**
+  - *HT Pole Iron*: Corrected the structural iron calculations so that the top adaptor and V-bracket (composed of Channel 75x40 1.8m and Flat 65x6 1.0m) are correctly and reliably evaluated for HT poles.
+  - *Default Fallback Iron Recipes*: Restored stable structural iron fallback recipes for both LT and HT poles, preventing errors where unassigned iron recipes would omit basic pole iron.
+* **💾 Permanent Recipe Deletion:** Resolved an issue where deleting a factory recipe from the database (such as the default LT iron recipe) would cause it to be recreated and reappear when restarting the application. The system now permanently respects your deletion decisions across relaunches.
+* **🔧 Automated Build Stabilization:** Corrected internal dependency compilation and packaging steps to ensure that standalone builds generated on GitHub Releases load instantly and run reliably out-of-the-box.
 
 ## 🔄 Previous Highlights (v7.6)
 

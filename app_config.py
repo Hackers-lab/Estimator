@@ -65,31 +65,9 @@ APP_AUTHOR = "Pramod Verma"
 APP_EXPIRY = "2026-06-30"
 
 # AI Assistant API Key
-# 1. First attempt: Read from environment variable
-GROQ_API_KEY = _os.environ.get("GROQ_API_KEY", "").strip()
+try:
+    from api_secrets import GROQ_API_KEY
+except ImportError:
+    GROQ_API_KEY = ""
 
-# 2. Second attempt: Read from a local .env file in the executable or project root
-if not GROQ_API_KEY:
-    try:
-        # Resolve path to .env file relative to the app root
-        _env_path = _os.path.join(get_app_root(), ".env")
-        if _os.path.exists(_env_path):
-            with open(_env_path, "r", encoding="utf-8") as _f:
-                for _line in _f:
-                    _line = _line.strip()
-                    if _line and not _line.startswith("#") and "=" in _line:
-                        _k, _v = _line.split("=", 1)
-                        if _k.strip() == "GROQ_API_KEY":
-                            GROQ_API_KEY = _v.strip().strip('"').strip("'")
-                            break
-    except Exception:
-        pass
-
-# 3. Third attempt: Fallback to hardcoded api_secrets.py (for backward compatibility)
-if not GROQ_API_KEY:
-    try:
-        from api_secrets import GROQ_API_KEY as _sec_key
-        GROQ_API_KEY = _sec_key.strip()
-    except ImportError:
-        pass
 

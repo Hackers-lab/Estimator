@@ -39,9 +39,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ── 3b. Create api_secrets.py from Secret ──────────────────────────────
+      - name: Create api_secrets.py
+        shell: pwsh
+        run: |
+          echo "GROQ_API_KEY = \"${{ secrets.GROQ_API_KEY }}\"" | Out-File -FilePath api_secrets.py -Encoding utf8
+
       # ── 4. Build the Windows EXE and ZIP ───────────────────────────────────
       - name: Build application
         run: python build.py
+
 
       # ── 5. Resolve version and ZIP path from the tag ───────────────────────
       - name: Resolve version info
