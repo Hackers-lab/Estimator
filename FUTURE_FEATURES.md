@@ -18,6 +18,9 @@ Last updated: 2026-05-19
 - Iron-estimate sync fix: Recipe expansion in rule engine now accumulates by exact materials-table name (hardcoded section→DB-name map). DB rule seeding changed to `INSERT OR REPLACE` so `rules.json` changes always propagate. App data reset no longer copies stale root DB.
 - SAG wastage guard: Wastage multiplier (×1.03) now checks the item's DB unit before applying — counted items (SET, NOS) containing "ACSR" in their name no longer receive spurious wastage.
 - Ruleset Manager recipe labels: Iron rule cards now display the actual recipe name (e.g., "HT Pole Extension Iron") and a green "recipe" badge instead of the generic "Structural Iron (from Recipe)" placeholder.
+- Factory default recipe deletion and persistence: Fully support deletion of default factory recipes (`POLE_LT_IRON`, etc.) and persist their deleted state across relaunch via the `deleted_factory_recipes` setting list.
+- External Property Containers (Phase 3.3): Moved hardcoded pole heights, conductor sizes, and option dropdowns to customizable SQLite database tables (`height_options`, `conductor_options`), managed via a sleek, modern, tabbed "Heights & Sizes" Property Editor UI.
+- Externalize Conversion Rate / Escalation calculation (Phase 2.7): Replaced hardcoded base year escalations with dynamic compound calculations that load the settings-based base year and evaluate sundries/escalations dynamically without code changes.
 
 ---
 
@@ -51,22 +54,22 @@ Last updated: 2026-05-19
 
 ## Phase 2 — Iron Recipe System [COMPLETED]
 
-### 2.1 Recipe Data
+### 2.1 Recipe Data [COMPLETED]
 - Create `data/recipes.json` — named templates per object variant.
 - Each recipe contains: description per item, section type, length (m), quantity, kg/m.
 - Add `sections` table to `erp_master.db` — section code, label, kg per metre.
 
-### 2.2 Canvas Changes
+### 2.2 Canvas Changes [COMPLETED]
 - Add capacity/variant dropdown to SmartStructure (DTR size, structure type).
 - Add iron recipe picker dropdown on poles and structures in property panel.
 - Selected recipe key saved in project JSON alongside other object properties.
 
-### 2.3 Rule Engine Changes
+### 2.3 Rule Engine Changes [COMPLETED]
 - Iron rules simplified to `"formula": "recipe"` — one line per iron rule.
 - Rule engine detects `recipe` formula and delegates to recipe engine.
 - Recipe engine reads selected recipe, calculates weights, returns descriptive line items.
 
-### 2.4 Recipe Manager UI
+### 2.4 Recipe Manager UI [COMPLETED]
 - Settings → Iron Recipes.
 - Expandable list — click a recipe to open inline editable grid.
 - Each row: description, section, length, qty, kg/m, auto-calculated weight.
@@ -84,14 +87,14 @@ Last updated: 2026-05-19
 - Iron section kg/m values stored in `sections` DB table; editable via Iron Recipes Manager.
 - Rule engine and recipe engine both read kg/m from DB — no hardcoded values in rules or code.
 
-### 2.7 Externalize Conversion Rate
+### 2.7 Externalize Conversion Rate [COMPLETED]
 - Move escalation/conversion rate logic to external config source.
 - Editable from Settings without code changes.
 - Ties in with Rate Chart Base Year (1.4 above).
 
 ---
 
-## Phase 3 — User Control & Customisation
+## Phase 3 — User Control & Customisation [PARTIALLY COMPLETED]
 
 ### 3.1 Per-Object Estimate Override
 - Any line in live estimate table can be overridden for a specific object.
@@ -106,7 +109,7 @@ Last updated: 2026-05-19
   - Formula and calculated value.
 - User understands exactly where every number came from.
 
-### 3.3 External Property Containers
+### 3.3 External Property Containers [COMPLETED]
 - Move hardcoded object property options to external definitions.
 - Example: Pole type values (PCC/STP/RAIL) and heights (8m/9m/11m) editable without code changes.
 - User can add custom options (e.g. new pole type or height) from Settings.
@@ -191,12 +194,12 @@ Last updated: 2026-05-19
 
 ## Implementation Order (Recommended)
 
-1. Rate chart base year setting (1.4) — small, high value, do immediately.
-2. Rule overlap detection (1.3) — before any new rules are added.
-3. Rule grouping migration (1.1) — foundation for everything else.
-4. Known rule fixes (1.2).
-5. Iron recipe system (Phase 2) — biggest structural improvement.
-6. External property containers (3.3).
+1. Rate chart base year setting (1.4) — [COMPLETED]
+2. Rule grouping migration (1.1) — [COMPLETED]
+3. Iron recipe system (Phase 2) — [COMPLETED]
+4. External property containers (3.3) — [COMPLETED]
+5. Rule overlap detection (1.3) — before any new rules are added.
+6. Known rule fixes (1.2).
 7. Improved rule adding UI (3.5).
 8. Per-object overrides and transparency (3.1, 3.2).
 9. User profiles and billing (Phase 4).
