@@ -14,7 +14,30 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
 
+import os
+import json
+from app_config import get_data_path
 from core import db_gateway as _dbg
+
+# Dynamic loading of default/factory recipe keys from recipes.json
+def _get_factory_recipe_keys() -> set[str]:
+    try:
+        path = get_data_path("recipes.json")
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return set(data.keys())
+    except Exception as e:
+        print(f"[RecipeManager] Error loading factory recipes from file: {e}")
+    # Fallback to standard built-in keys if file not found or corrupted
+    return {
+        "DP_IRON", "TP_IRON", "4P_IRON", "DTR_IRON",
+        "POLE_LT_IRON", "POLE_LT_TOP_ADAPTOR", "POLE_HT_IRON",
+        "POLE_LT_EXT", "POLE_HT_EXT", "CG_BRACKET",
+        "LT_ACSR_BRACKET", "AB_CABLE_CLAMP", "HT_JUNCTION"
+    }
+
+_FACTORY_RECIPE_KEYS = _get_factory_recipe_keys()
 
 class RecipeManagerDialog(QDialog):
     """
@@ -204,10 +227,10 @@ class RecipeManagerDialog(QDialog):
         self.recipe_name_input.setText(self.current_recipe["name"])
         self.recipe_type_cb.setCurrentText(self.current_recipe.get("object_type", "SmartStructure"))
 
-        # Disable recipe_key editing for built-in factory templates
-        is_factory = self.current_recipe["recipe_key"] in ["DP_IRON", "TP_IRON", "4P_IRON", "DTR_IRON"]
+        # Disable recipe_key editing for built-in factory templates, but allow deletion
+        is_factory = self.current_recipe["recipe_key"] in _FACTORY_RECIPE_KEYS
         self.recipe_key_input.setEnabled(not is_factory)
-        self.btn_delete_recipe.setEnabled(not is_factory)
+        self.btn_delete_recipe.setEnabled(True)
 
         # Populate Table
         self._populate_table(self.current_recipe.get("items", []))
@@ -305,17 +328,23 @@ class RecipeManagerDialog(QDialog):
 
         recipe = self.recipes_list[row]
         
-        # Factory check
-        if recipe["recipe_key"] in ["DP_IRON", "TP_IRON", "4P_IRON", "DTR_IRON"]:
-            QMessageBox.warning(self, "Action Denied", "Cannot delete built-in factory templates.")
-            return
-
         reply = QMessageBox.question(
             self, "Confirm Delete",
             f"Are you sure you want to delete the recipe '{recipe['name']}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
+            # If it's a factory recipe, record it as deleted in user settings
+            if recipe["recipe_key"] in _FACTORY_RECIPE_KEYS:
+                try:
+                    deleted_json = _dbg.get_setting("deleted_factory_recipes", "[]")
+                    deleted_list = json.loads(deleted_json)
+                except Exception:
+                    deleted_list = []
+                if recipe["recipe_key"] not in deleted_list:
+                    deleted_list.append(recipe["recipe_key"])
+                    _dbg.save_setting("deleted_factory_recipes", json.dumps(deleted_list))
+
             # Delete from DB immediately
             _dbg.delete_recipe(recipe["recipe_key"])
             self.recipes_list.pop(row)

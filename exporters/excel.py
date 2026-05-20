@@ -399,10 +399,18 @@ class ExcelExporter:
 
         lt_recipe_counts: dict = {}
         for p in new_lt_poles:
-            rkey = getattr(p, "iron_recipe", "POLE_LT_IRON") or "POLE_LT_IRON"
+            rkey = getattr(p, "iron_recipe", "None") or "None"
             if rkey == "None":
                 rkey = "POLE_LT_IRON"
             lt_recipe_counts[rkey] = lt_recipe_counts.get(rkey, 0) + 1
+
+        new_ht_poles = [p for p in poles if not p.is_existing and p.pole_type == "HT"]
+        ht_recipe_counts: dict = {}
+        for p in new_ht_poles:
+            rkey = getattr(p, "iron_recipe", "None") or "None"
+            if rkey == "None":
+                rkey = "POLE_HT_IRON"
+            ht_recipe_counts[rkey] = ht_recipe_counts.get(rkey, 0) + 1
 
         ext_lt = [p for p in poles if not p.is_existing and p.pole_type == "LT"
                   and getattr(p, "has_extension", False)]
@@ -476,7 +484,10 @@ class ExcelExporter:
         add_recipe_obj(f"TP Structure Iron", "TP_IRON", counts["tp_count"])
         add_recipe_obj(f"4-Pole Structure Iron", "4P_IRON", counts["4p_count"])
         add_recipe_obj(f"DTR Substation Iron", "DTR_IRON", counts["dtr_count"])
-        add_recipe_obj(f"HT Pole Iron", "POLE_HT_IRON", counts["ht_pole_count"])
+        for rkey, cnt in ht_recipe_counts.items():
+            rec = find_recipe(rkey)
+            label = rec["name"] if rec else rkey
+            add_recipe_obj(f"HT Pole Iron — {label}", rkey, cnt)
 
         add_direct_obj(f"HT Pole Extension ({counts['ht_ext_count']} nos)", counts["ht_ext_count"], [
             {"description": "HT Pole Extension (Channel)", "section": "CH_75X40",

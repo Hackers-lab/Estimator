@@ -76,8 +76,7 @@ Estimator/
 │   │
 │   └── editors/              ← PROPERTY SIDEBAR PANEL
 │       ├── __init__.py
-│       ├── editor_mixin.py   ← EditorMixin: right-panel property editor for selected objects
-│       └── _raw_extract.py   ← Raw values extraction helpers
+│       └── editor_mixin.py   ← EditorMixin: right-panel property editor for selected objects
 │
 ├── exporters/                ← EXPORT LOGIC
 │   ├── __init__.py

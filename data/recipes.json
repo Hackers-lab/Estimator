@@ -194,12 +194,21 @@
     ]
   },
   "POLE_HT_IRON": {
+    "recipe_key": "POLE_HT_IRON",
     "name": "HT Pole Iron Recipe",
-    "description": "Iron per new HT single pole.",
+    "description": "Iron per new HT single pole. V-Bracket + Top Adaptor.",
     "object_type": "SmartPole",
     "items": [
       {
-        "description": "HT Single Pole (Flat - 2 nos)",
+        "description": "HT Single Pole (V-Bracket & Top Adaptor)",
+        "section": "CH_75X40",
+        "length_per_piece": 1.8,
+        "qty_per_object": 1,
+        "length_formula": "=1.5+0.3",
+        "qty_source": "ht_pole_count"
+      },
+      {
+        "description": "HT Single Pole (Clamp Flat)",
         "section": "FLAT_65X6",
         "length_per_piece": 1.0,
         "qty_per_object": 1,

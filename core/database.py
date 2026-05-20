@@ -463,12 +463,25 @@ def _seed_recipes_and_sections_tables(cursor) -> None:
     # 2. Seed default recipes from recipes.json
     # Use INSERT OR REPLACE so factory recipes always have correct field names
     # (length_per_piece / qty_per_object). Custom recipes not in recipes.json are unaffected.
+    # Skip any recipes explicitly deleted by the user (stored in settings).
     recipes_file = get_data_path("recipes.json")
     if os.path.exists(recipes_file):
         try:
+            # Query deleted factory recipes
+            cursor.execute("SELECT value FROM settings WHERE key='deleted_factory_recipes'")
+            row = cursor.fetchone()
+            deleted_factory_recipes = set()
+            if row:
+                try:
+                    deleted_factory_recipes = set(json.loads(row[0]))
+                except Exception:
+                    pass
+
             with open(recipes_file, "r", encoding="utf-8") as f:
                 recipes_data = json.load(f)
             for rkey, rval in recipes_data.items():
+                if rkey in deleted_factory_recipes:
+                    continue
                 cursor.execute(
                     "INSERT OR REPLACE INTO recipes (recipe_key, name, description, object_type, items_json) "
                     "VALUES (?, ?, ?, ?, ?)",
