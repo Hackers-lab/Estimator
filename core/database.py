@@ -79,7 +79,7 @@ def _load_seed_data() -> tuple[list, list]:
         with open(_SEED_DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         materials = [tuple(r) for r in data.get("materials", [])]
-        labour    = [tuple(r) for r in data.get("labour", [])]
+        labour    = [tuple(r) for r in data.get("labor", [])]
         return materials, labour
     except (FileNotFoundError, json.JSONDecodeError, KeyError) as exc:
         print(f"[DB] Warning: could not load seed_data.json ({exc}). Using empty seed.")
@@ -112,19 +112,45 @@ def setup_database():
         )
     """)
 
+    # Migrate older user databases that were created before materials gained an item_code column.
+    cursor.execute("PRAGMA table_info(materials)")
+    material_cols = [row[1] for row in cursor.fetchall()]
+    if "item_code" not in material_cols:
+        cursor.execute("ALTER TABLE materials ADD COLUMN item_code TEXT")
+
+    cursor.execute("PRAGMA table_info(labor)")
+    labor_cols = [row[1] for row in cursor.fetchall()]
+    if not labor_cols:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS labor (
+                labor_code TEXT PRIMARY KEY,
+                task_name  TEXT,
+                rate       REAL,
+                unit       TEXT
+            )
+        """)
+    elif "labor_code" not in labor_cols:
+        cursor.execute("ALTER TABLE labor ADD COLUMN labor_code TEXT")
+
     cursor.execute("SELECT COUNT(*) FROM materials")
-    is_empty = cursor.fetchone()[0] == 0
+    materials_empty = cursor.fetchone()[0] == 0
+    cursor.execute("SELECT COUNT(*) FROM labor")
+    labor_empty = cursor.fetchone()[0] == 0
 
     seed_materials, seed_labour = _load_seed_data()
 
-    if is_empty:
+    if materials_empty and labor_empty:
         cursor.executemany("INSERT INTO materials VALUES (?,?,?,?)", seed_materials)
         cursor.executemany("INSERT INTO labor VALUES (?,?,?,?)", seed_labour)
     else:
         new_materials = [r for r in seed_materials if r[0].startswith(_NEW_MATERIAL_PREFIXES)]
-        new_labour    = [r for r in seed_labour    if r[0] in _NEW_LABOUR_CODES]
         cursor.executemany("INSERT OR IGNORE INTO materials VALUES (?,?,?,?)", new_materials)
-        cursor.executemany("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", new_labour)
+
+        if labor_empty:
+            cursor.executemany("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", seed_labour)
+        else:
+            new_labour = [r for r in seed_labour if r[0] in _NEW_LABOUR_CODES]
+            cursor.executemany("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", new_labour)
 
     # ── Config tables (added in v7.0) ──────────────────────────────────────────
     _create_config_tables(cursor)
@@ -140,6 +166,22 @@ def setup_database():
         # DB exists, but we might have new rules/items in the app update
         conn.commit() # Save state before mgr syncs
         data_mgr.check_and_sync()
+
+    # ── Settings migration ─────────────────────────────────────────────────────
+    try:
+        cursor.execute("SELECT value FROM settings WHERE key='rate_chart_base_year'")
+        row = cursor.fetchone()
+        if row:
+            if row[0] == "2024":
+                print("[DB] Migrating rate_chart_base_year from 2024 to 2026")
+                cursor.execute("UPDATE settings SET value='2026' WHERE key='rate_chart_base_year'")
+        else:
+            cursor.execute(
+                "INSERT INTO settings (key, value, category) VALUES (?, ?, ?)",
+                ("rate_chart_base_year", "2026", "general")
+            )
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()

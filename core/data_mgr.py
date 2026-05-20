@@ -110,8 +110,16 @@ def sync_factory_updates():
                 seed_data = json.load(f)
             
             # Materials (Sync by item_code)
-            cursor.execute("SELECT item_code, item_name FROM materials")
-            existing_m = {row[0]: row[1] for row in cursor.fetchall() if row[0]}
+            try:
+                cursor.execute("SELECT item_code, item_name FROM materials")
+                existing_m = {row[0]: row[1] for row in cursor.fetchall() if row[0]}
+            except sqlite3.OperationalError as e:
+                err = str(e).lower()
+                if "no such column: item_code" in err:
+                    cursor.execute("ALTER TABLE materials ADD COLUMN item_code TEXT")
+                    existing_m = {}
+                else:
+                    raise
             
             for m in seed_data.get("materials", []):
                 m_code, m_name, m_rate, m_unit = m[0], m[1], m[2], m[3]
@@ -155,6 +163,22 @@ def sync_factory_updates():
 
         except Exception as e:
             print(f"[DataMgr] Seed data sync failed: {e}")
+
+    # --- 3. Sync Settings (rate_chart_base_year: 2024 -> 2026) ---
+    try:
+        cursor.execute("SELECT value FROM settings WHERE key='rate_chart_base_year'")
+        row = cursor.fetchone()
+        if row:
+            if row[0] == "2024":
+                print("[DataMgr] Synced rate_chart_base_year from 2024 to 2026")
+                cursor.execute("UPDATE settings SET value='2026' WHERE key='rate_chart_base_year'")
+        else:
+            cursor.execute(
+                "INSERT INTO settings (key, value, category) VALUES (?, ?, ?)",
+                ("rate_chart_base_year", "2026", "general")
+            )
+    except Exception as e:
+        print(f"[DataMgr] Settings sync failed: {e}")
 
     conn.commit()
     conn.close()

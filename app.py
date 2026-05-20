@@ -94,6 +94,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         super().__init__()
 
         setup_database()
+        defaults.load()
 
         # ── Project-level state ────────────────────────────────────────────
         self.project_meta   = dict(DEFAULT_PROJECT_META)
@@ -2021,6 +2022,31 @@ class EstimateApp(QMainWindow, EditorMixin):
             if db_name and normalize(db_name) == name_norm:
                 return row[0], row[1], row[2], row[3]
 
+        # Tier 4.5: Labor-specific normalization for common prefix variants.
+        if item_type == "Labor":
+            alt_names = []
+            low_name = name.lower().strip()
+            if low_name.startswith("aug. "):
+                alt_names.append(low_name[5:])
+            if low_name.startswith("dtr aug. "):
+                alt_names.append(low_name[9:])
+            if low_name.startswith("dtr s/stn "):
+                alt_names.append(low_name[10:])
+            if low_name.startswith("dtr "):
+                alt_names.append(low_name[4:])
+
+            for alt in alt_names:
+                alt_norm = normalize(alt)
+                if not alt_norm or alt_norm == name_norm:
+                    continue
+                for row in all_items:
+                    db_name = row[3]
+                    if not db_name:
+                        continue
+                    db_norm = normalize(db_name)
+                    if alt_norm == db_norm or alt_norm in db_norm or db_norm in alt_norm:
+                        return row[0], row[1], row[2], row[3]
+
         # Tier 5: Normalized Substring Match with Number Safety
         import re
         rule_nums = re.findall(r'\d+', name)
@@ -2080,18 +2106,30 @@ class EstimateApp(QMainWindow, EditorMixin):
         now = datetime.now()
         max_yr = now.year if now.month >= 4 else now.year - 1
 
-        val, ok = QInputDialog.getInt(
+        start_yr = min(2018, curr_yr)
+        options = []
+        for yr in range(start_yr, max_yr + 1):
+            options.append(f"{yr}-{str(yr+1)[-2:]}")
+
+        curr_fy_str = f"{curr_yr}-{str(curr_yr+1)[-2:]}"
+        try:
+            curr_idx = options.index(curr_fy_str)
+        except ValueError:
+            curr_idx = len(options) - 1
+
+        val_str, ok = QInputDialog.getItem(
             self,
             "Rate Chart Year",
-            "Enter the Base Year for Escalation calculations:",
-            curr_yr,
-            2018,
-            max_yr,
-            1
+            "Select the Base Financial Year for Escalation calculations:",
+            options,
+            curr_idx,
+            False
         )
-        if ok and val != curr_yr:
-            defaults.save({"rate_chart_base_year": val})
-            self.refresh_live_estimate()
+        if ok and val_str:
+            val = int(val_str.split("-")[0])
+            if val != curr_yr:
+                defaults.save({"rate_chart_base_year": val})
+                self.refresh_live_estimate()
 
     def _recalculate_totals(self, sup_rate):
         mat_base = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Material")
@@ -2108,7 +2146,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         self.escalations = []
         cur = mat_base
-        for yr in range(base_yr, fy_start + 1):
+        for yr in range(base_yr + 1, fy_start + 1):
             esc = cur * 0.05
             self.escalations.append((f"{str(yr)[-2:]}-{str(yr+1)[-2:]}", esc))
             cur += esc
