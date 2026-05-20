@@ -105,6 +105,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.span_start_pole = None
         self.last_placed_node = None        # for auto-span chain when placing nodes
         self.autosave_file  = "autosave_erp.json"
+        self._drawing_dirty = False            # True when canvas has unsaved changes
         self.current_tool   = "SELECT"
         self._pending_symbol_shape = "circle"   # last chosen symbol shape
 
@@ -2593,6 +2594,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         # If user did something after undoing, truncate the 'redo' future
         self.history = self.history[:self.history_index + 1]
         self.history.append(state)
+        self._drawing_dirty = True
         
         if len(self.history) > 50:
             self.history.pop(0)
@@ -2639,6 +2641,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if ans == QMessageBox.StandardButton.Yes:
+            # Auto-save current drawing before clearing
+            self._save_unsaved_drawing()
             self.scene.clear()
             self.span_start_pole  = None
             self.last_placed_node = None
@@ -2646,15 +2650,17 @@ class EstimateApp(QMainWindow, EditorMixin):
             SmartPole.reset_counters()
             SmartStructure.reset_counters()
             SmartConsumer.reset_counters()
+            self._drawing_dirty = False
             self._show_blank_start_page()
 
     def load_from_file(self):
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Open Project", "", "JSON Files (*.json)"
+            self, "Open Project", self._get_drawings_dir(), "JSON Files (*.json)"
         )
         if filename:
             with open(filename, "r", encoding="utf-8") as f:
                 self.parse_load_data(json.load(f))
+            self._drawing_dirty = False
 
     def save_to_file(self):
         last_dir = str(defaults.current.get("export_last_dir", "") or "").strip()
@@ -2666,6 +2672,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         if filename:
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(self.compile_save_data(), f, indent=2)
+            self._drawing_dirty = False
             defaults.save({"export_last_dir": os.path.dirname(filename)})
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
@@ -2695,9 +2702,49 @@ class EstimateApp(QMainWindow, EditorMixin):
             QTimer.singleShot(100, self._show_blank_start_page)
 
     def closeEvent(self, event):
+        # Save working autosave (for session restore)
         with open(self.autosave_file, "w", encoding="utf-8") as f:
             json.dump(self.compile_save_data(), f)
+        # Also save a named copy to Documents for the user
+        self._save_unsaved_drawing()
         super().closeEvent(event)
+
+    # ── Auto-save helpers ────────────────────────────────────────────────
+
+    @staticmethod
+    def _get_drawings_dir() -> str:
+        """Return (and create) the ERP_Estimates folder inside the user's Documents directory."""
+        docs = os.path.join(os.path.expanduser("~"), "Documents")
+        drawings_dir = os.path.join(docs, "ERP_Estimates")
+        os.makedirs(drawings_dir, exist_ok=True)
+        return drawings_dir
+
+    def _save_unsaved_drawing(self) -> None:
+        """Save the current canvas state to Documents/ERP_Estimates/unsavedN.json.
+
+        Picks the next available number (unsaved1.json, unsaved2.json, …).
+        Skips silently if the canvas is empty.
+        """
+        try:
+            # Skip if nothing was modified since last save/load
+            if not self._drawing_dirty:
+                return
+
+            data = self.compile_save_data()
+            # Don't save if there's nothing on the canvas
+            if not data.get("nodes") and not data.get("spans") and not data.get("annotations"):
+                return
+
+            drawings_dir = self._get_drawings_dir()
+            n = 1
+            while os.path.exists(os.path.join(drawings_dir, f"unsaved{n}.json")):
+                n += 1
+            target = os.path.join(drawings_dir, f"unsaved{n}.json")
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as exc:
+            # Never crash the app because of auto-save
+            print(f"[AutoSave] Could not save drawing: {exc}")
 
     # =========================================================================
     #  INFO DIALOGS
@@ -2774,6 +2821,26 @@ class EstimateApp(QMainWindow, EditorMixin):
 if __name__ == "__main__":
     if not check_expiry():
         sys.exit(1)
+
+    # ── Single-instance enforcement (Windows named mutex) ────────────
+    _single_instance_mutex = None
+    if sys.platform == "win32":
+        import ctypes
+        _single_instance_mutex = ctypes.windll.kernel32.CreateMutexW(
+            None, True, "Global\\ERP_Estimate_Generator_SingleInstance"
+        )
+        last_error = ctypes.windll.kernel32.GetLastError()
+        if last_error == 183:  # ERROR_ALREADY_EXISTS
+            # Another instance is running — show a simple message and exit
+            _tmp_app = QApplication(sys.argv)
+            QMessageBox.warning(
+                None,
+                "Already Running",
+                f"{APP_DISPLAY_NAME} is already running.\n"
+                "Please switch to the existing window.",
+            )
+            sys.exit(0)
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     win = EstimateApp()
