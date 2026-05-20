@@ -1,6 +1,6 @@
-# ERP Estimate Generator v7.6
+# ERP Estimate Generator v7.7
 
-![Version](https://img.shields.io/badge/version-7.6-blue.svg)
+![Version](https://img.shields.io/badge/version-7.7-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,12 +8,20 @@
 
 ---
 
-## 🚀 What's New in Version 7.6
+## 🚀 What's New in Version 7.7
+
+* **🤖 AI "Describe in plain English" Button Restored:** The AI Describe button has been restored to the Condition Logic section of the Rule Editor under a polished new layout. A duplicate dead code block from the older single-item editor that caused UI crashes on database lookups has been completely removed.
+* **🔒 Secure API Key & Environment Loading:** We resolved a security vulnerability where the `GROQ_API_KEY` was hardcoded inside `api_secrets.py` and tracked in Git. The app now dynamically loads the API key from:
+  1. Environment variables (`os.environ.get("GROQ_API_KEY")`)
+  2. A local `.env` file in the application directory
+  3. A local untracked `api_secrets.py` fallback file
+* **🔧 Cleaned Git Workspace:** Secrets (`.env` and `api_secrets.py`) have been correctly ignored and cleaned from the Git index cache to prevent key leakage in builds and repository history.
+
+## 🔄 Previous Highlights (v7.6)
 
 * **📈 New 2026 Cost Data Rates:** The application is now fully upgraded with the new 2026 financial cost rate chart for all materials and labor tasks, ensuring highly accurate estimates aligned with current market values.
 * **🛠️ Iron Recipes:** Added new Iron Recipes to give you more granular control over iron calculations.
 * **📊 Live Iron Breakup:** A live iron breakup is now visible alongside the live estimate for immediate feedback on calculations.
-* **🔧 General Enhancements:** Minor adjustments and rule updates to improve the estimation engine and overall stability.
 
 ## 🔄 Previous Highlights (v7.5)
 

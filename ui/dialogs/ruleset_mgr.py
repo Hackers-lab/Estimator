@@ -1655,8 +1655,25 @@ class RulesetManagerDialog(QDialog):
 
         self._editor_hdr.setText(f"Editing Rule Group")
 
-        # Condition logic block section
-        self._editor_body_l.addWidget(self._sec_lbl("Condition Logic"))
+        # Condition section header row
+        cond_hdr_row = QWidget()
+        cond_hdr_l = QHBoxLayout(cond_hdr_row)
+        cond_hdr_l.setContentsMargins(0, 0, 0, 0)
+        cond_hdr_l.setSpacing(8)
+        
+        sec_label = self._sec_lbl("Condition Logic")
+        cond_hdr_l.addWidget(sec_label, 1)
+        
+        ai_btn = QPushButton("✨ Describe in plain English")
+        ai_btn.setStyleSheet(
+            "background:#9b59b6; color:white; border:none; "
+            "padding:3px 8px; border-radius:3px; font-size:10px; font-weight:bold;"
+        )
+        ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ai_btn.clicked.connect(self._open_ai_describe)
+        cond_hdr_l.addWidget(ai_btn)
+        
+        self._editor_body_l.addWidget(cond_hdr_row)
 
         self._cond_container = QWidget()
         self._cond_rows_l    = QVBoxLayout(self._cond_container)
@@ -1881,117 +1898,7 @@ class RulesetManagerDialog(QDialog):
                 
                 self._setup_formula_column(row, code_item.text(), "recipe")
                 self._update_preview()
-        self._item_display.setReadOnly(True)
-        self._item_display.setStyleSheet("background:#f5f5f5; font-size:12px;")
-        change_btn = QPushButton("Change…")
-        change_btn.setStyleSheet("font-size:11px; padding:3px 8px;")
-        change_btn.clicked.connect(self.search_database_for_item)
 
-        item_row = QWidget()
-        ir = QHBoxLayout(item_row)
-        ir.setContentsMargins(0, 0, 0, 0)
-        ir.setSpacing(4)
-        lbl = QLabel("Item")
-        lbl.setStyleSheet("font-size:11px; color:#666;")
-        lbl.setFixedWidth(54)
-        ir.addWidget(lbl)
-        ir.addWidget(self._item_display, 1)
-        ir.addWidget(change_btn)
-        self._editor_body_l.addWidget(item_row)
-
-        self._code_display = QLineEdit(rule.get("item_code", ""))
-        self._code_display.setReadOnly(True)
-        self._code_display.setStyleSheet(
-            "background:#f5f5f5; font-size:11px; color:#888;"
-        )
-        self._editor_body_l.addWidget(
-            self._field_row("Code", self._code_display)
-        )
-
-        # Condition section
-        cond_hdr_row = QWidget()
-        cond_hdr_l = QHBoxLayout(cond_hdr_row)
-        cond_hdr_l.setContentsMargins(0, 0, 0, 0)
-        cond_hdr_l.setSpacing(4)
-        cond_hdr_l.addWidget(self._sec_lbl("Conditions"))
-        cond_hdr_l.addStretch()
-        ai_btn = QPushButton("✨ Describe in plain English")
-        ai_btn.setStyleSheet(
-            "background:#9b59b6; color:white; border:none; "
-            "padding:3px 8px; border-radius:3px; font-size:10px;"
-        )
-        ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        ai_btn.clicked.connect(self._open_ai_describe)
-        cond_hdr_l.addWidget(ai_btn)
-        self._editor_body_l.addWidget(cond_hdr_row)
-
-        self._cond_container = QWidget()
-        self._cond_rows_l    = QVBoxLayout(self._cond_container)
-        self._cond_rows_l.setContentsMargins(0, 0, 0, 0)
-        self._cond_rows_l.setSpacing(3)
-        self._editor_body_l.addWidget(self._cond_container)
-
-        self._add_cond_btn = QPushButton("+ add condition logic block")
-        self._add_cond_btn.setStyleSheet(
-            "color:#185FA5; background:none; border:none; "
-            "font-size:11px; text-align:left;"
-        )
-        self._add_cond_btn.clicked.connect(self.add_condition_row)
-        self._editor_body_l.addWidget(self._add_cond_btn)
-
-        # Advanced Logic Editor
-        from PyQt6.QtWidgets import QCheckBox
-        self._adv_cb = QCheckBox("Advanced Mode (Manually edit raw logic string)")
-        self._adv_cb.setStyleSheet("font-size: 11px; color:#555;")
-        self._adv_cb.toggled.connect(self._toggle_advanced_mode)
-        self._editor_body_l.addWidget(self._adv_cb)
-        
-        self._raw_cond_input = QLineEdit(rule.get("condition", ""))
-        self._raw_cond_input.setStyleSheet(
-            "font-family:monospace; font-size:12px; background:#f5f5f5;"
-        )
-        self._raw_cond_input.setReadOnly(True)
-        self._editor_body_l.addWidget(self._raw_cond_input)
-
-        # Formula
-        self._editor_body_l.addWidget(self._sec_lbl("Quantity formula"))
-        avail = get_registry().get_formula_vars().get(rule.get("object", ""), [])
-        hint  = QLabel(
-            f"vars: {', '.join(avail)}" if avail else "no numeric vars"
-        )
-        hint.setStyleSheet("font-size:10px; color:#aaa;")
-        self._editor_body_l.addWidget(hint)
-        self._formula_input = QLineEdit(rule.get("formula", "1"))
-        self._formula_input.setStyleSheet(
-            "font-family:monospace; font-size:12px;"
-        )
-        self._editor_body_l.addWidget(self._formula_input)
-        self._formula_input.textChanged.connect(self._update_preview)
-
-        # Live formula preview — evaluates formula against simulator context
-        self._formula_preview_lbl = QLabel("")
-        self._formula_preview_lbl.setWordWrap(True)
-        self._formula_preview_lbl.setStyleSheet(
-            "font-size:11px; color:#1a6b2a; background:#eaf8f0; "
-            "border-radius:3px; padding:5px 8px; font-family:monospace;"
-        )
-        self._editor_body_l.addWidget(self._formula_preview_lbl)
-        self._formula_input.textChanged.connect(self._update_formula_preview)
-
-        # C4: real-time validation label (hidden unless there is an error)
-        self._validation_lbl = QLabel("")
-        self._validation_lbl.setWordWrap(True)
-        self._validation_lbl.setStyleSheet(
-            "font-size:10px; color:#c0392b; background:#fff0f0; "
-            "border-radius:3px; padding:4px 6px;"
-        )
-        self._validation_lbl.setVisible(False)
-        self._editor_body_l.addWidget(self._validation_lbl)
-
-        self._editor_body_l.addStretch()
-        self._parse_conditions(rule)
-        self._update_preview()
-        self._update_formula_preview()
 
     # ── Condition rows ────────────────────────────────────────────────────────
 

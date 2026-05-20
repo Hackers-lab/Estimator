@@ -2,6 +2,23 @@
 
 ---
 
+## v7.7 — May 20, 2026
+
+### What's New
+
+#### 🤖 AI "Describe in plain English" Button Restored
+The AI Describe button has been restored to the Condition Logic section of the Rule Editor under a polished new layout. A duplicate dead code block from the older single-item editor that caused UI crashes on database lookups has been completely removed.
+
+#### 🔒 Secure API Key & Environment Loading
+We resolved a security vulnerability where the `GROQ_API_KEY` was hardcoded inside `api_secrets.py` and tracked in Git. The app now dynamically loads the API key from:
+1. Environment variables (`os.environ.get("GROQ_API_KEY")`)
+2. A local `.env` file in the application directory
+3. A local untracked `api_secrets.py` fallback file
+
+This keeps the key 100% secure and prevents PyInstaller from bundling your private key into public `.exe` releases. Malformed entries in `.gitignore` have been corrected, and secrets have been removed from the git index cache.
+
+---
+
 ## v7.6 — May 19, 2026
 
 ### What's New
