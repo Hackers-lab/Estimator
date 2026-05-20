@@ -20,7 +20,7 @@ FOLDER   = f"{APP_NAME}_v{APP_VERSION}"
 
 # Data files to copy next to the exe.
 # rules.json kept as emergency JSON backup; DB is now the primary config store.
-DATA_FILES = ["data/rules.json", "assets/logo.svg", "assets/HELP.html"]
+DATA_FILES = ["data/rules.json", "data/recipes.json", "assets/logo.svg", "assets/HELP.html"]
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
@@ -47,6 +47,7 @@ cmd = [
     # lookups work correctly at runtime.
     "--add-data", "data/seed_data.json;data",
     "--add-data", "data/rules.json;data",
+    "--add-data", "data/recipes.json;data",
     "--add-data", "data/property_catalog.json;data",
     "--add-data", "assets/logo.svg;assets",
     "--add-data", "assets/logo.ico;assets",

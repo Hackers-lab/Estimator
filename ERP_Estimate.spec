@@ -5,7 +5,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('data/seed_data.json', 'data'), ('data/rules.json', 'data'), ('data/property_catalog.json', 'data'), ('assets/logo.svg', 'assets'), ('assets/logo.ico', 'assets'), ('assets/HELP.html', 'assets'), ('assets/icons', 'assets/icons')],
+    datas=[('data/seed_data.json', 'data'), ('data/rules.json', 'data'), ('data/recipes.json', 'data'), ('data/property_catalog.json', 'data'), ('assets/logo.svg', 'assets'), ('assets/logo.ico', 'assets'), ('assets/HELP.html', 'assets'), ('assets/icons', 'assets/icons')],
     hiddenimports=['openpyxl', 'sqlite3', 'simpleeval', 'api_secrets'],
     hookspath=[],
     hooksconfig={},
