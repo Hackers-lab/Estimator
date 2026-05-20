@@ -2,6 +2,28 @@
 
 ---
 
+## v7.8 — May 20, 2026
+
+### What's New
+
+#### 💾 Auto-Save Drawings to Documents
+Your drawings are now automatically saved to the `Documents/ERP_Estimates/` folder as `unsaved1.json`, `unsaved2.json`, etc. whenever you:
+- **Create a new drawing** (the previous work is preserved before clearing)
+- **Close the application**
+
+Only drawings with actual changes are saved — opening a file and closing without editing will not generate duplicate files. The **Open Project** dialog now defaults to this folder for easy access.
+
+#### 🔒 Single-Instance Protection
+The application now prevents multiple instances from running simultaneously. If you try to launch the app while it is already open, you will see a friendly prompt:
+> *"ERP Estimate Generator is already running. Please switch to the existing window."*
+
+This prevents accidental data conflicts and database locking issues.
+
+#### 🧩 Fixed Iron Recipe on Fresh Installation
+Resolved an issue where iron recipes (DP, TP, DTR, Pole Iron, etc.) appeared blank on a fresh install. The root cause was that `data/recipes.json` was not included in the PyInstaller packaging configuration, preventing the database from seeding default recipes on first launch.
+
+---
+
 ## v7.7 — May 20, 2026
 
 ### What's New & Fixes

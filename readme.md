@@ -1,6 +1,6 @@
-# ERP Estimate Generator v7.7
+# ERP Estimate Generator v7.8
 
-![Version](https://img.shields.io/badge/version-7.7-blue.svg)
+![Version](https://img.shields.io/badge/version-7.8-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,14 +8,18 @@
 
 ---
 
-## 🚀 What's New in Version 7.7
+## 🚀 What's New in Version 7.8
 
-* **🤖 AI Rule Creator Option Restored:** The **"✨ Describe in plain English"** button has been fully restored under a polished new layout in the Rule Editor's condition panel. In addition, an outdated internal layout chunk that was causing application crashes when looking up items in the database has been completely removed.
-* **🛠️ Fixed HT Pole Iron & Defaults Calculation:**
-  - *HT Pole Iron*: Corrected the structural iron calculations so that the top adaptor and V-bracket (composed of Channel 75x40 1.8m and Flat 65x6 1.0m) are correctly and reliably evaluated for HT poles.
-  - *Default Fallback Iron Recipes*: Restored stable structural iron fallback recipes for both LT and HT poles, preventing errors where unassigned iron recipes would omit basic pole iron.
-* **💾 Permanent Recipe Deletion:** Resolved an issue where deleting a factory recipe from the database (such as the default LT iron recipe) would cause it to be recreated and reappear when restarting the application. The system now permanently respects your deletion decisions across relaunches.
-* **🔧 Automated Build Stabilization:** Corrected internal dependency compilation and packaging steps to ensure that standalone builds generated on GitHub Releases load instantly and run reliably out-of-the-box.
+* **💾 Auto-Save Drawings to Documents:** Your drawings are now automatically saved to `Documents/ERP_Estimates/` as `unsaved1.json`, `unsaved2.json`, etc. whenever you create a new drawing or close the app. Only modified drawings are saved — no duplicates from simply opening and closing. The Open Project dialog now defaults to this folder for quick access.
+* **🔒 Single-Instance Protection:** The app now prevents multiple instances from running at the same time. If you try to open a second window, you'll see a friendly prompt asking you to switch to the existing one. This prevents database locking and data conflicts.
+* **🧩 Fixed Iron Recipe on Fresh Installation:** Iron recipes (DP, TP, DTR, Pole Iron, etc.) no longer appear blank on a fresh install. The `recipes.json` file is now correctly packaged in all distributed builds.
+
+## 🔄 Previous Highlights (v7.7)
+
+* **🤖 AI Rule Creator Option Restored:** The **"✨ Describe in plain English"** button has been fully restored in the Rule Editor's condition panel.
+* **🛠️ Fixed HT Pole Iron & Defaults Calculation:** Corrected structural iron calculations for HT poles and restored stable fallback recipes for both LT and HT poles.
+* **💾 Permanent Recipe Deletion:** Deleting a factory recipe from the database now permanently respects your deletion decisions across relaunches.
+* **🔧 Automated Build Stabilization:** Corrected internal dependency compilation and packaging steps for reliable standalone builds.
 
 ## 🔄 Previous Highlights (v7.6)
 
@@ -73,5 +77,5 @@ We heavily upgraded the core estimation engine and expanded the canvas capabilit
 ---
 
 ## 📝 Release Notes & Installation
-Please check the releases tab to download the standalone executable for **v7.6**. 
-*(Note: Existing users upgrading to v7.6 will automatically receive the new 2026 cost rate chart baseline updates directly in their local system on launch, with all saved local estimates and custom overrides fully preserved!).*
+Please check the releases tab to download the standalone executable for **v7.8**. 
+*(Note: Existing users upgrading to v7.8 will automatically receive all fixes and new features directly on launch, with all saved local estimates and custom overrides fully preserved!).*
