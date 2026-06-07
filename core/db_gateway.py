@@ -21,6 +21,26 @@ import json
 import sqlite3
 from core.database import DB_PATH
 
+# In-memory cache for enabled rules — invalidated whenever rules are written.
+# get_rules() is called on every canvas interaction, so avoiding a DB round-trip
+# here is the single highest-leverage read-path optimisation.
+_rules_cache: "list | None" = None
+
+# get_sections() is called from the expression evaluator on every condition/
+# formula evaluation (thousands of times per refresh). Caching it removes a
+# per-evaluation SQLite connection.
+_sections_cache: "dict | None" = None
+
+
+def _invalidate_rules_cache() -> None:
+    global _rules_cache
+    _rules_cache = None
+
+
+def _invalidate_sections_cache() -> None:
+    global _sections_cache
+    _sections_cache = None
+
 
 def _conn() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
@@ -32,7 +52,11 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
     """Return list of rule dicts, ordered by sort_order.
 
     Each dict has keys: id, object, condition, items, enabled.
+    The common hot-path call (no filters) is served from an in-memory cache.
     """
+    global _rules_cache
+    if object_type is None and enabled_only and _rules_cache is not None:
+        return _rules_cache
     con = _conn()
     try:
         cur = con.cursor()
@@ -49,7 +73,7 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
             where.append("enabled=1")
         sql = base + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY sort_order, id"
         rows = cur.execute(sql, params).fetchall()
-        return [
+        result = [
             {
                 "id":        r[0],
                 "object":    r[1],
@@ -59,6 +83,9 @@ def get_rules(object_type: str | None = None, enabled_only: bool = True) -> list
             }
             for r in rows
         ]
+        if object_type is None and enabled_only:
+            _rules_cache = result
+        return result
     finally:
         con.close()
 
@@ -121,6 +148,7 @@ def save_rules(rules: list[dict]) -> None:
                     ),
                 )
         con.commit()
+        _invalidate_rules_cache()
     finally:
         con.close()
 
@@ -151,6 +179,7 @@ def add_rule(rule: dict) -> int:
             ),
         )
         con.commit()
+        _invalidate_rules_cache()
         return target_id
     finally:
         con.close()
@@ -170,6 +199,7 @@ def update_rule(rule_id: int, rule: dict) -> None:
             ),
         )
         con.commit()
+        _invalidate_rules_cache()
     finally:
         con.close()
 
@@ -180,6 +210,7 @@ def delete_rule(rule_id: int) -> None:
     try:
         con.execute("DELETE FROM rules WHERE id=?", (rule_id,))
         con.commit()
+        _invalidate_rules_cache()
     finally:
         con.close()
 
@@ -190,6 +221,7 @@ def toggle_rule(rule_id: int, enabled: bool) -> None:
     try:
         con.execute("UPDATE rules SET enabled=? WHERE id=?", (1 if enabled else 0, rule_id))
         con.commit()
+        _invalidate_rules_cache()
     finally:
         con.close()
 
@@ -197,14 +229,18 @@ def toggle_rule(rule_id: int, enabled: bool) -> None:
 # ─── Iron Recipes & Steel Sections (Phase 2.1) ────────────────────────────────
 
 def get_sections() -> dict[str, dict]:
-    """Get all steel sections indexed by code."""
+    """Get all steel sections indexed by code (cached)."""
+    global _sections_cache
+    if _sections_cache is not None:
+        return _sections_cache
     con = _conn()
     try:
         rows = con.execute("SELECT section_code, label, kg_per_metre FROM sections").fetchall()
-        return {
+        _sections_cache = {
             r[0]: {"label": r[1], "kg_per_metre": r[2]}
             for r in rows
         }
+        return _sections_cache
     finally:
         con.close()
 
@@ -219,6 +255,7 @@ def save_sections(sections_dict: dict[str, dict]) -> None:
                 (code, data["label"], data["kg_per_metre"])
             )
         con.commit()
+        _invalidate_sections_cache()
     finally:
         con.close()
 
@@ -415,7 +452,14 @@ def remove_extended_option(object_type: str, prop_name: str, option: str) -> Non
 # ─── Height Options ───────────────────────────────────────────────────────────
 
 def get_height_options(pole_type2: str) -> list[str]:
-    """Return height strings like ['8', '9.5'] for a pole_type2."""
+    """Return height strings like ['8MTR', '9.5MTR'] for a pole_type2.
+
+    The 'MTR' suffix is REQUIRED so these match the canonical height format
+    used everywhere else (factory defaults, item.height, get_all_height_options,
+    the _height_options fallback). Returning bare numbers ('8', '9') caused the
+    editor's height combo to fail to match a stored '9MTR' value and silently
+    fall back to the first option ('8') while the BOM still counted 9.
+    """
     con = _conn()
     try:
         rows = con.execute(
@@ -426,9 +470,9 @@ def get_height_options(pole_type2: str) -> list[str]:
         for (hval,) in rows:
             hval = float(hval)
             if hval == int(hval):
-                result.append(f"{int(hval)}")
+                result.append(f"{int(hval)}MTR")
             else:
-                result.append(f"{hval}")
+                result.append(f"{hval}MTR")
         return result
     finally:
         con.close()

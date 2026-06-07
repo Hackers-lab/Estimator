@@ -414,6 +414,19 @@ class DynamicRuleEngine:
         raw_bom: dict[str, float] = {}
         raw_lab: dict[str, float] = {}
 
+        # Load recipes and sections once before the item/rule loop.
+        # Previously these were fetched inside the inner loop — one DB open+close
+        # per (item × rule) match, which could mean dozens of round-trips per refresh.
+        from core import db_gateway as _dbg
+        try:
+            _recipes_list   = _dbg.get_recipes()
+            _sections       = _dbg.get_sections()
+            _recipes_by_key = {r["recipe_key"]: r for r in _recipes_list}
+        except Exception:
+            _recipes_list   = []
+            _sections       = {}
+            _recipes_by_key = {}
+
         for item in canvas_items:
 
             # ── Build context ─────────────────────────────────────────────
@@ -479,15 +492,12 @@ class DynamicRuleEngine:
                         if not recipe_key or recipe_key == "None":
                             continue
                         try:
-                            from core import db_gateway as _dbg
-                            recipes = _dbg.get_recipes()
-                            recipe = next((r for r in recipes if r["recipe_key"] == recipe_key), None)
+                            recipe = _recipes_by_key.get(recipe_key)
                             if not recipe:
                                 continue
-                            sections = _dbg.get_sections()
                             for rec_item in recipe.get("items", []):
                                 sec_code = rec_item["section"]
-                                sec = sections.get(sec_code)
+                                sec = _sections.get(sec_code)
                                 if not sec:
                                     continue
 

@@ -15,6 +15,7 @@ import sys
 import math
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, date
 
@@ -89,6 +90,10 @@ from ui.editors import EditorMixin
 class EstimateApp(QMainWindow, EditorMixin):
     refresh_signal = pyqtSignal()
     _MIN_NODE_GAP = 36.0  # fallback scene units
+    # Debounce window for the full recalc/BOM pass. Small enough to feel instant
+    # after a placement, large enough to collapse every pixel of a drag into one
+    # pass. Canvas geometry still follows nodes live (see _on_position_changed).
+    _REFRESH_DEBOUNCE_MS = 30
 
     def __init__(self):
         super().__init__()
@@ -131,6 +136,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._history_timer = QTimer(self)
         self._history_timer.setSingleShot(True)
         self._history_timer.timeout.connect(self.push_history)
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._do_refresh_live_estimate)
 
         self.grid_manager = GridManager(self)
 
@@ -1821,7 +1830,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                 if pole.stay_angle_override is not None:
                     pole.stay_angle_override = None
                     needs_visual_refresh = True
-                if needs_visual_refresh or pole.connected_spans:
+                if needs_visual_refresh:
                     pole.update_visuals()
                 continue
 
@@ -1854,23 +1863,44 @@ class EstimateApp(QMainWindow, EditorMixin):
             needs_visual_refresh = (pole.stay_count != target)
             if pole.stay_count != target:
                 pole.stay_count = target
-            if needs_visual_refresh or pole.connected_spans:
+            if needs_visual_refresh:
                 pole.update_visuals()
 
     def refresh_live_estimate(self):
+        """
+        Non-blocking, coalesced refresh.
+
+        Returns immediately so the just-placed / just-moved item paints on the
+        next event-loop tick. ALL recalculation — span-type propagation, stay
+        auto-update, page grid, rule engine, BOM and the estimate table — runs
+        once in _do_refresh_live_estimate after a short debounce, collapsing a
+        burst of placements (and every pixel of a drag) into a single pass.
+
+        This is the key to smoothness: span geometry already follows nodes live
+        via _on_position_changed, so none of the heavy work needs to block the
+        paint that shows the object the moment you click.
+        """
+        if not self._is_undoing:
+            self._history_timer.start(500)
+        self._refresh_timer.start(self._REFRESH_DEBOUNCE_MS)
+
+    def _flush_refresh(self):
+        """Run any pending refresh synchronously (call before exports / saves)."""
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+            self._do_refresh_live_estimate()
+
+    def _do_refresh_live_estimate(self):
         if self._refreshing_live:
             return
         self._refreshing_live = True
 
         try:
+            # Canvas-derived state (cheap-to-moderate). Kept here, off the
+            # per-event path, so a drag stays at 60 fps and placements are instant.
             self.recalculate_all_span_types()
             self._auto_stay_update()
-            self._refresh_page_grid()   # keep page grid in sync with canvas content
-
-            if not self._is_undoing:
-                # Debounce: Capture state 500ms after the last activity/refresh.
-                # This cleanly avoids saving history frames 60x/sec during a drag.
-                self._history_timer.start(500)
+            self._refresh_page_grid()
 
             use_uh        = self.project_meta.get("use_uh", False)
             project_type  = self.project_meta.get("project_type", "NSC")
@@ -1893,6 +1923,16 @@ class EstimateApp(QMainWindow, EditorMixin):
             conn   = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
 
+            # Pre-fetch every row from both lookup tables once.
+            # _db_lookup is called for each BOM item; without this it would
+            # issue a full-table SELECT on every fallback tier (Tiers 3-5),
+            # turning an O(n) refresh into O(n × m) DB queries.
+            cursor.execute("SELECT item_code, rate, unit, item_name FROM materials")
+            _all_mat = cursor.fetchall()
+            cursor.execute("SELECT labor_code, rate, unit, task_name FROM labor")
+            _all_lab = cursor.fetchall()
+            _prefetched = {"Material": _all_mat, "Labor": _all_lab}
+
             # Apply 3% sag/wastage to conductor and wire materials.
             # Guard: only items whose DB unit is a continuous measurement (MT, KM, M…)
             # get the multiplier.  Items whose name happens to contain "ACSR" (e.g.
@@ -1914,7 +1954,7 @@ class EstimateApp(QMainWindow, EditorMixin):
             for name in list(raw_bom):
                 upper_name = name.upper()
                 if any(tag in upper_name for tag in SAG_ITEMS):
-                    db_row = self._db_lookup(cursor, "Material", name, rule_code_map.get(name))
+                    db_row = self._db_lookup(cursor, "Material", name, rule_code_map.get(name), _prefetched=_prefetched)
                     unit_str = (db_row[2] if db_row else "").lower().strip().rstrip(".")
                     if unit_str not in _COUNT_UNITS:
                         raw_bom[name] = raw_bom[name] * 1.03
@@ -1930,7 +1970,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                 if name in self.bom_overrides and self.bom_overrides[name]["type"] == item_type:
                     qty = self.bom_overrides[name]["qty"]
 
-                row = self._db_lookup(cursor, item_type, name, rule_code_map.get(name))
+                row = self._db_lookup(cursor, item_type, name, rule_code_map.get(name), _prefetched=_prefetched)
                 if row:
                     code, rate, unit, db_name = row
                     if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type:
@@ -1947,7 +1987,7 @@ class EstimateApp(QMainWindow, EditorMixin):
             # Custom overrides not in auto-BOM
             for name, override in self.bom_overrides.items():
                 if name not in processed:
-                    row = self._db_lookup(cursor, override["type"], name)
+                    row = self._db_lookup(cursor, override["type"], name, _prefetched=_prefetched)
                     if row:
                         code, rate, unit, db_name = row
                         qty = override["qty"]
@@ -1966,7 +2006,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         finally:
             self._refreshing_live = False
 
-    def _db_lookup(self, cursor, item_type, name, rule_code=None):
+    def _db_lookup(self, cursor, item_type, name, rule_code=None, _prefetched=None):
         def normalize(s):
             s = s.lower()
             s = s.replace("distribution transformer", "dtr")
@@ -1996,9 +2036,13 @@ class EstimateApp(QMainWindow, EditorMixin):
             if row:
                 return row[0], row[1], row[2], row[3]
 
-        # Fetch all items to perform case-insensitive, normalized, and fuzzy matching
-        cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl}")
-        all_items = cursor.fetchall()
+        # Fetch all items to perform case-insensitive, normalized, and fuzzy matching.
+        # Use the pre-fetched list when available (avoids a full-table DB query per item).
+        if _prefetched is not None:
+            all_items = _prefetched.get(item_type, [])
+        else:
+            cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl}")
+            all_items = cursor.fetchall()
 
         # Tier 2.5: Code Match with leading-zero safety (e.g. "05105252525" matches "5105252525")
         if rule_code:
@@ -2049,7 +2093,6 @@ class EstimateApp(QMainWindow, EditorMixin):
                         return row[0], row[1], row[2], row[3]
 
         # Tier 5: Normalized Substring Match with Number Safety
-        import re
         rule_nums = re.findall(r'\d+', name)
         for row in all_items:
             db_name = row[3]
@@ -2083,6 +2126,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         except TypeError:
             pass
 
+        self.live_table.setUpdatesEnabled(False)
         self.live_table.setRowCount(0)
         for i, item in enumerate(self.live_bom_data):
             self.live_table.insertRow(i)
@@ -2100,6 +2144,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                 if t:
                     t.setFlags(t.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
+        self.live_table.setUpdatesEnabled(True)
         self.live_table.itemChanged.connect(self.on_table_edit)
 
     def change_rate_chart_year(self):
@@ -2264,6 +2309,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         return stem if stem else fallback
 
     def save_project_bundle(self):
+        self._flush_refresh()
         if self.scene.itemsBoundingRect().isNull():
             QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
             return
@@ -2329,6 +2375,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def generate_excel(self):
         """Delegate to ExcelExporter."""
+        self._flush_refresh()
         from exporters.excel import ExcelExporter
         saved_path = ExcelExporter(self).generate(
             initial_dir=self._default_export_dir()
@@ -2342,6 +2389,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def export_pdf(self):
         """Delegate to PDFExporter."""
+        self._flush_refresh()
         from exporters.pdf import PDFExporter
         saved_path = PDFExporter(self).export(
             initial_dir=self._default_export_dir()

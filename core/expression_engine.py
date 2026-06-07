@@ -78,7 +78,7 @@ def _build_names(context: dict) -> dict:
     ns: dict[str, Any] = {}
     try:
         from core import db_gateway as _dbg
-        sections = _dbg.get_sections()
+        sections = _dbg.get_sections()   # cached — no per-call DB hit
         dyn_constants = {code: data["kg_per_metre"] for code, data in sections.items()}
     except Exception:
         dyn_constants = IRON_CONSTANTS
@@ -92,6 +92,31 @@ def _build_functions() -> dict:
     return dict(_SAFE_FUNCTIONS)
 
 
+# ─── Reused evaluator + parsed-AST cache ──────────────────────────────────────
+# Building an EvalWithCompoundTypes and re-parsing the expression string on
+# every call dominated refresh time (each rule condition/formula is evaluated
+# once per canvas item). We keep ONE evaluator (single-threaded GUI) and swap
+# its namespace per call, and cache each expression's parsed AST so identical
+# rule strings are parsed only once for the whole session.
+_EVALUATOR: "EvalWithCompoundTypes | None" = None
+_AST_CACHE: dict[str, Any] = {}
+
+
+def _evaluator() -> EvalWithCompoundTypes:
+    global _EVALUATOR
+    if _EVALUATOR is None:
+        _EVALUATOR = EvalWithCompoundTypes(names={}, functions=_build_functions())
+    return _EVALUATOR
+
+
+def _parsed(expr: str):
+    node = _AST_CACHE.get(expr)
+    if node is None:
+        node = EvalWithCompoundTypes.parse(expr)
+        _AST_CACHE[expr] = node
+    return node
+
+
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 def evaluate_condition(condition_str: str, context: dict) -> bool:
@@ -103,11 +128,9 @@ def evaluate_condition(condition_str: str, context: dict) -> bool:
     if not condition_str or condition_str.strip() in ("", "True"):
         return True
     try:
-        evaluator = EvalWithCompoundTypes(
-            names=_build_names(context),
-            functions=_build_functions(),
-        )
-        result = evaluator.eval(condition_str)
+        evaluator = _evaluator()
+        evaluator.names = _build_names(context)
+        result = evaluator.eval(condition_str, previously_parsed=_parsed(condition_str))
         return bool(result)
     except NameNotDefined as exc:
         bad_name = str(exc).split("'")[1] if "'" in str(exc) else str(exc)
@@ -129,11 +152,9 @@ def evaluate_formula(formula_str: str, context: dict) -> float:
     if not formula_str or formula_str.strip() == "":
         return 0.0
     try:
-        evaluator = EvalWithCompoundTypes(
-            names=_build_names(context),
-            functions=_build_functions(),
-        )
-        result = evaluator.eval(formula_str)
+        evaluator = _evaluator()
+        evaluator.names = _build_names(context)
+        result = evaluator.eval(formula_str, previously_parsed=_parsed(formula_str))
         return float(result)
     except NameNotDefined as exc:
         bad_name = str(exc).split("'")[1] if "'" in str(exc) else str(exc)
