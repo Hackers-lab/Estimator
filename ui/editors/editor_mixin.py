@@ -415,6 +415,25 @@ class EditorMixin:
         self._add_delete_btn(item)
 
     def _build_service_drop_editor(self, item):
+        # Phase + Cable size — the service drop carries the actual cable.
+        # Both stay in sync with the connected consumer.
+        phase_cb = QComboBox()
+        phase_cb.addItems(["1 Phase", "3 Phase"])
+        phase_cb.setCurrentText(item.phase)
+        phase_cb.currentTextChanged.connect(
+            lambda t, i=item: self._update_service_drop(i, "phase", t)
+        )
+        sz_cb = QComboBox()
+        _sizes = self._service_cable_sizes(item.phase)
+        sz_cb.addItems(_sizes)
+        if item.conductor_size not in _sizes:
+            sz_cb.addItem(item.conductor_size)
+        sz_cb.setCurrentText(item.conductor_size)
+        sz_cb.currentTextChanged.connect(
+            lambda t, i=item: self._update_service_drop(i, "cable_size", t)
+        )
+        self._add_field_pair("Phase:", phase_cb, "Cable:", sz_cb)
+
         len_sp = QSpinBox()
         len_sp.setRange(1, 150)
         len_sp.setValue(int(item.length))
@@ -590,14 +609,31 @@ class EditorMixin:
         return base + [o for o in ext if o.casefold() not in base_fold]
 
     def _service_cable_sizes(self, phase: str) -> list[str]:
-        """Cable sizes for consumer, merged with user-added values."""
+        """Cable sizes for consumer / service drop, merged with user-added values."""
         if phase == "1 Phase":
-            base = ["10 SQMM", "16 SQMM"]
+            base = ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM"]
         else:
-            base = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+            base = ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
         ext = property_catalog.get_extended_options("SmartConsumer", "cable_size")
         base_fold = {v.casefold() for v in base}
         return base + [o for o in ext if o.casefold() not in base_fold]
+
+    @staticmethod
+    def _consumer_service_drop(consumer):
+        """Return the active service-drop span connected to a consumer, or None."""
+        for s in getattr(consumer, "connected_spans", []):
+            if getattr(s, "is_service_drop", False) and s.scene() is not None:
+                return s
+        return None
+
+    @staticmethod
+    def _service_drop_consumer(span):
+        """Return the SmartConsumer endpoint of a service-drop span, or None."""
+        if isinstance(span.p1, SmartConsumer):
+            return span.p1
+        if isinstance(span.p2, SmartConsumer):
+            return span.p2
+        return None
 
     def _pole_type2_options(self, obj_type: str = "SmartPole") -> list[str]:
         """Pole material options (PCC/STP/H-BEAM) merged with user-added values."""
@@ -1173,6 +1209,9 @@ class EditorMixin:
             item.dtr_size = "None"
             item.kiosk_required = False
         else:
+            # Default a freshly-converted DTR to 25KVA instead of "None".
+            if item.dtr_size in ("None", "", None):
+                item.dtr_size = defaults.current.get("struct_dtr_size", "25KVA")
             item.kiosk_required = bool(defaults.current.get("dtr_kiosk_required", True))
             
         _default_recipes = {"DP": "DP_IRON", "TP": "TP_IRON", "4P": "4P_IRON", "DTR": "DTR_IRON"}
@@ -1219,7 +1258,44 @@ class EditorMixin:
 
     def _update_consumer(self, item, prop, value):
         setattr(item, prop, value)
+        sd = self._consumer_service_drop(item)
+
+        if prop == "phase":
+            # Keep cable valid for the new phase, then mirror to the service drop.
+            sizes = self._service_cable_sizes(value)
+            if item.cable_size not in sizes:
+                item.cable_size = sizes[0]
+            if sd is not None:
+                sd.phase = value
+                sd.conductor_size = item.cable_size
+                sd.update_visuals()
+        elif prop == "cable_size":
+            if sd is not None:
+                sd.conductor_size = value
+                sd.update_visuals()
+
         item.update_visuals()
+        self.refresh_live_estimate()
+        QTimer.singleShot(10, self.on_selection_changed)
+
+    def _update_service_drop(self, span, prop, value):
+        """Edit a service-drop span and mirror phase/cable back to its consumer."""
+        consumer = self._service_drop_consumer(span)
+        if prop == "phase":
+            span.phase = value
+            sizes = self._service_cable_sizes(value)
+            if span.conductor_size not in sizes:
+                span.conductor_size = sizes[0]
+            if consumer is not None:
+                consumer.phase = value
+                consumer.cable_size = span.conductor_size
+                consumer.update_visuals()
+        elif prop == "cable_size":
+            span.conductor_size = value
+            if consumer is not None:
+                consumer.cable_size = value
+                consumer.update_visuals()
+        span.update_visuals()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)
 

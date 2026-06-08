@@ -53,6 +53,7 @@ _FACTORY: dict = {
     "struct_height":      "9MTR",
     "struct_stay_count":  4,
     "struct_orientation": "Horizontal",
+    "struct_dtr_size":    "25KVA",
     "dtr_kiosk_required": True,
     "earth_default_dp":   2,
     "earth_default_tp":   3,

@@ -91,8 +91,8 @@ CONDUCTOR_SIZES = {
 
 # Service drop cable sizes per phase
 SERVICE_CABLE_SIZES = {
-    "1 Phase": ["10 SQMM", "16 SQMM"],
-    "3 Phase": ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"],
+    "1 Phase": ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM"],
+    "3 Phase": ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"],
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
