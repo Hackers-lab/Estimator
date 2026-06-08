@@ -111,6 +111,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.last_placed_node = None        # for auto-span chain when placing nodes
         self.autosave_file  = "autosave_erp.json"
         self._drawing_dirty = False            # True when canvas has unsaved changes
+        self._resetting     = False            # True during a factory reset (skips close autosave)
         self.current_tool   = "SELECT"
         self._pending_symbol_shape = "circle"   # last chosen symbol shape
 
@@ -312,6 +313,13 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_props = QAction("Property Editor", self)
         act_props.triggered.connect(self.open_property_editor)
         settings_menu.addAction(act_props)
+
+        settings_menu.addSeparator()
+
+        act_reset = QAction("Reset App Data (Factory Reset)…", self)
+        act_reset.setToolTip("Clear all data and restore the app to a fresh install")
+        act_reset.triggered.connect(self.reset_all_app_data)
+        settings_menu.addAction(act_reset)
 
         # ── Help ──────────────────────────────────────────────────────────
         help_menu = mb.addMenu("&Help")
@@ -2750,12 +2758,109 @@ class EstimateApp(QMainWindow, EditorMixin):
             QTimer.singleShot(100, self._show_blank_start_page)
 
     def closeEvent(self, event):
+        # During a factory reset the data files were just wiped on purpose —
+        # don't recreate them on the way out.
+        if getattr(self, "_resetting", False):
+            super().closeEvent(event)
+            return
         # Save working autosave (for session restore)
         with open(self.autosave_file, "w", encoding="utf-8") as f:
             json.dump(self.compile_save_data(), f)
         # Also save a named copy to Documents for the user
         self._save_unsaved_drawing()
         super().closeEvent(event)
+
+    # ── Factory reset ─────────────────────────────────────────────────────
+
+    def reset_all_app_data(self):
+        """Restore the app to a fresh-install state after a soft confirmation.
+
+        Wipes the current drawing + autosave, all placement defaults/settings,
+        and the master database (custom rules, recipes, materials, rate edits),
+        then re-seeds factory data. The app closes afterwards for a clean start.
+        """
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Reset App Data?")
+        box.setText("Restore the app to a fresh install?")
+        box.setInformativeText(
+            "This will permanently clear:\n"
+            "   •  the current drawing and autosave\n"
+            "   •  all placement defaults and settings\n"
+            "   •  all custom rules, recipes, materials and rate edits\n\n"
+            "Factory data will be restored. This can't be undone.\n"
+            "The app will close when done — just reopen it to start fresh."
+        )
+        proceed_btn = box.addButton("Reset Everything", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel_btn)
+        box.exec()
+        if box.clickedButton() is not proceed_btn:
+            return
+
+        ok, err = self._perform_full_reset()
+        if not ok:
+            QMessageBox.critical(
+                self,
+                "Reset Failed",
+                "Could not complete the reset. Some files may be in use.\n\n"
+                f"{err}\n\nPlease close the app and try again.",
+            )
+            return
+
+        self._resetting = True   # closeEvent must not rewrite autosave
+        QMessageBox.information(
+            self,
+            "Reset Complete",
+            "All data has been restored to factory defaults.\n\n"
+            "The app will now close. Please reopen it to start fresh.",
+        )
+        self.close()
+
+    def _perform_full_reset(self) -> tuple[bool, str]:
+        """Wipe all user data and re-seed factory data. Returns (ok, error)."""
+        try:
+            from core.database import setup_database
+            from core import db_gateway as _dbg
+            from app_config import get_user_data_path
+
+            # 1. In-memory state
+            self.scene.clear()
+            self.bom_overrides.clear()
+            self.history.clear()
+            self.history_index = -1
+            self.live_bom_data = []
+            self.span_start_pole = None
+            self.last_placed_node = None
+            self.project_meta = dict(DEFAULT_PROJECT_META)
+            SmartPole.reset_counters()
+            SmartStructure.reset_counters()
+            SmartConsumer.reset_counters()
+
+            # 2. Drop the in-memory caches that mirror DB content
+            _dbg._invalidate_rules_cache()
+            _dbg._invalidate_sections_cache()
+
+            # 3. Delete data files (DB + its WAL/SHM sidecars, autosave, defaults)
+            targets = [
+                self.autosave_file,
+                DB_PATH,
+                DB_PATH + "-wal",
+                DB_PATH + "-shm",
+                get_user_data_path("defaults.json"),
+            ]
+            for path in targets:
+                if path and os.path.exists(path):
+                    os.remove(path)   # raises on lock → reported to user
+
+            # 4. Recreate + re-seed a fresh factory database
+            setup_database()
+
+            # 5. Reload factory defaults into memory
+            defaults.load()
+            return True, ""
+        except Exception as exc:
+            return False, str(exc)
 
     # ── Auto-save helpers ────────────────────────────────────────────────
 

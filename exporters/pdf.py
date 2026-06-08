@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt6.QtGui import (
-    QPen, QBrush, QColor, QPainter,
+    QPen, QBrush, QColor, QPainter, QPainterPath,
     QPageLayout, QPageSize, QFont,
 )
 from PyQt6.QtCore import QMarginsF
@@ -376,27 +376,123 @@ class PDFExporter:
 
     # ── Legend renderer ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _draw_legend_symbol(painter: QPainter, rect: QRectF, kind: str) -> None:
+        """Paint a mini canonical symbol matching the canvas colours/shapes.
+
+        Colours are pulled live from defaults.current so any user customisation
+        in the Property Editor is reflected here too.
+        """
+        from core import defaults
+        d = defaults.current
+        cx, cy = rect.center().x(), rect.center().y()
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        def _circle(color_hex, r=3.0, ox=0.0, oy=0.0, border="#333333", bw=0.5):
+            painter.setBrush(QBrush(QColor(color_hex)))
+            painter.setPen(QPen(QColor(border), bw))
+            painter.drawEllipse(QPointF(cx + ox, cy + oy), r, r)
+
+        if kind == "lt_pole":
+            _circle(d.get("canvas_lt_pole", "#2980b9"))
+        elif kind == "ht_pole":
+            _circle(d.get("canvas_ht_pole", "#c0392b"))
+        elif kind == "ex_pole":
+            _circle(d.get("canvas_ex_pole", "#cccccc"), border="#777777", bw=0.6)
+        elif kind == "dp":
+            col = d.get("canvas_dp", "#27ae60")
+            _circle(col, 2.2, -2.6); _circle(col, 2.2, 2.6)
+        elif kind == "tp":
+            col = d.get("canvas_tp", "#1abc9c")
+            _circle(col, 2.0, 0.0, -2.2); _circle(col, 2.0, -2.4, 1.8); _circle(col, 2.0, 2.4, 1.8)
+        elif kind == "4p":
+            col = d.get("canvas_4p", "#16a085")
+            for ox in (-2.4, 2.4):
+                for oy in (-2.4, 2.4):
+                    _circle(col, 1.9, ox, oy)
+        elif kind == "dtr":
+            col = d.get("canvas_dtr", "#e67e22")
+            painter.setBrush(QBrush(QColor(col)))
+            painter.setPen(QPen(QColor("#333333"), 0.4))
+            painter.drawRect(QRectF(cx - 2.0, cy - 1.6, 4.0, 3.2))
+            _circle(col, 2.0, -3.2); _circle(col, 2.0, 3.2)
+        elif kind == "consumer":
+            painter.setBrush(QBrush(QColor(d.get("canvas_consumer", "#f1c40f"))))
+            painter.setPen(QPen(QColor("#7a5a00"), 0.5))
+            painter.drawRect(QRectF(cx - 3, cy - 2.4, 6, 4.8))
+        elif kind == "earth":
+            painter.setPen(QPen(QColor("#333333"), 0.7))
+            painter.drawLine(QPointF(cx, cy - 3), QPointF(cx, cy))
+            painter.drawLine(QPointF(cx - 3, cy), QPointF(cx + 3, cy))
+            painter.drawLine(QPointF(cx - 2, cy + 1.4), QPointF(cx + 2, cy + 1.4))
+            painter.drawLine(QPointF(cx - 1, cy + 2.6), QPointF(cx + 1, cy + 2.6))
+        elif kind == "stay":
+            painter.setPen(QPen(QColor("#444444"), 0.7))
+            painter.drawLine(QPointF(cx - 4, cy + 3), QPointF(cx + 3, cy - 3))
+            painter.setBrush(QBrush(QColor("#444444")))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QPointF(cx - 4, cy + 3), 0.9, 0.9)
+        elif kind in ("span_acsr", "span_ab", "span_pvc", "span_existing", "span_svc"):
+            colors = {
+                "span_acsr":     d.get("canvas_acsr",      "#222222"),
+                "span_ab":       d.get("canvas_ab_cable",  "#1a5276"),
+                "span_pvc":      d.get("canvas_pvc_cable", "#107C41"),
+                "span_existing": d.get("canvas_acsr",      "#222222"),
+                "span_svc":      d.get("canvas_svc_drop",  "#d35400"),
+            }
+            color = QColor(colors[kind])
+            x0 = rect.left() + 2
+            x1 = rect.right() - 2
+            if kind in ("span_ab", "span_pvc", "span_svc"):
+                # Wavy line — AB Cable, PVC Cable and Service Drop are drawn as
+                # sine waves on the canvas (see SmartSpan.update_visuals).
+                painter.setPen(QPen(color, 1.1))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                path = QPainterPath()
+                path.moveTo(x0, cy)
+                steps, cycles, amp = 26, 3.0, 1.8
+                for i in range(1, steps + 1):
+                    t = i / steps
+                    off = math.sin(t * cycles * 2 * math.pi) * amp
+                    path.lineTo(x0 + (x1 - x0) * t, cy + off)
+                painter.drawPath(path)
+            else:
+                # ACSR dashed-straight, existing span thin-solid (matches canvas).
+                pen = QPen(color, 1.3)
+                if kind == "span_acsr":
+                    pen.setStyle(Qt.PenStyle.DashLine)
+                else:
+                    pen.setWidthF(0.7)
+                painter.setPen(pen)
+                painter.drawLine(QPointF(x0, cy), QPointF(x1, cy))
+
+        painter.restore()
+
     def _draw_pdf_legend(self, painter: QPainter, border: QRectF) -> None:
         app = self._app
+        # Each entry carries a "draw" kind so the legend paints the SAME shapes
+        # and colours the canvas uses (not emoji/ASCII, which never matched).
         legend_data = {
-            "New LT Pole":   {"s": "🔵", "q": 0},
-            "New HT Pole":   {"s": "🔴", "q": 0},
-            "DP Structure":  {"s": "🟩", "q": 0},
-            "TP Structure":  {"s": "🟩", "q": 0},
-            "4P Structure":  {"s": "🟩", "q": 0},
-            "DTR":           {"s": "🟠", "q": 0},
-            "Existing Pole": {"s": "⚪", "q": 0},
-            "Extension":     {"s": "[E]","q": 0},
-            "Consumer":      {"s": "🏠", "q": 0},
-            "Earthing":      {"s": "⏚",  "q": 0},
-            "Stay":          {"s": "S→", "q": 0},
-            "CG (SP)":       {"s": None,  "draw": "cg", "q": 0},
-            "CG (DP)":       {"s": None,  "draw": "cg", "q": 0},
-            "New ACSR":      {"s": "---", "l": 0},
-            "New AB Cable":  {"s": "~~~", "l": 0},
-            "New PVC Cable": {"s": "...", "l": 0},
-            "Existing Span": {"s": "———", "l": 0},
-            "Service Drop":  {"s": "--s", "l": 0},
+            "New LT Pole":   {"s": None, "draw": "lt_pole",  "q": 0},
+            "New HT Pole":   {"s": None, "draw": "ht_pole",  "q": 0},
+            "DP Structure":  {"s": None, "draw": "dp",       "q": 0},
+            "TP Structure":  {"s": None, "draw": "tp",       "q": 0},
+            "4P Structure":  {"s": None, "draw": "4p",       "q": 0},
+            "DTR":           {"s": None, "draw": "dtr",      "q": 0},
+            "Existing Pole": {"s": None, "draw": "ex_pole",  "q": 0},
+            "Extension":     {"s": "[E]",                    "q": 0},
+            "Consumer":      {"s": None, "draw": "consumer", "q": 0},
+            "Earthing":      {"s": None, "draw": "earth",    "q": 0},
+            "Stay":          {"s": None, "draw": "stay",     "q": 0},
+            "CG (SP)":       {"s": None, "draw": "cg",       "q": 0},
+            "CG (DP)":       {"s": None, "draw": "cg",       "q": 0},
+            "New ACSR":      {"s": None, "draw": "span_acsr",     "l": 0},
+            "New AB Cable":  {"s": None, "draw": "span_ab",       "l": 0},
+            "New PVC Cable": {"s": None, "draw": "span_pvc",      "l": 0},
+            "Existing Span": {"s": None, "draw": "span_existing", "l": 0},
+            "Service Drop":  {"s": None, "draw": "span_svc",      "l": 0},
         }
 
         for item in app.scene.items():
@@ -539,6 +635,8 @@ class PDFExporter:
                         painter.drawLine(QPointF(sx, rail_cy - ext),
                                          QPointF(sx, rail_cy + ext))
                     painter.restore()
+                elif entry.get("draw"):
+                    self._draw_legend_symbol(painter, sym_rect, entry["draw"])
                 else:
                     painter.drawText(sym_rect, Qt.AlignmentFlag.AlignCenter, entry["sym"] or "")
                 cx += cw["sym"]

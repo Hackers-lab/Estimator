@@ -155,29 +155,6 @@
       }
     ]
   },
-  "POLE_LT_IRON": {
-    "name": "LT Pole Iron Recipe",
-    "description": "Iron per LT pole. V-Bracket + Top Adaptor per pole. User can switch description if using Top Adaptor only.",
-    "object_type": "SmartPole",
-    "items": [
-      {
-        "description": "Single Pole (V-Bracket & Top Adaptor)",
-        "section": "CH_75X40",
-        "length_per_piece": 1.8,
-        "qty_per_object": 1,
-        "length_formula": "=1.5+0.3",
-        "qty_source": "lt_pole_count"
-      },
-      {
-        "description": "No. of L.T. Pole (Clamp Flat)",
-        "section": "FLAT_65X6",
-        "length_per_piece": 1.0,
-        "qty_per_object": 1,
-        "length_formula": "1",
-        "qty_source": "lt_pole_count"
-      }
-    ]
-  },
   "POLE_LT_TOP_ADAPTOR": {
     "name": "LT Pole — Top Adaptor Only",
     "description": "Use when pole uses Top Adaptor instead of MS angle V-Bracket. No channel iron needed.",
@@ -194,7 +171,6 @@
     ]
   },
   "POLE_HT_IRON": {
-    "recipe_key": "POLE_HT_IRON",
     "name": "HT Pole Iron Recipe",
     "description": "Iron per new HT single pole. V-Bracket + Top Adaptor.",
     "object_type": "SmartPole",
@@ -218,7 +194,6 @@
     ]
   },
   "POLE_LT_EXT": {
-    "recipe_key": "POLE_LT_EXT",
     "name": "LT Pole Extension Iron",
     "description": "M.S. Iron for LT pole extension bracket",
     "object_type": "SmartPole",
@@ -233,7 +208,6 @@
     ]
   },
   "POLE_HT_EXT": {
-    "recipe_key": "POLE_HT_EXT",
     "name": "HT Pole Extension Iron",
     "description": "M.S. Iron for HT pole extension (channel x2 + flat)",
     "object_type": "SmartPole",
@@ -255,7 +229,6 @@
     ]
   },
   "CG_BRACKET": {
-    "recipe_key": "CG_BRACKET",
     "name": "CG Bracket Iron",
     "description": "M.S. Iron for cattle guard bracket",
     "object_type": "SmartPole",
@@ -277,7 +250,6 @@
     ]
   },
   "LT_ACSR_BRACKET": {
-    "recipe_key": "LT_ACSR_BRACKET",
     "name": "LT ACSR D-Iron Bracket",
     "description": "M.S. Iron for LT ACSR conductor support bracket",
     "object_type": "SmartPole",
@@ -299,7 +271,6 @@
     ]
   },
   "AB_CABLE_CLAMP": {
-    "recipe_key": "AB_CABLE_CLAMP",
     "name": "AB Cable Clamp Iron",
     "description": "M.S. Flat for AB cable distribution clamp per span",
     "object_type": "SmartSpan",
@@ -314,7 +285,6 @@
     ]
   },
   "HT_JUNCTION": {
-    "recipe_key": "HT_JUNCTION",
     "name": "HT Junction (Tee-off) Iron",
     "description": "M.S. Iron for existing HT tee-off junction pole",
     "object_type": "SmartPole",
