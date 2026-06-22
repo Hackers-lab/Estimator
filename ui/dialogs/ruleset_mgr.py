@@ -2227,6 +2227,48 @@ class RulesetManagerDialog(QDialog):
                 self._code_display.setText(item.get("code", ""))
                 self._type_combo.setCurrentText(item["type"])
 
+    def _confirm_no_overlap(self, obj_type: str, cond: str) -> bool:
+        """Warn (never block) if this condition duplicates/subsumes another rule.
+
+        Returns True to proceed with the save, False to cancel.
+        """
+        from core.rule_overlap import analyze_overlap
+        findings = analyze_overlap(
+            obj_type, cond, self.rules, exclude_index=self.selected_rule_index
+        )
+        if not findings:
+            return True
+
+        _KIND_TEXT = {
+            "exact":    "is identical to",
+            "broader":  "is broader than (fires whenever the following also fires, and more)",
+            "narrower": "is narrower than (the following fires whenever this also fires)",
+        }
+        lines = []
+        for f in findings[:8]:
+            items = ", ".join(i for i in f["items"] if i) or "(no items)"
+            lines.append(
+                f"• Rule #{f['id']} — your condition {_KIND_TEXT.get(f['kind'], 'overlaps')}:\n"
+                f"      {f['condition']}\n"
+                f"      items: {items}"
+            )
+        body = "\n".join(lines)
+        has_exact = any(f["kind"] == "exact" for f in findings)
+        hint = (
+            "\n\nTip: instead of a duplicate, consider adding your items to the "
+            "existing rule above."
+            if has_exact else ""
+        )
+        ans = QMessageBox.warning(
+            self,
+            "Possible Rule Overlap",
+            f"This condition overlaps {len(findings)} existing rule(s) for "
+            f"{obj_type}:\n\n{body}{hint}\n\nSave anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return ans == QMessageBox.StandardButton.Yes
+
     def save_rule_changes(self):
         if self.selected_rule_index == -1:
             return
@@ -2279,10 +2321,14 @@ class RulesetManagerDialog(QDialog):
                 QMessageBox.critical(self, "Validation Error", f"Formula error in row {idx+1} ({itm['item_name']}):\n{msg_f}")
                 return
 
+        # Overlap / duplicate warning (non-blocking) before persisting.
+        if not self._confirm_no_overlap(rule.get("object", self.active_obj_type), cond):
+            return
+
         # Save to rule dict
         rule["condition"] = cond
         rule["items"] = items
-        
+
         self.save_rules()
         self._update_tree_counts()
         self._refresh_cards()

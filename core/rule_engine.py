@@ -77,6 +77,32 @@ _SECTION_TO_DB_NAME: dict[str, str] = {
 }
 
 
+def _object_label(item) -> str:
+    """Human-readable label for an object, for estimate transparency.
+
+    Uses the canvas label (e.g. "PP1"/"DTR1") for nodes; for spans the on-canvas
+    label shows length, so we build one from the endpoint labels instead.
+    """
+    if type(item).__name__ == "SmartSpan":
+        def _node(n):
+            lbl = getattr(n, "label", None)
+            try:
+                t = lbl.toPlainText().strip() if lbl is not None else ""
+            except Exception:
+                t = ""
+            return t or "?"
+        return (
+            f"{getattr(item, 'conductor', '')} span "
+            f"{_node(getattr(item, 'p1', None))}–{_node(getattr(item, 'p2', None))}"
+        ).strip()
+    lbl = getattr(item, "label", None)
+    try:
+        text = lbl.toPlainText().strip() if lbl is not None else ""
+    except Exception:
+        text = ""
+    return text or type(item).__name__
+
+
 class DynamicRuleEngine:
     """
     Evaluates a JSON ruleset against all canvas items and accumulates
@@ -391,6 +417,7 @@ class DynamicRuleEngine:
         rules: list,
         use_uh: bool = False,
         project_type: str = "NSC",
+        provenance_out: dict | None = None,
     ) -> tuple[dict, dict]:
         """
         Walk all canvas items, build their context, evaluate every rule,
@@ -403,6 +430,11 @@ class DynamicRuleEngine:
         rules         : parsed contents of rules.json
         use_uh        : project-level UH material toggle
         project_type  : project type string e.g. "NSC", "SHIFTING" etc.
+
+        provenance_out : optional dict. When supplied, it is populated with
+                        ``(item_type, name) → list[contribution]`` records so the
+                        UI can show where each estimate line came from (object
+                        label, rule id, condition, formula/recipe, qty).
 
         Returns
         -------
@@ -445,6 +477,8 @@ class DynamicRuleEngine:
             else:
                 # Unknown item type — skip silently
                 continue
+
+            obj_label = _object_label(item) if provenance_out is not None else ""
 
             # ── Evaluate rules ────────────────────────────────────────────
             for rule in rules:
@@ -520,10 +554,21 @@ class DynamicRuleEngine:
                                 # table uses uppercase (75X40) — the hardcoded map bridges that gap.
                                 agg_key = _SECTION_TO_DB_NAME.get(sec_code, sec.get("label", sec_code))
                                 item_type = item_dict.get("type", "Material")
+                                prov_type = "Labor" if item_type == "Labor" else "Material"
                                 if item_type in ("Material", "Iron"):
                                     raw_bom[agg_key] = raw_bom.get(agg_key, 0) + qty_mt
                                 elif item_type == "Labor":
                                     raw_lab[agg_key] = raw_lab.get(agg_key, 0) + qty_mt
+                                if provenance_out is not None:
+                                    provenance_out.setdefault((prov_type, agg_key), []).append({
+                                        "object_label": obj_label,
+                                        "object_type":  ctx.get("object_type", ""),
+                                        "rule_id":      rule.get("id"),
+                                        "condition":    condition,
+                                        "formula":      f"recipe:{recipe_key} → {sec_code}",
+                                        "qty":          qty_mt,
+                                        "item_type":    prov_type,
+                                    })
                         except Exception as e:
                             print(f"[RuleEngine] Error expanding recipe '{recipe_key}': {e}")
                         continue
@@ -543,5 +588,16 @@ class DynamicRuleEngine:
                         raw_bom[item_name] = raw_bom.get(item_name, 0) + qty
                     elif item_type == "Labor":
                         raw_lab[item_name] = raw_lab.get(item_name, 0) + qty
+
+                    if provenance_out is not None:
+                        provenance_out.setdefault((item_type, item_name), []).append({
+                            "object_label": obj_label,
+                            "object_type":  ctx.get("object_type", ""),
+                            "rule_id":      rule.get("id"),
+                            "condition":    condition,
+                            "formula":      formula,
+                            "qty":          qty,
+                            "item_type":    item_type,
+                        })
 
         return raw_bom, raw_lab
