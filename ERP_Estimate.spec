@@ -6,11 +6,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('data/seed_data.json', 'data'), ('data/rules.json', 'data'), ('data/recipes.json', 'data'), ('data/property_catalog.json', 'data'), ('assets/logo.svg', 'assets'), ('assets/logo.ico', 'assets'), ('assets/HELP.html', 'assets'), ('assets/icons', 'assets/icons')],
-    hiddenimports=['openpyxl', 'sqlite3', 'simpleeval', 'api_secrets'],
+    hiddenimports=['openpyxl', 'sqlite3', 'simpleeval'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['groq', 'pydantic', 'pydantic_core', 'httpx', 'httpcore', 'anyio', 'sniffio', 'h11', 'certifi', 'distro', 'jiter', 'numpy', 'PIL', 'Pillow', 'pandas', 'scipy', 'matplotlib', 'IPython', 'tkinter', '_tkinter', 'test', 'unittest', 'pytest'],
     noarchive=False,
     optimize=0,
 )

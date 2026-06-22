@@ -2,6 +2,34 @@
 
 ---
 
+## v8.0 — June 22, 2026
+
+### What's New
+
+#### 📦 Proper Windows Installer
+The app now ships as a **Setup.exe** instead of a loose ZIP. Installing creates
+a Start-menu shortcut (and an optional desktop icon) and registers a clean
+uninstaller. It installs per-user, so there is **no admin/UAC prompt**.
+
+#### 🔄 Automatic Updates
+On launch the app quietly checks GitHub for a newer release. When one is found
+you get a one-click **"Download and install now?"** prompt — it downloads the
+new installer, closes the app, updates in place and relaunches. You can also
+trigger it any time from **Help → Check for Updates…**.
+
+#### 🪶 Smaller, Faster Install
+Removed the AI Rule Creator and its heavy dependency, and pruned unused Qt
+payload (software-OpenGL fallback, locale files, unused image formats). The
+download is roughly **half the previous size**. The Rule Editor's deterministic
+**Smart Search** (find similar rules) is unchanged.
+
+#### 🛟 Startup Crash Log
+If the app ever fails to start, the full error is now written to
+`%APPDATA%/ERP_Estimate/last_crash.log` and shown in a dialog, instead of
+failing silently.
+
+---
+
 ## v7.8 — May 20, 2026
 
 ### What's New

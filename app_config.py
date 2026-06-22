@@ -58,16 +58,12 @@ def get_data_path(filename: str = "") -> str:
 
 APP_DISPLAY_NAME = "ERP Estimate Generator"
 APP_NAME = "ERP_Estimate"
-APP_VERSION = "7.9"
+APP_VERSION = "8.0"
 APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.
 APP_EXPIRY = "2026-07-30"
 
-# AI Assistant API Key
-try:
-    from api_secrets import GROQ_API_KEY
-except ImportError:
-    GROQ_API_KEY = ""
-
+# GitHub repository used for the in-app auto-updater (owner/name).
+GITHUB_REPO = "Hackers-lab/Estimator"
 

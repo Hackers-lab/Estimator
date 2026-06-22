@@ -39,19 +39,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── 3b. Create api_secrets.py from Secret ──────────────────────────────
-      - name: Create api_secrets.py
-        run: python -c "import os; open('api_secrets.py', 'w', encoding='utf-8').write('GROQ_API_KEY = ' + repr(os.environ.get('SECRET_GROQ_API_KEY', '')))"
-        env:
-          SECRET_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
-
       # ── 4. Build the Windows EXE and ZIP ───────────────────────────────────
       - name: Build application
         run: python build.py
 
-
-      # ── 5. Resolve version and ZIP path from the tag ───────────────────────
+      # ── 5. Resolve version, ZIP and installer paths from the tag ───────────
       - name: Resolve version info
         id: info
         shell: pwsh
@@ -59,10 +51,23 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $ver = $tag.TrimStart('v')
           $zip = "dist/ERP_Estimate_v${ver}.zip"
-          "TAG=$tag"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "ZIP=$zip"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Tag=$tag  Version=$ver  ZIP=$zip"
+          $setup = "dist/ERP_Estimate_Setup_v${ver}.exe"
+          "TAG=$tag"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "VERSION=$ver"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "ZIP=$zip"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "SETUP=$setup"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Tag=$tag  Version=$ver  ZIP=$zip  Setup=$setup"
+
+      # ── 5b. Build the Inno Setup installer ─────────────────────────────────
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ steps.info.outputs.VERSION }}" `
+            installer\ERP_Estimate.iss
 
       # ── 6. Extract user-facing release notes from CHANGELOG.md ────────────
       - name: Extract release notes
@@ -79,7 +84,9 @@ jobs:
         with:
           name: "ERP Estimate Generator v${{ steps.info.outputs.VERSION }}"
           body_path: release_notes.txt
-          files: ${{ steps.info.outputs.ZIP }}
+          files: |
+            ${{ steps.info.outputs.SETUP }}
+            ${{ steps.info.outputs.ZIP }}
           draft: false
           prerelease: false
         env:

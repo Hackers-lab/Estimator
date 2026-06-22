@@ -28,13 +28,13 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
     QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider,
-    QStackedWidget
+    QStackedWidget, QProgressDialog
 )
 from PyQt6.QtGui import (
     QPen, QBrush, QColor, QPainter, QFont,
     QAction, QKeySequence, QIcon, QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QEvent, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QEvent, QSize, pyqtSignal, QThread
 
 from core.constants import (
     TOOLS, PROJECT_TYPES, SUPERVISION_RATES, 
@@ -44,7 +44,8 @@ from core.constants import (
 from core import defaults
 from core.expiry import check_expiry
 from app_config import (
-    APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY, get_data_path
+    APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY,
+    get_data_path, get_user_data_path
 )
 from core.database import setup_database, DB_PATH
 from core.rule_engine import DynamicRuleEngine
@@ -81,6 +82,42 @@ DEFAULT_PROJECT_META = {
     "use_uh":           False,
     "supervision_rate": 0.10,
 }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  AUTO-UPDATE WORKER THREADS
+# ─────────────────────────────────────────────────────────────────────────────
+class _UpdateCheckThread(QThread):
+    """Query GitHub Releases off the UI thread. Emits the result dict or None."""
+    done = pyqtSignal(object)
+
+    def run(self):
+        try:
+            from core.updater import check_for_update
+            self.done.emit(check_for_update())
+        except Exception:
+            self.done.emit(None)
+
+
+class _UpdateDownloadThread(QThread):
+    """Download the installer off the UI thread, reporting progress."""
+    progress = pyqtSignal(int, int)   # downloaded, total
+    finished_path = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, url, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self):
+        try:
+            from core.updater import download_installer
+            path = download_installer(
+                self._url, lambda d, t: self.progress.emit(d, t)
+            )
+            self.finished_path.emit(path)
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -165,6 +202,9 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.set_tool("SELECT")
         self.load_autosave()
         self.on_selection_changed()
+
+        # ── Background update check (packaged builds only) ──────────────────
+        QTimer.singleShot(3000, self.maybe_check_for_updates_on_startup)
 
     # =========================================================================
     #  MENU BAR
@@ -329,6 +369,12 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_help.setShortcut(QKeySequence("F1"))
         act_help.triggered.connect(self.show_help)
         help_menu.addAction(act_help)
+
+        help_menu.addSeparator()
+
+        act_update = QAction("Check for Updates…", self)
+        act_update.triggered.connect(self.check_for_updates)
+        help_menu.addAction(act_update)
 
         help_menu.addSeparator()
 
@@ -2970,12 +3016,134 @@ class EstimateApp(QMainWindow, EditorMixin):
         lay.addWidget(close_btn)
         dlg.exec()
 
+    # =========================================================================
+    #  AUTO-UPDATE (GitHub Releases)
+    # =========================================================================
 
-if __name__ == "__main__":
+    def maybe_check_for_updates_on_startup(self):
+        """Silent background update check, run shortly after launch.
+
+        Only runs in the packaged (frozen) build so the installer-based update
+        path is meaningful; dev runs are never interrupted.
+        """
+        if not getattr(sys, "frozen", False):
+            return
+        self._launch_update_check(silent=True)
+
+    def check_for_updates(self):
+        """Manual 'Check for Updates…' — gives feedback even when up to date."""
+        self._launch_update_check(silent=False)
+
+    def _launch_update_check(self, silent: bool):
+        # Keep a reference so the thread isn't garbage-collected mid-run.
+        self._update_check_thread = _UpdateCheckThread()
+        self._update_check_thread.done.connect(
+            lambda info: self._on_update_check_result(info, silent)
+        )
+        self._update_check_thread.start()
+
+    def _on_update_check_result(self, info, silent: bool):
+        if not info:
+            if not silent:
+                QMessageBox.information(
+                    self, "No Updates",
+                    f"You are running the latest version (v{APP_VERSION}).",
+                )
+            return
+
+        notes = info.get("notes", "")
+        if len(notes) > 600:
+            notes = notes[:600] + "…"
+        ans = QMessageBox.question(
+            self, "Update Available",
+            f"Version {info['version']} is available "
+            f"(you have v{APP_VERSION}).\n\n"
+            f"{notes}\n\nDownload and install now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            self._download_and_install_update(info)
+
+    def _download_and_install_update(self, info):
+        dlg = QProgressDialog("Downloading update…", "Cancel", 0, 100, self)
+        dlg.setWindowTitle("Updating")
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setValue(0)
+
+        self._update_dl_thread = _UpdateDownloadThread(info["url"], self)
+
+        def _on_progress(done, total):
+            if total > 0:
+                dlg.setMaximum(total)
+                dlg.setValue(done)
+            else:
+                dlg.setMaximum(0)  # indeterminate
+
+        def _on_finished(path):
+            dlg.close()
+            try:
+                # Release the single-instance mutex and quit so the installer
+                # (CloseApplications=yes) can replace files, then relaunch us.
+                os.startfile(path)  # type: ignore[attr-defined]
+            except Exception as exc:
+                QMessageBox.critical(self, "Update Failed", f"Could not launch installer:\n{exc}")
+                return
+            app_inst = QApplication.instance()
+            if app_inst is not None:
+                app_inst.quit()
+
+        def _on_failed(msg):
+            dlg.close()
+            QMessageBox.critical(self, "Update Failed", f"Download failed:\n{msg}")
+
+        self._update_dl_thread.progress.connect(_on_progress)
+        self._update_dl_thread.finished_path.connect(_on_finished)
+        self._update_dl_thread.failed.connect(_on_failed)
+        dlg.canceled.connect(self._update_dl_thread.terminate)
+        self._update_dl_thread.start()
+
+
+def _log_startup_crash(exc: BaseException) -> None:
+    """Persist a full startup traceback so windowed (no-console) builds are
+    diagnosable, and show the user a dialog with the cause.
+
+    PyInstaller ``--windowed`` builds have no console, so an import error (or
+    any startup exception) otherwise dies silently. This writes the traceback
+    to ``%APPDATA%/ERP_Estimate/last_crash.log`` and surfaces it in a dialog.
+    """
+    import traceback as _tb
+    detail = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))
+    try:
+        log_path = get_user_data_path("last_crash.log")
+        with open(log_path, "w", encoding="utf-8") as fh:
+            fh.write(f"{APP_DISPLAY_NAME} v{APP_VERSION}\n")
+            fh.write(f"{datetime.now().isoformat()}\n\n")
+            fh.write(detail)
+    except Exception:
+        log_path = "(could not write crash log)"
+    # Best-effort dialog — may itself fail if Qt never initialised.
+    try:
+        if QApplication.instance() is None:
+            QApplication(sys.argv)
+        QMessageBox.critical(
+            None,
+            f"{APP_DISPLAY_NAME} — Startup Error",
+            f"The application failed to start:\n\n{type(exc).__name__}: {exc}\n\n"
+            f"Details written to:\n{log_path}",
+        )
+    except Exception:
+        pass
+
+
+def main() -> int:
     if not check_expiry():
-        sys.exit(1)
+        return 1
 
     # ── Single-instance enforcement (Windows named mutex) ────────────
+    # The handle is intentionally kept alive for the process lifetime; Windows
+    # releases the mutex automatically on exit (including the updater's exit).
+    global _single_instance_mutex
     _single_instance_mutex = None
     if sys.platform == "win32":
         import ctypes
@@ -2992,10 +3160,20 @@ if __name__ == "__main__":
                 f"{APP_DISPLAY_NAME} is already running.\n"
                 "Please switch to the existing window.",
             )
-            sys.exit(0)
+            return 0
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     win = EstimateApp()
     win.showMaximized()
-    sys.exit(app.exec())
+    return app.exec()
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as _exc:  # noqa: BLE001 — top-level safety net
+        _log_startup_crash(_exc)
+        sys.exit(1)

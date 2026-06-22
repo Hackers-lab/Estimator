@@ -1663,16 +1663,7 @@ class RulesetManagerDialog(QDialog):
         
         sec_label = self._sec_lbl("Condition Logic")
         cond_hdr_l.addWidget(sec_label, 1)
-        
-        ai_btn = QPushButton("✨ Describe in plain English")
-        ai_btn.setStyleSheet(
-            "background:#9b59b6; color:white; border:none; "
-            "padding:3px 8px; border-radius:3px; font-size:10px; font-weight:bold;"
-        )
-        ai_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        ai_btn.clicked.connect(self._open_ai_describe)
-        cond_hdr_l.addWidget(ai_btn)
-        
+
         self._editor_body_l.addWidget(cond_hdr_row)
 
         self._cond_container = QWidget()
@@ -2568,59 +2559,4 @@ class RulesetManagerDialog(QDialog):
             f"Rule group created from template: {tmpl['name']}\n\n"
             "You can now edit the item list, condition, and formulas."
         )
-
-    # ── AI describe ───────────────────────────────────────────────────────────
-
-    def _open_ai_describe(self):
-        """Use AI Assistant to parse requests and modify/create rules."""
-        try:
-            from ui.dialogs.ai_assistant import AIAssistantDialog
-            dlg = AIAssistantDialog(self, obj_type=self.active_obj_type, current_rules=self.rules)
-            if dlg.exec() == QDialog.DialogCode.Accepted:
-                ops = dlg.get_selected_operations()
-                if not ops: return
-                
-                changed = False
-                for op in ops:
-                    action = str(op.get("action", "")).upper()
-                    target_obj = op.get("object", self.active_obj_type)
-                    if action == "CREATE":
-                        new_r = {
-                            "object": target_obj,
-                            "condition": op.get("condition", "True"),
-                            "enabled": 1,
-                            "items": [
-                                {
-                                    "type": op.get("type", "Material"),
-                                    "item_code": "",
-                                    "item_name": op.get("item_name", "AI Suggested Item"),
-                                    "formula": str(op.get("formula", "1"))
-                                }
-                            ]
-                        }
-                        self.rules.append(new_r)
-                        changed = True
-                    elif action == "UPDATE":
-                        try:
-                            real_id = int(op.get("rule_id", -1))
-                            if 0 <= real_id < len(self.rules):
-                                r = self.rules[real_id]
-                                if "condition" in op: r["condition"] = op["condition"]
-                                if r.get("items"):
-                                    itm = r["items"][0]
-                                    if "formula" in op: itm["formula"] = str(op["formula"])
-                                    if "item_name" in op: itm["item_name"] = op["item_name"]
-                                changed = True
-                        except (ValueError, TypeError):
-                            pass
-                
-                if changed:
-                    self._update_tree_counts()
-                    self._refresh_cards()
-                    QMessageBox.information(self, "AI Update Applied", f"Changes applied to memory. Click 'Save' on individual rules to persist.")
-                    
-        except Exception as exc:
-            import traceback
-            traceback.print_exc()
-            QMessageBox.critical(self, "AI Assistant Error", f"An error occurred:\n{exc}")
 

@@ -23,10 +23,10 @@
 Estimator/
 │
 ├── app.py                    ← MAIN ENTRY POINT & APPLICATION WINDOW
-├── app_config.py             ← Version, expiry, paths, API key loader
-├── api_secrets.py            ← Groq API key (gitignored in prod)
-├── requirements.txt          ← PyQt6, openpyxl, pyinstaller
-├── build.py                  ← PyInstaller build script
+├── app_config.py             ← Version, expiry, paths, GitHub repo for updater
+├── requirements.txt          ← PyQt6, openpyxl, simpleeval, pyinstaller
+├── build.py                  ← PyInstaller build script (+ Qt payload pruning)
+├── installer/ERP_Estimate.iss ← Inno Setup script → per-user Setup.exe
 ├── ERP_Estimate.spec         ← PyInstaller spec (auto-generated)
 ├── erp_master.db             ← SQLite DB: materials + labour rates
 ├── version.json              ← Version metadata
@@ -40,7 +40,8 @@ Estimator/
 │   ├── expression_engine.py  ← Safe math/condition evaluation engine
 │   ├── property_catalog.py   ← Exposes definitions of standard properties
 │   ├── property_registry.py  ← Registry for runtime object properties
-│   ├── ai_rule_parser.py     ← Plain-English rule parsing logic (Groq API)
+│   ├── ai_rule_parser.py     ← Deterministic rule-search helpers for Smart Search (no AI)
+│   ├── updater.py            ← In-app GitHub Releases auto-updater (stdlib urllib)
 │   ├── rule_templates.py     ← Standard rule templates for rule creation
 │   ├── data_mgr.py           ← User AppData directory initializer and synchronizer
 │   ├── expiry.py             ← App expiry date check (APP_EXPIRY in app_config)
@@ -70,7 +71,6 @@ Estimator/
 │   │   ├── settings.py       ← SettingsDialog: gateway to master tools
 │   │   ├── database_mgr.py   ← DatabaseManagerDialog: manage materials/labour rates
 │   │   ├── ruleset_mgr.py    ← RulesetManagerDialog: tree, rules lists, simulator
-│   │   ├── ai_assistant.py   ← AiAssistantDialog: plain-English rules AI setup
 │   │   ├── placement.py      ← PlacementDefaultsDialog: placement preferences
 │   │   └── property_editor.py ← PropertyEditorDialog: custom property slots
 │   │
@@ -113,10 +113,11 @@ Estimator/
 |------|---------|
 | `app.py` | `EstimateApp(QMainWindow, EditorMixin)` — entire UI layout, tool management, canvas interaction, autosave timer, project open/save/new, calls rule engine, populates live estimate table, triggers exports |
 | `app_config.py` | `APP_VERSION`, `APP_EXPIRY`, `APP_AUTHOR`, `get_data_path()`, `get_user_data_path()` — single place to bump version or expiry date |
-| `api_secrets.py` | Holds `GROQ_API_KEY` for the AI Rule Creator feature; imported by `app_config.py` with a safe fallback |
-| `build.py` | Runs PyInstaller to package standalone EXE alongside a pre-seeded database, zips output |
+| `core/updater.py` | In-app auto-updater: checks GitHub Releases, downloads the new Setup.exe, runs it. Pure stdlib (`urllib`) |
+| `build.py` | Runs PyInstaller to package standalone EXE alongside a pre-seeded database, prunes unused Qt payload, zips output |
+| `installer/ERP_Estimate.iss` | Inno Setup script → per-user `Setup.exe` (compiled in CI with `iscc /DMyAppVersion=<ver>`) |
 | `erp_master.db` | SQLite database — holds rates, rules, options, settings, and custom slots; seeded from JSON backups |
-| `requirements.txt` | `PyQt6>=6.4.0`, `openpyxl>=3.1.0`, `pyinstaller>=6.0.0` |
+| `requirements.txt` | `PyQt6`, `openpyxl`, `simpleeval`, `pyinstaller` (version-pinned with upper bounds) |
 
 ---
 
@@ -173,7 +174,6 @@ All canvas items are `QGraphicsItem` subclasses. They draw themselves and notify
 | `SettingsDialog` | `ui/dialogs/settings.py` | Configuration dialog providing shortcuts to Ruleset and DB manager tools |
 | `DatabaseManagerDialog` | `ui/dialogs/database_mgr.py` | Interactive grid to edit, search, add, or bulk import/export rates from Excel in the master database |
 | `RulesetManagerDialog` | `ui/dialogs/ruleset_mgr.py` | Multi-panel rule suite: Left tree category selection, middle rules list, right editor panel with live sandbox testing |
-| `AiAssistantDialog` | `ui/dialogs/ai_assistant.py` | Captures plain-English descriptions and uses the Groq AI API to generate clean rule syntax |
 | `PlacementDefaultsDialog`| `ui/dialogs/placement.py` | Configures defaults for LT/HT poles, spans, and consumer labels |
 | `PropertyEditorDialog` | `ui/dialogs/property_editor.py` | Custom Property manager enabling user-defined select inputs (Custom 1..N) and database Heights & Sizes |
 
@@ -337,9 +337,9 @@ Autosave writes to `autosave_erp.json` every 60 seconds in the working directory
 | Database | SQLite3 (stdlib) via `erp_master.db` |
 | Excel export | `openpyxl` |
 | PDF export | `QPrinter` (built into PyQt6) |
-| AI Rule Creator | Groq API (configured in `api_secrets.py`) |
 | GPS maps | OpenStreetMap tile HTTP fetch → `QPixmap` |
-| Build/packaging | PyInstaller (onedir, windowed) |
+| Auto-update | GitHub Releases API (`core/updater.py`) + Inno Setup installer |
+| Build/packaging | PyInstaller (onedir, windowed) → Inno Setup `Setup.exe` |
 | Python version | 3.x (3.10+ recommended for PyQt6) |
 
 ---
