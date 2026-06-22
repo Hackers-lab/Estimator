@@ -2,6 +2,34 @@
 
 ---
 
+## v8.1 — June 22, 2026
+
+### What's New
+
+#### 🔎 Estimate Transparency
+**Right-click (or double-click) any line in the Live Estimate** to see exactly
+where that number came from — every contributing object (e.g. DP1, DTR2), the
+rule that fired, its condition, the formula or recipe used, and each
+contribution's quantity, all summing to the line total.
+
+#### ⚠️ Rule Overlap Warning
+Saving a rule now warns (without blocking) if its condition **duplicates** or is
+**broader/narrower** than an existing rule for the same object type — so you can
+spot conflicts before they double-count.
+
+### Fixes
+
+#### 🏗️ Structure Extensions Now Estimated
+Extensions on **DP / TP / 4P / DTR** structures were not appearing in the
+estimate. They now add the correct extension iron and erection labour, scaled by
+the structure's pole count (DP/DTR ×2, TP ×3, 4P ×4).
+
+#### 👁️ Hide Existing-Span Length
+New canvas toggle ("Existing Length") to hide the length label on existing spans
+for cleaner, less cluttered drawings.
+
+---
+
 ## v8.0 — June 22, 2026
 
 ### What's New

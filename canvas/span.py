@@ -61,6 +61,10 @@ class SmartSpan(QGraphicsPathItem):
     _WAVY_FREQUENCY_DIV: int = 15
     _MIN_WAVY_STEPS: int = 20
 
+    # View toggle (set by the app's bottom-bar checkbox): when False, existing
+    # spans hide their length label to reduce clutter on busy drawings.
+    show_existing_length: bool = True
+
     def __init__(self, pole1: Any, pole2: Any, detail_view: bool = True) -> None:
         super().__init__()
         self.p1          = pole1
@@ -387,12 +391,11 @@ class SmartSpan(QGraphicsPathItem):
 
         # ── Label text ────────────────────────────────────────────────────
         if self.is_existing_span:
-            if self.conductor == "ACSR":
-                txt = f"{self.length}m"
-            elif self.conductor == "AB Cable":
-                txt = f"{self.length}m"
+            show_len = getattr(SmartSpan, "show_existing_length", True)
+            if self.conductor in ("ACSR", "AB Cable"):
+                txt = f"{self.length}m" if show_len else ""
             else:
-                txt = f"Existing\n{self.conductor}"
+                txt = f"Existing\n{self.conductor}" if show_len else "Existing"
         elif self.is_service_drop:
             phase_s = "1φ" if self.phase == "1 Phase" else "3φ"
             txt = f"Service {self.length}m\n{phase_s}"

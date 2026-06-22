@@ -440,23 +440,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         sep1.setStyleSheet("color:#ccc; font-size:14px;")
         bottom_bar.addWidget(sep1)
 
-        # Page Grid toggle
-        self.grid_chk = QCheckBox("Page Grid")
-        self.grid_chk.setChecked(True)
-        self.grid_chk.setStyleSheet(
-            "font-size:11px; font-weight:bold; color:#3a7bd5; spacing:4px;"
-        )
-        self.grid_chk.toggled.connect(self._toggle_page_grid)
-        bottom_bar.addWidget(self.grid_chk)
-
-        # Crosshatch toggle
-        self.hatch_chk = QCheckBox("Crosshatch")
-        self.hatch_chk.setChecked(True)
-        self.hatch_chk.setStyleSheet(
+        # Hide existing-span length labels (declutter busy drawings)
+        self.ex_len_chk = QCheckBox("Existing Length")
+        self.ex_len_chk.setChecked(True)
+        self.ex_len_chk.setToolTip("Show the length label on existing spans")
+        self.ex_len_chk.setStyleSheet(
             "font-size:11px; color:#555; spacing:4px;"
         )
-        self.hatch_chk.toggled.connect(self._toggle_crosshatch)
-        bottom_bar.addWidget(self.hatch_chk)
+        self.ex_len_chk.toggled.connect(self._toggle_existing_span_length)
+        bottom_bar.addWidget(self.ex_len_chk)
 
         # Separator
         sep2 = QLabel("|");
@@ -1144,19 +1136,12 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.refresh_all_visuals()
 
 
-    def _toggle_page_grid(self, checked):
-        self.show_page_grid = checked
-        self.view.grid_show = checked
-        vp = self.view.viewport()
-        assert vp is not None
-        vp.update()
-
-    def _toggle_crosshatch(self, checked):
-        self.show_crosshatch = checked
-        self.view.grid_crosshatch = checked
-        vp = self.view.viewport()
-        assert vp is not None
-        vp.update()
+    def _toggle_existing_span_length(self, checked):
+        """Show/hide the length label on existing spans (view-only declutter)."""
+        SmartSpan.show_existing_length = checked
+        for item in self.scene.items():
+            if isinstance(item, SmartSpan) and getattr(item, "is_existing_span", False):
+                item.update_visuals()
     def _toggle_gps_bg(self, checked):
         if checked:
             import urllib.request

@@ -1,11 +1,12 @@
 {
-    "version": "8.0",
+    "version": "8.1",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-07-30",
     "release_date": "2026-06-22",
     "changelog": {
+        "8.1": "Estimate transparency — right-click or double-click any live-estimate line to see exactly which objects and rules produced it (object, rule, condition, formula/recipe, qty). Rule overlap warning on save (flags duplicate/broader/narrower conditions). Fixed: structure extensions (DP/TP/4P/DTR) now appear in the estimate (iron + erection labour scaled per pole). New option to hide the length label on existing spans.",
         "8.0": "Windows installer with automatic updates — the app now ships as a Setup.exe (Start-menu shortcut + uninstaller) and checks GitHub for new versions on launch, downloading and installing them in one click. Removed the AI Rule Creator and its heavy dependency, roughly halving the install size (smaller, faster download; the rule editor's deterministic Smart Search is unchanged). Added a startup crash log for easier diagnosis.",
         "7.9": "Massive speed boost — live estimate refresh up to ~220x faster on large drawings (rule-engine evaluator + section caching, non-blocking debounced refresh, single-pass DB lookups). New service-drop cable sizes (4/6/25 SQMM); cable size editable on the service drop and kept in sync with the consumer; consumer phase now syncs to its service drop. DTR now defaults to 25KVA. PDF legend symbols redrawn to match the canvas exactly (wavy AB/PVC/service-drop lines, correct structure colours). Fixed structure/pole height showing 8m while counting 9m. Added Factory Reset (Settings menu). Extended validity until 30.07.2026.",
         "7.6": "Added Iron Recipes for granular control over iron calculations, live iron breakup along with the live estimate, minor adjustments, and rule updates.",

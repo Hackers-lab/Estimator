@@ -2160,5 +2160,62 @@
         "formula": "recipe"
       }
     ]
+  },
+  {
+    "id": 232,
+    "object": "SmartStructure",
+    "condition": "structure_type in ('DP', 'DTR') and has_extension",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "STRUCT_HT_EXT_2P"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-22",
+        "item_name": "Extension of PCC Pole upto 3MTR Without Painted HT",
+        "formula": "2"
+      }
+    ]
+  },
+  {
+    "id": 233,
+    "object": "SmartStructure",
+    "condition": "structure_type == 'TP' and has_extension",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "STRUCT_HT_EXT_3P"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-22",
+        "item_name": "Extension of PCC Pole upto 3MTR Without Painted HT",
+        "formula": "3"
+      }
+    ]
+  },
+  {
+    "id": 234,
+    "object": "SmartStructure",
+    "condition": "structure_type == '4P' and has_extension",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "STRUCT_HT_EXT_4P"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-22",
+        "item_name": "Extension of PCC Pole upto 3MTR Without Painted HT",
+        "formula": "4"
+      }
+    ]
   }
 ]

@@ -304,5 +304,68 @@
         "length_formula": "=1.5"
       }
     ]
+  },
+  "STRUCT_HT_EXT_2P": {
+    "name": "Structure Extension Iron (2-pole)",
+    "description": "HT extension iron for a 2-pole structure (DP/DTR) — channel + flat per pole",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Structure Extension (Channel)",
+        "section": "CH_75X40",
+        "dynamic_length": "extension_height * 2",
+        "qty_per_object": 2,
+        "length_formula": "extension_height * 2"
+      },
+      {
+        "description": "Structure Extension (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 3.0,
+        "qty_per_object": 2,
+        "length_formula": "=3"
+      }
+    ]
+  },
+  "STRUCT_HT_EXT_3P": {
+    "name": "Structure Extension Iron (3-pole)",
+    "description": "HT extension iron for a 3-pole structure (TP) — channel + flat per pole",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Structure Extension (Channel)",
+        "section": "CH_75X40",
+        "dynamic_length": "extension_height * 2",
+        "qty_per_object": 3,
+        "length_formula": "extension_height * 2"
+      },
+      {
+        "description": "Structure Extension (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 3.0,
+        "qty_per_object": 3,
+        "length_formula": "=3"
+      }
+    ]
+  },
+  "STRUCT_HT_EXT_4P": {
+    "name": "Structure Extension Iron (4-pole)",
+    "description": "HT extension iron for a 4-pole structure (4P) — channel + flat per pole",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "Structure Extension (Channel)",
+        "section": "CH_75X40",
+        "dynamic_length": "extension_height * 2",
+        "qty_per_object": 4,
+        "length_formula": "extension_height * 2"
+      },
+      {
+        "description": "Structure Extension (Flat)",
+        "section": "FLAT_65X6",
+        "length_per_piece": 3.0,
+        "qty_per_object": 4,
+        "length_formula": "=3"
+      }
+    ]
   }
 }
