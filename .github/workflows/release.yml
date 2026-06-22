@@ -50,13 +50,11 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $ver = $tag.TrimStart('v')
-          $zip = "dist/ERP_Estimate_v${ver}.zip"
           $setup = "dist/ERP_Estimate_Setup_v${ver}.exe"
           "TAG=$tag"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "VERSION=$ver"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "ZIP=$zip"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "SETUP=$setup"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Tag=$tag  Version=$ver  ZIP=$zip  Setup=$setup"
+          Write-Host "Tag=$tag  Version=$ver  Setup=$setup"
 
       # ── 5b. Build the Inno Setup installer ─────────────────────────────────
       - name: Install Inno Setup
@@ -84,9 +82,7 @@ jobs:
         with:
           name: "ERP Estimate Generator v${{ steps.info.outputs.VERSION }}"
           body_path: release_notes.txt
-          files: |
-            ${{ steps.info.outputs.SETUP }}
-            ${{ steps.info.outputs.ZIP }}
+          files: ${{ steps.info.outputs.SETUP }}
           draft: false
           prerelease: false
         env:

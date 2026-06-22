@@ -1,18 +1,17 @@
 """
 Build script for ERP Estimate Generator.
-Creates a distributable ZIP using PyInstaller (one-folder mode) and prunes
-unused Qt payload to keep the install small.
+Creates a PyInstaller one-folder build and prunes unused Qt payload to keep the
+install small. The Inno Setup installer (installer/ERP_Estimate.iss) packages
+this folder; no portable ZIP is produced.
 
 Usage:  python build.py
-Output: dist/<APP_NAME>_v<APP_VERSION>/        (onedir, what the installer packages)
-        dist/<APP_NAME>_v<APP_VERSION>.zip      (portable fallback)
+Output: dist/<APP_NAME>_v<APP_VERSION>/   (onedir, what the installer packages)
 """
 
 import subprocess
 import shutil
 import sys
 import os
-import zipfile
 
 
 from app_config import APP_NAME, APP_VERSION
@@ -175,21 +174,16 @@ def main() -> None:
     # shutil.move is more robust than os.rename on Windows (avoids AV lock errors)
     shutil.move(exe_dir, final_dir)
 
-    # ── 5. Create ZIP ─────────────────────────────────────────────────────────
-    zip_path = os.path.join(ROOT, DIST_DIR, f"{FOLDER}.zip")
-    print(f"=== Creating {zip_path} ===")
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for dirpath, dirnames, filenames in os.walk(final_dir):
-            for fn in filenames:
-                abs_file = os.path.join(dirpath, fn)
-                arc_name = os.path.join(FOLDER, os.path.relpath(abs_file, final_dir))
-                zf.write(abs_file, arc_name)
-
+    # ── 5. Done ──────────────────────────────────────────────────────────────
+    # No portable ZIP is produced — the Inno Setup installer (built from this
+    # folder) is the sole deliverable.
+    folder_mb = sum(
+        os.path.getsize(os.path.join(dp, f))
+        for dp, _, fs in os.walk(final_dir) for f in fs
+    ) / (1024 * 1024)
     print("=== Build complete ===\n")
-    print(f"  Folder      : {final_dir}")
-    print(f"  Deliverable : {zip_path}")
-    print(f"  Size        : {os.path.getsize(zip_path) / (1024 * 1024):.1f} MB")
+    print(f"  Folder : {final_dir}")
+    print(f"  Size   : {folder_mb:.1f} MB  (installer is built from this folder)")
 
 
 if __name__ == "__main__":

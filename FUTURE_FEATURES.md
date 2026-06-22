@@ -9,7 +9,7 @@ Last updated: 2026-05-19
 - Reuse last export path.
 - Save project bundle (PDF + Excel + drawing JSON).
 - Initial custom property system: Property Editor, slot count, per-object Custom 1..N selectors, rule-context exposure, and project save/load persistence.
-- AI Rule Creator (plain English rule generation via Groq API).
+- AI Rule Creator (plain English rule generation via Groq API). **[REMOVED in v8.0** — dropped the heavy `groq` dependency to fix a packaging crash and halve install size; the deterministic pure-Python "Smart Search" for similar rules remains.]
 - Configurable Rate Chart Base Year for escalations (Settings → Rate Chart Year dialog + database persistence).
 - Rule Grouping (Phase 1.1): One condition maps to multiple items; SQLite auto-migration; and interactive items table editor in Ruleset Manager UI.
 - Phase 2 — Iron Recipe System: Built dynamic database-backed iron recipes template system (`data/recipes.json` + `recipes`/`sections` database tables), complete CRUD API integration, canvas property serialization, Property Editor dropdown integration, dynamic Rule Engine `"formula": "recipe"` expansion, and premium `RecipeManagerDialog` UI for full template and steel profile management.
@@ -126,7 +126,7 @@ Last updated: 2026-05-19
 - Add items below condition — searchable item code from database.
 - Formula helper shows all available context variables.
 - Overlap detection runs on Save (see 1.3).
-- AI assistant stays for plain English rule creation.
+- (AI plain-English rule creation was removed in v8.0; the visual builder is now the primary path.)
 
 ### 3.6 Custom Objects
 - Settings → Custom Objects.
