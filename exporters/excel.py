@@ -484,6 +484,26 @@ class ExcelExporter:
         add_recipe_obj(f"TP Structure Iron", "TP_IRON", counts["tp_count"])
         add_recipe_obj(f"4-Pole Structure Iron", "4P_IRON", counts["4p_count"])
         add_recipe_obj(f"DTR Substation Iron", "DTR_IRON", counts["dtr_count"])
+
+        # Structure extensions — mirrors the STRUCT_HT_EXT_2P/3P/4P recipes used
+        # by rules 232-234 (channel ×pole_count, flat ×pole_count). Without this
+        # the exported breakup omitted iron the live estimate already counts.
+        from canvas import SmartStructure as _SmartStructure
+        _all_structs = [i for i in scene_items if isinstance(i, _SmartStructure)]
+        for _slabel, _stypes, _ppc in (("DP/DTR", ("DP", "DTR"), 2), ("TP", ("TP",), 3), ("4P", ("4P",), 4)):
+            _grp = [s for s in _all_structs
+                    if getattr(s, "structure_type", "") in _stypes and getattr(s, "has_extension", False)]
+            if not _grp:
+                continue
+            _cnt = len(_grp)
+            _avg = round(sum(float(getattr(s, "extension_height", 3.0) or 3.0) for s in _grp) / _cnt, 2)
+            add_direct_obj(f"{_slabel} Structure Extension ({_cnt} nos)", _cnt, [
+                {"description": "Structure Extension (Channel)", "section": "CH_75X40",
+                 "lpp": round(_avg * 2, 2), "qpo": _ppc, "lf": f"={_ppc}*{_avg}*2"},
+                {"description": "Structure Extension (Flat)", "section": "FLAT_65X6",
+                 "lpp": 3.0, "qpo": _ppc, "lf": f"={_ppc}*3"},
+            ])
+
         for rkey, cnt in ht_recipe_counts.items():
             rec = find_recipe(rkey)
             label = rec["name"] if rec else rkey
