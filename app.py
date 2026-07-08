@@ -22,7 +22,7 @@ from datetime import datetime, date
 # pyrefly: ignore [missing-import]
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QComboBox, QGraphicsScene,
+    QPushButton, QLabel, QComboBox, QGraphicsScene, QGraphicsItem,
     QFormLayout, QGroupBox, QSpinBox, QLineEdit,
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
@@ -81,6 +81,15 @@ DEFAULT_PROJECT_META = {
     "project_type":     "NSC",
     "use_uh":           False,
     "supervision_rate": 0.10,
+    "project_id":       "",
+    "po_no":            "",
+    "po_date":          "",
+    "vendor_id":        "",
+    "comm_date":        "",
+    "comp_date":        "",
+    "meas_date":        "",
+    "meas_taken_by":    "",
+    "certified_by":     "",
 }
 
 
@@ -132,8 +141,9 @@ class EstimateApp(QMainWindow, EditorMixin):
     # pass. Canvas geometry still follows nodes live (see _on_position_changed).
     _REFRESH_DEBOUNCE_MS = 30
 
-    def __init__(self):
+    def __init__(self, headless=False):
         super().__init__()
+        self.headless = headless
 
         setup_database()
         defaults.load()
@@ -144,6 +154,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.live_bom_data  = []
         self.live_bom_provenance = {}
         self.escalations    = []
+        self.current_project_path = None
         self.detail_view    = True          # show stay/earth/CG symbols
         self.span_start_pole = None
         self.last_placed_node = None        # for auto-span chain when placing nodes
@@ -180,32 +191,38 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self._do_refresh_live_estimate)
 
-        self.grid_manager = GridManager(self)
+        if not self.headless:
+            self.grid_manager = GridManager(self)
 
-        # ── Build UI ───────────────────────────────────────────────────────
-        self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
-        self.setGeometry(50, 50, 1650, 930)
-        logo_path = resource_path("assets/logo.svg")
-        if os.path.exists(logo_path):
-            self.setWindowIcon(QIcon(logo_path))
-        self._build_menu_bar()
-        self._build_ui()
+            # ── Build UI ───────────────────────────────────────────────────────
+            self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
+            self.setGeometry(50, 50, 1650, 930)
+            logo_path = resource_path("assets/logo.svg")
+            if os.path.exists(logo_path):
+                self.setWindowIcon(QIcon(logo_path))
 
-        app_inst = QApplication.instance()
-        if app_inst is not None:
-            app_inst.installEventFilter(self)
+            self._build_menu_bar()
+            self._build_ui()
 
-        # ── Wire signals ───────────────────────────────────────────────────
-        self.refresh_signal.connect(self.refresh_live_estimate)
-        self.scene.selectionChanged.connect(self.on_selection_changed)
+            app_inst = QApplication.instance()
+            if app_inst is not None:
+                app_inst.installEventFilter(self)
 
-        # ── Load autosave ──────────────────────────────────────────────────
-        self.set_tool("SELECT")
-        self.load_autosave()
-        self.on_selection_changed()
+            # ── Wire signals ───────────────────────────────────────────────────
+            self.refresh_signal.connect(self.refresh_live_estimate)
+            self.scene.selectionChanged.connect(self.on_selection_changed)
 
-        # ── Background update check (packaged builds only) ──────────────────
-        QTimer.singleShot(3000, self.maybe_check_for_updates_on_startup)
+            # ── Load autosave ──────────────────────────────────────────────────
+            self.set_tool("SELECT")
+            self.load_autosave()
+            self.on_selection_changed()
+
+            # ── Background update check (packaged builds only) ──────────────────
+            QTimer.singleShot(3000, self.maybe_check_for_updates_on_startup)
+            QTimer.singleShot(1000, self._check_profile_on_startup)
+        else:
+            self.scene = QGraphicsScene()
+
 
     # =========================================================================
     #  MENU BAR
@@ -275,10 +292,20 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_open.triggered.connect(self.load_from_file)
         file_menu.addAction(act_open)
 
+        act_my_projects = QAction("My Projects…", self)
+        act_my_projects.setShortcut(QKeySequence("Ctrl+P"))
+        act_my_projects.triggered.connect(self.open_my_projects_dialog)
+        file_menu.addAction(act_my_projects)
+
         act_save = QAction("Save…", self)
         act_save.setShortcut(QKeySequence("Ctrl+S"))
         act_save.triggered.connect(self.save_to_file)
         file_menu.addAction(act_save)
+
+        act_save_as = QAction("Save As…", self)
+        act_save_as.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        act_save_as.triggered.connect(self.save_as_file)
+        file_menu.addAction(act_save_as)
 
         act_save_bundle = QAction("Save Project Bundle…", self)
         act_save_bundle.triggered.connect(self.save_project_bundle)
@@ -319,6 +346,13 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_bundle.triggered.connect(self.save_project_bundle)
         export_menu.addAction(act_bundle)
 
+        export_menu.addSeparator()
+
+        act_invoice = QAction("Generate Tax Invoice PDF…", self)
+        act_invoice.setShortcut(QKeySequence("Ctrl+I"))
+        act_invoice.triggered.connect(self.open_billing_dialog)
+        export_menu.addAction(act_invoice)
+
         # ── Settings ─────────────────────────────────────────────────────
         settings_menu = mb.addMenu("&Settings")
         assert settings_menu is not None
@@ -326,6 +360,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_proj = QAction("Project Settings", self)
         act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
         settings_menu.addAction(act_proj)
+
+        act_profiles = QAction("User Profiles…", self)
+        act_profiles.triggered.connect(self.open_user_profiles_dialog)
+        settings_menu.addAction(act_profiles)
 
         settings_menu.addSeparator()
 
@@ -412,7 +450,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(4, 4, 4, 4)
         left_layout.setSpacing(4)
-        self.splitter.addWidget(left_panel)
+        self.lock_banner = QLabel("🔒 PROJECT INVOICED: Drawing and estimate are locked from further editing.")
+        self.lock_banner.setStyleSheet("background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 4px; padding: 6px; font-weight: bold; font-size: 11px;")
+        self.lock_banner.setVisible(False)
+        left_layout.addWidget(self.lock_banner)
 
         left_layout.addLayout(self._build_icon_ribbon())
         left_layout.addLayout(self._build_draw_toolbar())
@@ -535,6 +576,8 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         bottom_bar.addStretch()
         left_layout.addLayout(bottom_bar)
+
+        self.splitter.addWidget(left_panel)
 
         # Right: properties + estimate table
         right_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -731,17 +774,17 @@ class EstimateApp(QMainWindow, EditorMixin):
         )
         info_row.addWidget(self.proj_info_label, 1)
 
-        edit_btn = QPushButton("✏️")
-        edit_btn.setToolTip("Edit Project Settings")
-        edit_btn.setFixedSize(28, 24)
-        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_btn.setStyleSheet(
+        self.edit_proj_btn = QPushButton("✏️")
+        self.edit_proj_btn.setToolTip("Edit Project Settings")
+        self.edit_proj_btn.setFixedSize(28, 24)
+        self.edit_proj_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.edit_proj_btn.setStyleSheet(
             "QPushButton { background:#f0f0f0; border:1px solid #ccc;"
             "  border-left:none; border-radius:0 3px 3px 0; font-size:13px; }"
             "QPushButton:hover { background:#d5e8f7; }"
         )
-        edit_btn.clicked.connect(lambda: self._run_project_wizard(first_run=False))
-        info_row.addWidget(edit_btn)
+        self.edit_proj_btn.clicked.connect(lambda: self._run_project_wizard(first_run=False))
+        info_row.addWidget(self.edit_proj_btn)
         lay.addLayout(info_row)
         self._refresh_proj_label()
 
@@ -1048,17 +1091,66 @@ class EstimateApp(QMainWindow, EditorMixin):
             self.project_meta = dlg.get_meta()
             self._refresh_proj_label()
             self.refresh_live_estimate()
+            if getattr(self, "current_project_path", None):
+                self._save_project_to_db()
 
     def _refresh_proj_label(self):
+        if getattr(self, "headless", False):
+            return
         m = self.project_meta
         sup_pct = int(m.get("supervision_rate", 0.10) * 100)
         uh_txt  = "UH Materials" if m.get("use_uh") else "Raw Steel"
+        path_txt = f"  ({os.path.basename(self.current_project_path)})" if getattr(self, "current_project_path", None) else ""
         self.proj_info_label.setText(
-            f"📌 {m.get('subject','(no subject)')}   |   "
+            f"📌 {m.get('subject','(no subject)')}{path_txt}   |   "
             f"Type: {m.get('project_type','NSC')}   |   "
             f"Sup: {sup_pct}%   |   "
             f"Materials: {uh_txt}"
         )
+        self._update_lock_state()
+
+    def _update_lock_state(self):
+        if getattr(self, "headless", False):
+            return
+        self.project_locked = False
+        if getattr(self, "current_project_path", None):
+            from core import db_gateway as _dbg
+            status = _dbg.get_project_status(self.current_project_path)
+            if status == "Invoiced":
+                self.project_locked = True
+
+        if hasattr(self, "lock_banner"):
+            self.lock_banner.setVisible(self.project_locked)
+
+        enable = not self.project_locked
+        if hasattr(self, "tools_btns"):
+            for key, btn in self.tools_btns.items():
+                btn.setEnabled(enable)
+        if hasattr(self, "undo_btn"):
+            self.undo_btn.setEnabled(enable)
+        if hasattr(self, "redo_btn"):
+            self.redo_btn.setEnabled(enable)
+        if hasattr(self, "editor_group"):
+            self.editor_group.setEnabled(enable)
+        if hasattr(self, "edit_proj_btn"):
+            self.edit_proj_btn.setEnabled(enable)
+
+        if self.project_locked:
+            self.current_tool = "SELECT"
+            for key, btn in self.tools_btns.items():
+                active = key == "SELECT"
+                btn.setStyleSheet(
+                    "padding:7px 5px; font-weight:bold; background:"
+                    + ("lightblue;" if active else "lightgray;")
+                )
+            self.update_view_drag_mode()
+
+        for item in self.scene.items():
+            if hasattr(item, "setFlag"):
+                try:
+                    item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, enable)
+                except Exception:
+                    pass
 
     # =========================================================================
     #  TOOL MANAGEMENT
@@ -1068,6 +1160,8 @@ class EstimateApp(QMainWindow, EditorMixin):
     _DRAWING_TOOLS = frozenset({"ADD_LT", "ADD_HT", "ADD_EXISTING", "ADD_STRUCTURE", "ADD_CONSUMER"})
 
     def set_tool(self, tool_name):
+        if getattr(self, "project_locked", False) and tool_name != "SELECT":
+            return
         prev_tool = self.current_tool
         self.current_tool = tool_name
         if self.span_start_pole:
@@ -1320,6 +1414,10 @@ class EstimateApp(QMainWindow, EditorMixin):
     # =========================================================================
 
     def handle_canvas_click(self, event, view):
+        if getattr(self, "project_locked", False):
+            if event.button() == Qt.MouseButton.RightButton:
+                self.set_tool("SELECT")
+            return
         if event.button() == Qt.MouseButton.RightButton:
             if self.current_tool == "SELECT":
                 pos = view.mapToScene(event.pos())
@@ -1717,6 +1815,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         return super().eventFilter(obj, event)
 
     def delete_selected_items(self):
+        if getattr(self, "project_locked", False):
+            return
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, SmartSpan):
@@ -1802,9 +1902,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         for span in self.scene.items():
             if not isinstance(span, SmartSpan):
                 continue
-            both_existing = (
-                span.p1 in existing_set and span.p2 in existing_set
-            )
+            override = getattr(span, "override_is_existing", "Auto")
+            if override == "New":
+                both_existing = False
+            elif override == "Existing":
+                both_existing = True
+            else:
+                both_existing = (
+                    span.p1 in existing_set and span.p2 in existing_set
+                )
             new_val = both_existing and not span.is_service_drop
             if span.is_existing_span != new_val:
                 span.is_existing_span = new_val
@@ -1940,11 +2046,12 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._refreshing_live = True
 
         try:
-            # Canvas-derived state (cheap-to-moderate). Kept here, off the
-            # per-event path, so a drag stays at 60 fps and placements are instant.
-            self.recalculate_all_span_types()
-            self._auto_stay_update()
-            self._refresh_page_grid()
+            if not getattr(self, "headless", False):
+                # Canvas-derived state (cheap-to-moderate). Kept here, off the
+                # per-event path, so a drag stays at 60 fps and placements are instant.
+                self.recalculate_all_span_types()
+                self._auto_stay_update()
+                self._refresh_page_grid()
 
             use_uh        = self.project_meta.get("use_uh", False)
             project_type  = self.project_meta.get("project_type", "NSC")
@@ -2377,9 +2484,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         SettingsDialog(self).exec()
 
     def open_placement_defaults(self):
+        if getattr(self, "project_locked", False):
+            QMessageBox.information(self, "Project Locked", "This project has been invoiced and is locked from further edits.")
+            return
         PlacementDefaultsDialog(self).exec()
 
     def open_property_editor(self):
+        if getattr(self, "project_locked", False):
+            QMessageBox.information(self, "Project Locked", "This project has been invoiced and is locked from further edits.")
+            return
         if PropertyEditorDialog(self).exec():
             self.on_selection_changed()
 
@@ -2545,6 +2658,7 @@ class EstimateApp(QMainWindow, EditorMixin):
             "nodes":         [],
             "spans":         [],
             "annotations":   [],
+            "current_project_path": getattr(self, "current_project_path", None)
         }
         node_id_by_obj = {}
         for i, item in enumerate(self.scene.items()):
@@ -2573,6 +2687,7 @@ class EstimateApp(QMainWindow, EditorMixin):
     def parse_load_data(self, state, fit_view=True):
         self.scene.clear()
         version = state.get("version", 4)
+        self.current_project_path = state.get("current_project_path", None)
 
         if version >= 5:
             saved_meta = state.get("project_meta", {})
@@ -2645,12 +2760,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         # After loading, optionally fit the view
         if fit_view:
             def _fit_after_load():
-                b = self.scene.itemsBoundingRect()
-                if not b.isNull():
-                    self.view.fitInView(
-                        b.adjusted(-60, -60, 60, 60),
-                        Qt.AspectRatioMode.KeepAspectRatio
-                    )
+                try:
+                    b = self.scene.itemsBoundingRect()
+                    if not b.isNull():
+                        self.view.fitInView(
+                            b.adjusted(-60, -60, 60, 60),
+                            Qt.AspectRatioMode.KeepAspectRatio
+                        )
+                except RuntimeError:
+                    pass  # view already deleted (e.g. temp EstimateApp in billing)
             QTimer.singleShot(80, _fit_after_load)
 
     # =========================================================================
@@ -2830,11 +2948,14 @@ class EstimateApp(QMainWindow, EditorMixin):
             self.span_start_pole  = None
             self.last_placed_node = None
             self.bom_overrides.clear()
+            self.current_project_path = None
+            self.project_meta = dict(DEFAULT_PROJECT_META)
             SmartPole.reset_counters()
             SmartStructure.reset_counters()
             SmartConsumer.reset_counters()
             self._drawing_dirty = False
             self._show_blank_start_page()
+            self._refresh_proj_label()
 
     def load_from_file(self):
         filename, _ = QFileDialog.getOpenFileName(
@@ -2843,19 +2964,33 @@ class EstimateApp(QMainWindow, EditorMixin):
         if filename:
             with open(filename, "r", encoding="utf-8") as f:
                 self.parse_load_data(json.load(f))
+            self.current_project_path = filename
             self._drawing_dirty = False
+            self._save_project_to_db()
+            self._refresh_proj_label()
 
     def save_to_file(self):
+        if getattr(self, "project_locked", False):
+            QMessageBox.warning(self, "Project Locked", "This project has been billed/invoiced and is locked from further saving.")
+            return
+        if getattr(self, "current_project_path", None):
+            self._do_save_to_path(self.current_project_path)
+            self.statusBar().showMessage(f"Project saved to: {self.current_project_path}", 3000)
+        else:
+            self.save_as_file()
+
+    def save_as_file(self):
+        if getattr(self, "project_locked", False):
+            QMessageBox.warning(self, "Project Locked", "This project has been billed/invoiced and is locked from further saving.")
+            return
         last_dir = str(defaults.current.get("export_last_dir", "") or "").strip()
         stem     = self._safe_subject_stem("project")
         default  = os.path.join(last_dir, f"{stem}.json") if last_dir else f"{stem}.json"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Project", default, "JSON Files (*.json)"
+            self, "Save Project As", default, "JSON Files (*.json)"
         )
         if filename:
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(self.compile_save_data(), f, indent=2)
-            self._drawing_dirty = False
+            self._do_save_to_path(filename)
             defaults.save({"export_last_dir": os.path.dirname(filename)})
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
@@ -2866,6 +3001,65 @@ class EstimateApp(QMainWindow, EditorMixin):
             msg.exec()
             if msg.clickedButton() == open_folder_btn:
                 self._open_saved_folder(filename)
+
+    def _do_save_to_path(self, path):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.compile_save_data(), f, indent=2)
+        self.current_project_path = path
+        self._drawing_dirty = False
+        self._save_project_to_db()
+        self._refresh_proj_label()
+
+    def _save_project_to_db(self):
+        if not getattr(self, "current_project_path", None):
+            return
+        grand_total = self._calc_grand_total()
+        m = self.project_meta
+        from core import db_gateway as _dbg
+        _dbg.save_project_metadata(
+            name=m.get("subject", "Unnamed Project"),
+            path=self.current_project_path,
+            type=m.get("project_type", "NSC"),
+            lat=m.get("lat", ""),
+            lon=m.get("long", ""),
+            cost=grand_total,
+            project_id=m.get("project_id", ""),
+            po_no=m.get("po_no", ""),
+            po_date=m.get("po_date", ""),
+            vendor_id=m.get("vendor_id", ""),
+            comm_date=m.get("comm_date", ""),
+            comp_date=m.get("comp_date", ""),
+            meas_date=m.get("meas_date", ""),
+            meas_taken_by=m.get("meas_taken_by", ""),
+            certified_by=m.get("certified_by", "")
+        )
+
+    def _calc_grand_total(self) -> float:
+        mat_base = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Material")
+        lab_sub  = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Labor")
+
+        now = datetime.now()
+        fy_start = now.year if now.month >= 4 else now.year - 1
+
+        base_yr_str = defaults.current.get("rate_chart_base_year", "2026")
+        try:
+            base_yr = int(base_yr_str)
+        except ValueError:
+            base_yr = 2026
+
+        cur = mat_base
+        for yr in range(base_yr + 1, fy_start + 1):
+            esc = cur * 0.05
+            cur += esc
+
+        sun      = cur * 0.05
+        mat_sub  = cur + sun
+        sup_rate = self.project_meta.get("supervision_rate", 0.10)
+        sup      = (mat_sub + lab_sub) * sup_rate
+        gst      = lab_sub * 0.18
+        cess     = (mat_sub + lab_sub + sup) * 0.01
+        final    = mat_sub + lab_sub + sup + gst + cess
+        return final
 
     def load_autosave(self):
         loaded_any = False
@@ -3183,6 +3377,33 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._update_dl_thread.failed.connect(_on_failed)
         dlg.canceled.connect(self._update_dl_thread.terminate)
         self._update_dl_thread.start()
+
+    def open_user_profiles_dialog(self):
+        from ui.dialogs.user_profile import UserProfileDialog
+        dlg = UserProfileDialog(self)
+        dlg.exec()
+
+    def open_my_projects_dialog(self):
+        from ui.dialogs.project_manager import ProjectManagerDialog
+        dlg = ProjectManagerDialog(self)
+        dlg.exec()
+
+    def open_billing_dialog(self):
+        from ui.dialogs.billing import BillingDialog
+        dlg = BillingDialog(self)
+        dlg.exec()
+
+    def _check_profile_on_startup(self):
+        from core import db_gateway as _dbg
+        profiles = _dbg.get_user_profiles()
+        if not profiles:
+            QMessageBox.information(
+                self, "Welcome",
+                "Welcome to ERP Estimate Generator!\n\n"
+                "Please take a moment to configure your organization profile (Name, GSTIN, Address, and Signature) "
+                "which will be used to automatically personalize export files and generated invoices."
+            )
+            self.open_user_profiles_dialog()
 
 
 def _log_startup_crash(exc: BaseException) -> None:

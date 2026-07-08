@@ -92,7 +92,12 @@ def setup_database():
     data_mgr.initialize_user_data()
 
     # 2. Open connection
-    conn   = sqlite3.connect(DB_PATH)
+    conn   = sqlite3.connect(DB_PATH, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -439,7 +444,127 @@ def _create_config_tables(cursor) -> None:
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            name           TEXT UNIQUE NOT NULL,
+            firm_name      TEXT NOT NULL,
+            address        TEXT NOT NULL,
+            gstin          TEXT NOT NULL,
+            signature_path TEXT,
+            logo_path      TEXT,
+            is_active      INTEGER NOT NULL DEFAULT 0,
+            vendor_no      TEXT,
+            agency_details TEXT,
+            billing_to_json TEXT,
+            invoice_format TEXT DEFAULT 'SE/{FY}/KSD/{SEQ}',
+            next_seq       INTEGER DEFAULT 1
+        )
+    """)
+
+    # Migration: add vendor_no / agency_details / billing_to_json / invoice_format / next_seq to pre-existing user_profiles table
+    cursor.execute("PRAGMA table_info(user_profiles)")
+    _up_cols = [row[1] for row in cursor.fetchall()]
+    if "vendor_no" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN vendor_no TEXT")
+    if "agency_details" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN agency_details TEXT")
+    if "billing_to_json" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN billing_to_json TEXT")
+    if "invoice_format" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN invoice_format TEXT DEFAULT 'SE/{FY}/KSD/{SEQ}'")
+    if "next_seq" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN next_seq INTEGER DEFAULT 1")
+    if "logo_path" not in _up_cols:
+        cursor.execute("ALTER TABLE user_profiles ADD COLUMN logo_path TEXT")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_name   TEXT NOT NULL,
+            file_path      TEXT UNIQUE NOT NULL,
+            project_type   TEXT,
+            latitude       TEXT,
+            longitude      TEXT,
+            estimated_cost REAL,
+            status         TEXT NOT NULL DEFAULT 'Active',
+            invoice_no     TEXT,
+            project_id     TEXT,
+            po_no          TEXT,
+            po_date        TEXT,
+            vendor_id      TEXT,
+            comm_date      TEXT,
+            comp_date      TEXT,
+            meas_date      TEXT,
+            meas_taken_by  TEXT,
+            certified_by   TEXT,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # Migration: add status / invoice_no / billing columns to pre-existing projects tables
+    cursor.execute("PRAGMA table_info(projects)")
+    _proj_cols = [row[1] for row in cursor.fetchall()]
+    if "status" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'Active'")
+    if "invoice_no" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN invoice_no TEXT")
+    if "project_id" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN project_id TEXT")
+    if "po_no" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN po_no TEXT")
+    if "po_date" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN po_date TEXT")
+    if "vendor_id" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN vendor_id TEXT")
+    if "comm_date" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN comm_date TEXT")
+    if "comp_date" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN comp_date TEXT")
+    if "meas_date" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN meas_date TEXT")
+    if "meas_taken_by" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN meas_taken_by TEXT")
+    if "certified_by" not in _proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN certified_by TEXT")
+
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bills (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_no      TEXT UNIQUE NOT NULL,
+            invoice_date    TEXT NOT NULL,
+            project_id      TEXT NOT NULL,
+            po_no           TEXT NOT NULL,
+            po_date         TEXT NOT NULL,
+            copy_type       TEXT NOT NULL,
+            client_name     TEXT NOT NULL,
+            client_address  TEXT NOT NULL,
+            client_gstin    TEXT,
+            description     TEXT,
+            labor_total     REAL NOT NULL,
+            supervision     REAL NOT NULL,
+            gst             REAL NOT NULL,
+            cess            REAL NOT NULL,
+            grand_total     REAL NOT NULL,
+            project_paths   TEXT NOT NULL,
+            items_json      TEXT NOT NULL,
+            meas_taken_by   TEXT,
+            certified_by    TEXT,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Migration: add meas_taken_by / certified_by to pre-existing bills tables
+    cursor.execute("PRAGMA table_info(bills)")
+    _bills_cols = [row[1] for row in cursor.fetchall()]
+    if "meas_taken_by" not in _bills_cols:
+        cursor.execute("ALTER TABLE bills ADD COLUMN meas_taken_by TEXT")
+    if "certified_by" not in _bills_cols:
+        cursor.execute("ALTER TABLE bills ADD COLUMN certified_by TEXT")
+
     _seed_recipes_and_sections_tables(cursor)
+
 
 
 def _seed_recipes_and_sections_tables(cursor) -> None:
@@ -812,7 +937,12 @@ def _seed_config_tables(cursor) -> None:
 
 
 def get_material_rate(item_name: str) -> float:
-    conn   = sqlite3.connect(DB_PATH)
+    conn   = sqlite3.connect(DB_PATH, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
     cursor = conn.cursor()
     cursor.execute("SELECT rate FROM materials WHERE item_name=?", (item_name,))
     row = cursor.fetchone()
@@ -821,7 +951,12 @@ def get_material_rate(item_name: str) -> float:
 
 
 def get_labour_rate(task_name: str) -> float:
-    conn   = sqlite3.connect(DB_PATH)
+    conn   = sqlite3.connect(DB_PATH, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
     cursor = conn.cursor()
     cursor.execute("SELECT rate FROM labor WHERE task_name=?", (task_name,))
     row = cursor.fetchone()
@@ -831,7 +966,12 @@ def get_labour_rate(task_name: str) -> float:
 
 def get_all_catalog_items() -> dict[str, list[str]]:
     """Return {'materials': [...], 'labor': [...]} list of all current item/task names."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
     try:
         mats = [r[0] for r in conn.execute("SELECT item_name FROM materials ORDER BY item_name").fetchall()]
         labs = [r[0] for r in conn.execute("SELECT task_name FROM labor ORDER BY task_name").fetchall()]

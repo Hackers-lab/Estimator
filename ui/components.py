@@ -693,6 +693,13 @@ class DraggableLabel(QGraphicsTextItem):
     # ── Inline editing ────────────────────────────────────────────────────────
 
     def mouseDoubleClickEvent(self, event):
+        if self.scene() is not None:
+            views = self.scene().views()
+            if views:
+                view = views[0]
+                if hasattr(view, "parent_app") and getattr(view.parent_app, "project_locked", False):
+                    event.accept()
+                    return
         self.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextEditorInteraction
         )

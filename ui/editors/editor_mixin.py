@@ -443,18 +443,29 @@ class EditorMixin:
         self._add_field_pair("Length:", len_sp)
 
     def _build_line_span_editor(self, item):
-        # Voltage + Length paired
-        vl_lbl = QLabel(
-            f"{'LT' if item.is_lt_span else 'HT'} (auto)"
+        # Status override
+        status_cb = QComboBox()
+        status_cb.addItems(["Auto", "New", "Existing"])
+        curr_override = getattr(item, "override_is_existing", "Auto")
+        status_cb.setCurrentText(curr_override)
+        status_cb.currentTextChanged.connect(
+            lambda v, i=item: self._update_span_override_status(i, v)
         )
-        vl_lbl.setStyleSheet("color:#555; font-style:italic;")
+
         len_sp = QSpinBox()
         len_sp.setRange(1, 500)
         len_sp.setValue(int(item.length))
         len_sp.valueChanged.connect(
             lambda v, i=item: self._update_span(i, "length", v)
         )
-        self._add_field_pair("Voltage:", vl_lbl, "Length:", len_sp)
+        self._add_field_pair("Status:", status_cb, "Length:", len_sp)
+
+        # Voltage
+        vl_lbl = QLabel(
+            f"{'LT' if item.is_lt_span else 'HT'} (auto)"
+        )
+        vl_lbl.setStyleSheet("color:#555; font-style:italic;")
+        self._add_field_pair("Voltage:", vl_lbl)
 
         # Conductor + Size paired
         _user = property_catalog.get_user_conductors()
@@ -479,13 +490,7 @@ class EditorMixin:
         )
         self._add_field_pair("Cond:", cond_cb, "Size:", sz_cb)
 
-        # Wire count + Work nature paired (ACSR) or just Work nature
-        aug_cb = QComboBox()
-        aug_cb.addItems(["New", "Replace 2W->4W", "Add-on 2W"])
-        aug_cb.setCurrentText(item.aug_type)
-        aug_cb.currentTextChanged.connect(
-            lambda t, i=item: self._update_span(i, "aug_type", t)
-        )
+        # Wire count (ACSR)
         if item.conductor == "ACSR":
             wc_cb = QComboBox()
             wc_cb.addItems(["2", "3", "4"])
@@ -493,9 +498,7 @@ class EditorMixin:
             wc_cb.currentTextChanged.connect(
                 lambda t, i=item: self._update_span(i, "wire_count", t)
             )
-            self._add_field_pair("Wires:", wc_cb, "Nature:", aug_cb)
-        else:
-            self._add_field_pair("Nature:", aug_cb)
+            self._add_field_pair("Wires:", wc_cb)
 
         if item.conductor == "ACSR" and item.is_existing_span and not item.is_service_drop:
             self._build_conductor_augmentation_editor(item)
@@ -1243,6 +1246,13 @@ class EditorMixin:
 
     def _update_span_refresh(self, item, prop, value):
         setattr(item, prop, value)
+        item.update_visuals()
+        self.refresh_live_estimate()
+        QTimer.singleShot(10, self.on_selection_changed)
+
+    def _update_span_override_status(self, item, value):
+        item.override_is_existing = value
+        self.recalculate_all_span_types()
         item.update_visuals()
         self.refresh_live_estimate()
         QTimer.singleShot(10, self.on_selection_changed)

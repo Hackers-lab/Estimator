@@ -43,7 +43,13 @@ def _invalidate_sections_cache() -> None:
 
 
 def _conn() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
+    return conn
 
 
 # ─── Rules ────────────────────────────────────────────────────────────────────
@@ -1239,3 +1245,431 @@ def get_formula_vars() -> dict[str, list[str]]:
         return f_vars
     finally:
         con.close()
+
+
+# ─── User Profiles (Phase 4) ──────────────────────────────────────────────────
+
+def get_user_profiles() -> list[dict]:
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT id, name, firm_name, address, gstin, signature_path, is_active, "
+            "vendor_no, agency_details, billing_to_json, invoice_format, next_seq, logo_path "
+            "FROM user_profiles ORDER BY name"
+        ).fetchall()
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "firm_name": r[2],
+                "address": r[3],
+                "gstin": r[4],
+                "signature_path": r[5],
+                "is_active": bool(r[6]),
+                "vendor_no": r[7] or "",
+                "agency_details": r[8] or "",
+                "billing_to_json": r[9] or "[]",
+                "invoice_format": r[10] or "SE/{FY}/KSD/{SEQ}",
+                "next_seq": r[11] or 1,
+                "logo_path": r[12] or ""
+            }
+            for r in rows
+        ]
+    finally:
+        con.close()
+
+def add_user_profile(profile: dict) -> bool:
+    con = _conn()
+    try:
+        dup = con.execute("SELECT 1 FROM user_profiles WHERE name=?", (profile["name"],)).fetchone()
+        if dup:
+            return False
+        
+        is_active = 1 if profile.get("is_active") else 0
+        if is_active:
+            con.execute("UPDATE user_profiles SET is_active=0")
+        else:
+            cnt = con.execute("SELECT COUNT(*) FROM user_profiles WHERE is_active=1").fetchone()[0]
+            if cnt == 0:
+                is_active = 1
+                
+        con.execute(
+            "INSERT INTO user_profiles (name, firm_name, address, gstin, signature_path, is_active, "
+            "vendor_no, agency_details, billing_to_json, invoice_format, next_seq, logo_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                profile["name"],
+                profile["firm_name"],
+                profile["address"],
+                profile["gstin"],
+                profile.get("signature_path"),
+                is_active,
+                profile.get("vendor_no", ""),
+                profile.get("agency_details", ""),
+                profile.get("billing_to_json", "[]"),
+                profile.get("invoice_format", "SE/{FY}/KSD/{SEQ}"),
+                profile.get("next_seq", 1),
+                profile.get("logo_path", "")
+            )
+        )
+        con.commit()
+        return True
+    finally:
+        con.close()
+
+def update_user_profile(profile_id: int, profile: dict) -> None:
+    con = _conn()
+    try:
+        con.execute(
+            "UPDATE user_profiles SET name=?, firm_name=?, address=?, gstin=?, signature_path=?, "
+            "vendor_no=?, agency_details=?, billing_to_json=?, invoice_format=?, next_seq=?, logo_path=? "
+            "WHERE id=?",
+            (
+                profile["name"],
+                profile["firm_name"],
+                profile["address"],
+                profile["gstin"],
+                profile.get("signature_path"),
+                profile.get("vendor_no", ""),
+                profile.get("agency_details", ""),
+                profile.get("billing_to_json", "[]"),
+                profile.get("invoice_format", "SE/{FY}/KSD/{SEQ}"),
+                profile.get("next_seq", 1),
+                profile.get("logo_path", ""),
+                profile_id
+            )
+        )
+        con.commit()
+    finally:
+        con.close()
+
+def delete_user_profile(profile_id: int) -> None:
+    con = _conn()
+    try:
+        row = con.execute("SELECT is_active FROM user_profiles WHERE id=?", (profile_id,)).fetchone()
+        was_active = row and row[0]
+        con.execute("DELETE FROM user_profiles WHERE id=?", (profile_id,))
+        if was_active:
+            other = con.execute("SELECT id FROM user_profiles LIMIT 1").fetchone()
+            if other:
+                con.execute("UPDATE user_profiles SET is_active=1 WHERE id=?", (other[0],))
+        con.commit()
+    finally:
+        con.close()
+
+def get_active_profile() -> dict | None:
+    con = _conn()
+    try:
+        row = con.execute(
+            "SELECT id, name, firm_name, address, gstin, signature_path, is_active, "
+            "vendor_no, agency_details, billing_to_json, invoice_format, next_seq, logo_path "
+            "FROM user_profiles WHERE is_active=1"
+        ).fetchone()
+        if row:
+            return {
+                "id": row[0],
+                "name": row[1],
+                "firm_name": row[2],
+                "address": row[3],
+                "gstin": row[4],
+                "signature_path": row[5],
+                "is_active": bool(row[6]),
+                "vendor_no": row[7] or "",
+                "agency_details": row[8] or "",
+                "billing_to_json": row[9] or "[]",
+                "invoice_format": row[10] or "SE/{FY}/KSD/{SEQ}",
+                "next_seq": row[11] or 1,
+                "logo_path": row[12] or ""
+            }
+        return None
+    finally:
+        con.close()
+
+def set_active_profile(profile_id: int) -> None:
+    con = _conn()
+    try:
+        con.execute("UPDATE user_profiles SET is_active=0")
+        con.execute("UPDATE user_profiles SET is_active=1 WHERE id=?", (profile_id,))
+        con.commit()
+    finally:
+        con.close()
+
+def get_next_invoice_seq_and_fy(profile: dict) -> tuple[int, str]:
+    from datetime import date, datetime
+    today = date.today()
+    if today.month >= 4:
+        curr_start = today.year
+    else:
+        curr_start = today.year - 1
+    curr_fy = f"{str(curr_start)[2:]}-{str(curr_start+1)[2:]}"
+    
+    con = _conn()
+    try:
+        row = con.execute("SELECT invoice_date FROM bills ORDER BY id DESC LIMIT 1").fetchone()
+        if row:
+            last_date_str = row[0]
+            try:
+                last_dt = datetime.strptime(last_date_str, "%d-%m-%Y").date()
+                if last_dt.month >= 4:
+                    last_start = last_dt.year
+                else:
+                    last_start = last_dt.year - 1
+                
+                if last_start != curr_start:
+                    con.execute("UPDATE user_profiles SET next_seq=1 WHERE id=?", (profile["id"],))
+                    con.commit()
+                    return 1, curr_fy
+            except Exception:
+                pass
+        return profile.get("next_seq", 1), curr_fy
+    finally:
+        con.close()
+
+def increment_active_profile_seq() -> None:
+    con = _conn()
+    try:
+        con.execute("UPDATE user_profiles SET next_seq = next_seq + 1 WHERE is_active=1")
+        con.commit()
+    finally:
+        con.close()
+
+def format_invoice_number(template: str, seq: int) -> str:
+    from datetime import date
+    today = date.today()
+    if today.month >= 4:
+        start_yr = today.year
+    else:
+        start_yr = today.year - 1
+    fy_short = f"{str(start_yr)[2:]}-{str(start_yr+1)[2:]}"
+    fy_long = f"{start_yr}-{start_yr+1}"
+    
+    formatted = template.replace("{FY}", fy_short).replace("{FY_FULL}", fy_long)
+    formatted = formatted.replace("{SEQ}", f"{seq:02d}")
+    return formatted
+
+
+# ─── Projects Metadata (Phase 4) ──────────────────────────────────────────────
+
+def get_projects() -> list[dict]:
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT project_name, file_path, project_type, latitude, longitude, estimated_cost, datetime(updated_at, 'localtime'), status, invoice_no, "
+            "project_id, po_no, po_date, vendor_id, comm_date, comp_date, meas_date, meas_taken_by, certified_by "
+            "FROM projects ORDER BY updated_at DESC"
+        ).fetchall()
+        return [
+            {
+                "name": r[0],
+                "path": r[1],
+                "type": r[2],
+                "lat": r[3],
+                "long": r[4],
+                "cost": r[5],
+                "updated_at": r[6],
+                "status": r[7],
+                "invoice_no": r[8],
+                "project_id": r[9] or "",
+                "po_no": r[10] or "",
+                "po_date": r[11] or "",
+                "vendor_id": r[12] or "",
+                "comm_date": r[13] or "",
+                "comp_date": r[14] or "",
+                "meas_date": r[15] or "",
+                "meas_taken_by": r[16] or "",
+                "certified_by": r[17] or ""
+            }
+            for r in rows
+        ]
+    finally:
+        con.close()
+
+def mark_project_invoiced(path: str, invoice_no: str) -> None:
+    con = _conn()
+    try:
+        con.execute(
+            "UPDATE projects SET status='Invoiced', invoice_no=?, updated_at=CURRENT_TIMESTAMP WHERE file_path=?",
+            (invoice_no, path)
+        )
+        con.commit()
+    finally:
+        con.close()
+
+def get_project_status(path: str) -> str:
+    con = _conn()
+    try:
+        row = con.execute("SELECT status FROM projects WHERE file_path=?", (path,)).fetchone()
+        return row[0] if row else "Active"
+    finally:
+        con.close()
+
+def save_project_metadata(name: str, path: str, type: str, lat: str, lon: str, cost: float,
+                          project_id: str = "", po_no: str = "", po_date: str = "",
+                          vendor_id: str = "", comm_date: str = "", comp_date: str = "",
+                          meas_date: str = "", meas_taken_by: str = "", certified_by: str = "") -> None:
+    con = _conn()
+    try:
+        con.execute(
+            "INSERT INTO projects (project_name, file_path, project_type, latitude, longitude, estimated_cost, "
+            "project_id, po_no, po_date, vendor_id, comm_date, comp_date, meas_date, meas_taken_by, certified_by, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(file_path) DO UPDATE SET "
+            "project_name=excluded.project_name, "
+            "project_type=excluded.project_type, "
+            "latitude=excluded.latitude, "
+            "longitude=excluded.longitude, "
+            "estimated_cost=excluded.estimated_cost, "
+            "project_id=excluded.project_id, "
+            "po_no=excluded.po_no, "
+            "po_date=excluded.po_date, "
+            "vendor_id=excluded.vendor_id, "
+            "comm_date=excluded.comm_date, "
+            "comp_date=excluded.comp_date, "
+            "meas_date=excluded.meas_date, "
+            "meas_taken_by=excluded.meas_taken_by, "
+            "certified_by=excluded.certified_by, "
+            "updated_at=CURRENT_TIMESTAMP",
+            (name, path, type, lat, lon, cost, project_id, po_no, po_date, vendor_id, comm_date, comp_date, meas_date, meas_taken_by, certified_by)
+        )
+        con.commit()
+    finally:
+        con.close()
+
+def update_project_billing_metadata(path: str, project_id: str, po_no: str, po_date: str,
+                                   vendor_id: str, comm_date: str, comp_date: str,
+                                   meas_date: str, meas_taken_by: str, certified_by: str) -> None:
+    con = _conn()
+    try:
+        con.execute(
+            "UPDATE projects SET "
+            "project_id=?, po_no=?, po_date=?, vendor_id=?, comm_date=?, comp_date=?, meas_date=?, "
+            "meas_taken_by=?, certified_by=?, updated_at=CURRENT_TIMESTAMP WHERE file_path=?",
+            (project_id, po_no, po_date, vendor_id, comm_date, comp_date, meas_date, meas_taken_by, certified_by, path)
+        )
+        con.commit()
+    finally:
+        con.close()
+
+def delete_project_metadata(path: str) -> None:
+    con = _conn()
+    try:
+        con.execute("DELETE FROM projects WHERE file_path=?", (path,))
+        con.commit()
+    finally:
+        con.close()
+
+def rename_project_metadata(old_path: str, new_path: str, new_name: str) -> None:
+    con = _conn()
+    try:
+        con.execute(
+            "UPDATE projects SET file_path=?, project_name=?, updated_at=CURRENT_TIMESTAMP WHERE file_path=?",
+            (new_path, new_name, old_path)
+        )
+        con.commit()
+    finally:
+        con.close()
+
+def save_bill(bill_data: dict) -> bool:
+    con = _conn()
+    try:
+        con.execute(
+            "INSERT INTO bills (invoice_no, invoice_date, project_id, po_no, po_date, copy_type, "
+            "client_name, client_address, client_gstin, description, labor_total, supervision, "
+            "gst, cess, grand_total, project_paths, items_json, meas_taken_by, certified_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(invoice_no) DO UPDATE SET "
+            "invoice_date=excluded.invoice_date, "
+            "project_id=excluded.project_id, "
+            "po_no=excluded.po_no, "
+            "po_date=excluded.po_date, "
+            "copy_type=excluded.copy_type, "
+            "client_name=excluded.client_name, "
+            "client_address=excluded.client_address, "
+            "client_gstin=excluded.client_gstin, "
+            "description=excluded.description, "
+            "labor_total=excluded.labor_total, "
+            "supervision=excluded.supervision, "
+            "gst=excluded.gst, "
+            "cess=excluded.cess, "
+            "grand_total=excluded.grand_total, "
+            "project_paths=excluded.project_paths, "
+            "items_json=excluded.items_json, "
+            "meas_taken_by=excluded.meas_taken_by, "
+            "certified_by=excluded.certified_by",
+            (
+                bill_data["invoice_no"],
+                bill_data["invoice_date"],
+                bill_data["project_id"],
+                bill_data["po_no"],
+                bill_data["po_date"],
+                bill_data["copy_type"],
+                bill_data["client_name"],
+                bill_data["client_address"],
+                bill_data.get("client_gstin", ""),
+                bill_data.get("description", ""),
+                bill_data["labor_total"],
+                bill_data.get("supervision", 0.0),  # legacy column; 0 for GST-only invoices
+                bill_data["gst"],
+                bill_data.get("cess", 0.0),          # legacy column; 0 for GST-only invoices
+                bill_data["grand_total"],
+                json.dumps(bill_data["project_paths"]),
+                json.dumps(bill_data["items"]),
+                bill_data.get("meas_taken_by", ""),
+                bill_data.get("certified_by", "")
+            )
+        )
+        con.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"[DB] Error saving bill: {e}")
+        return False
+    finally:
+        con.close()
+
+def get_bills() -> list[dict]:
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT id, invoice_no, invoice_date, project_id, po_no, po_date, copy_type, "
+            "client_name, client_address, client_gstin, description, labor_total, supervision, "
+            "gst, cess, grand_total, project_paths, items_json, datetime(created_at, 'localtime'), "
+            "meas_taken_by, certified_by "
+            "FROM bills ORDER BY created_at DESC"
+        ).fetchall()
+        return [
+            {
+                "id": r[0],
+                "invoice_no": r[1],
+                "invoice_date": r[2],
+                "project_id": r[3],
+                "po_no": r[4],
+                "po_date": r[5],
+                "copy_type": r[6],
+                "client_name": r[7],
+                "client_address": r[8],
+                "client_gstin": r[9],
+                "description": r[10],
+                "labor_total": r[11],
+                "supervision": r[12],
+                "gst": r[13],
+                "cess": r[14],
+                "grand_total": r[15],
+                "project_paths": json.loads(r[16]),
+                "items": json.loads(r[17]),
+                "created_at": r[18],
+                "meas_taken_by": r[19] if len(r) > 19 else "",
+                "certified_by": r[20] if len(r) > 20 else ""
+            }
+            for r in rows
+        ]
+    finally:
+        con.close()
+
+def delete_bill(bill_id: int) -> None:
+    con = _conn()
+    try:
+        con.execute("DELETE FROM bills WHERE id=?", (bill_id,))
+        con.commit()
+    finally:
+        con.close()
+

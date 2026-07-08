@@ -108,7 +108,8 @@ class ExcelExporter:
 
         # Find the actual cell for TOTAL MATERIAL COST (A)
         # This is always the last material summary row, which is after all escalations and sundries
-        mat_total_row = 5 + len([x for x in app.live_bom_data if x["type"] == "Material"]) + 1 + escalation_count + 1  # +1 for 'Material Base Total', +escalation_count, +1 for sundries
+        # Shifted +1 for User Profile metadata row at index 4
+        mat_total_row = 6 + len([x for x in app.live_bom_data if x["type"] == "Material"]) + 1 + escalation_count + 1  # +1 for 'Material Base Total', +escalation_count, +1 for sundries
         mat_total_cell = f'G{mat_total_row}'
 
         # Find the actual cell for TOTAL LABOR COST (B)
@@ -141,14 +142,25 @@ class ExcelExporter:
             f"Materials: {'UH (Readymade)' if m.get('use_uh') else 'Raw Steel'}"
         )
 
+        ws.merge_cells("A4:G4")
+        # Check active profile
+        from core import db_gateway as _dbg
+        profile = _dbg.get_active_profile()
+        if profile:
+            ws["A4"] = f"Firm: {profile['firm_name']}  |  Address: {profile['address']}  |  GSTIN: {profile['gstin']}"
+        else:
+            ws["A4"] = "Firm Details: Not Configured"
+        ws["A4"].font = Font(italic=True, size=10)
+        ws["A4"].alignment = Alignment(horizontal="center")
+
         header_row = ["Sl No.", "Code", "Description", "Qty", "Unit", "Rate", "Amount"]
         ws.append(header_row)
-        for cell in ws[4]:
+        for cell in ws[5]:
             cell.font = Font(bold=True)
         ws.column_dimensions["C"].width = 45
         ws.column_dimensions["B"].width = 15
 
-        row = 5
+        row = 6
         mat_items = [x for x in app.live_bom_data if x["type"] == "Material"]
         lab_items = [x for x in app.live_bom_data if x["type"] == "Labor"]
 

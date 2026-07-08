@@ -337,6 +337,13 @@ class CanvasSymbol(QGraphicsItem):
                     break
 
     def contextMenuEvent(self, event) -> None:
+        if self.scene() is not None:
+            views = self.scene().views()
+            if views:
+                view = views[0]
+                if hasattr(view, "parent_app") and getattr(view.parent_app, "project_locked", False):
+                    event.accept()
+                    return
         menu = QMenu()
         menu.addAction("🎨  Change Colour", self._pick_color)
         menu.addSeparator()
@@ -512,6 +519,13 @@ class CanvasTextBox(QGraphicsTextItem):
         super().hoverLeaveEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:
+        if self.scene() is not None:
+            views = self.scene().views()
+            if views:
+                view = views[0]
+                if hasattr(view, "parent_app") and getattr(view.parent_app, "project_locked", False):
+                    event.accept()
+                    return
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         super().mouseDoubleClickEvent(event)
@@ -584,6 +598,13 @@ class CanvasTextBox(QGraphicsTextItem):
                     break
 
     def contextMenuEvent(self, event) -> None:
+        if self.scene() is not None:
+            views = self.scene().views()
+            if views:
+                view = views[0]
+                if hasattr(view, "parent_app") and getattr(view.parent_app, "project_locked", False):
+                    event.accept()
+                    return
         menu = QMenu()
         menu.addAction("🎨  Change Colour", self._pick_color)
         menu.addSeparator()

@@ -672,7 +672,36 @@ class PDFExporter:
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(border_pen)
         painter.drawRect(leg_rect)
+
+        # Draw Signature Block if active profile exists
+        from core import db_gateway as _dbg
+        from PyQt6.QtGui import QImage
+        import os
+        profile = _dbg.get_active_profile()
+        if profile and profile.get("signature_path"):
+            sig_path = profile["signature_path"]
+            if os.path.exists(sig_path):
+                sig_img = QImage(sig_path)
+                if not sig_img.isNull():
+                    sig_w = 80
+                    sig_h = 35
+                    sig_left = leg_left - sig_w - 10
+                    sig_top = border.bottom() - sig_h - 5
+                    painter.save()
+                    # Border
+                    painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+                    painter.setBrush(QBrush(QColor(255, 255, 255, 200)))
+                    painter.drawRect(QRectF(sig_left, sig_top - 12, sig_w, sig_h + 12))
+                    # Image
+                    painter.drawImage(QRectF(sig_left, sig_top, sig_w, sig_h), sig_img)
+                    # Text label
+                    painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
+                    painter.setPen(Qt.GlobalColor.black)
+                    painter.drawText(QRectF(sig_left, sig_top - 12, sig_w, 12), Qt.AlignmentFlag.AlignCenter, "Signature")
+                    painter.restore()
+
         painter.restore()
+
 
     # ── Main export entry point ──────────────────────────────────────────────
 
@@ -797,11 +826,17 @@ class PDFExporter:
             painter.drawLine(QPointF(ox, footer_y), QPointF(ox + page_w, footer_y))
             painter.setPen(Qt.GlobalColor.black)
             painter.setFont(QFont("Arial", 7))
+            
+            from core import db_gateway as _dbg
+            active_profile = _dbg.get_active_profile()
+            profile_txt = f"{active_profile['firm_name']}  |  " if active_profile else ""
+            
             date_str   = datetime.now().strftime("%d-%m-%Y")
             footer_txt = (
                 f"{m.get('project_type','')}  |  "
                 f"{date_str}  |  "
                 f"Lat: {m.get('lat', '')}   Long: {m.get('long', '')}  |  "
+                f"{profile_txt}"
                 f"{APP_DISPLAY_NAME} v{APP_VERSION}"
             )
             painter.drawText(
@@ -932,3 +967,190 @@ class PDFExporter:
                 except Exception as exc:
                     QMessageBox.warning(app, "Open Folder Failed", f"Could not open folder.\n\n{exc}")
         return filename
+
+    def export_to_painter(self, printer: QPrinter, painter: QPainter) -> None:
+        """
+        Render the drawing pages onto an active QPainter and QPrinter.
+        This appends pages to the existing document.
+        """
+        app = self._app
+        m   = app.project_meta
+        app._refresh_page_grid()
+        tiles = app.view.grid_tiles
+        if not tiles:
+            return
+
+        total_pages = tiles[0]["total"]
+
+        MARG_T, MARG_B = self.MARG_T, self.MARG_B
+        MARG_L, MARG_R = self.MARG_L, self.MARG_R
+        PAGE_EDGE_GAP  = self.PAGE_EDGE_GAP
+        TITLE_H_MIN    = self.TITLE_H_MIN
+        FOOTER_H       = self.FOOTER_H
+
+        drawable_items = [
+            i for i in app.scene.items()
+            if isinstance(i, (SmartPole, SmartStructure, SmartConsumer, SmartSpan))
+        ]
+        continuation_marks = self._build_continuation_marks_for_tiles(tiles, inset_scene=20.0)
+
+        for page_idx, tile in enumerate(tiles):
+            src_rect = tile["rect"]
+            page_num = tile["page_num"]
+            is_last  = (page_idx == len(tiles) - 1)
+            orient   = tile.get("orient", "L")
+
+            printer.setPageLayout(self._layout_for(orient))
+            printer.newPage()
+
+            paper  = printer.paperRect(QPrinter.Unit.DevicePixel)
+            page_w = paper.width()  - MARG_L - MARG_R
+            page_h = paper.height() - MARG_T  - MARG_B
+            ox, oy = MARG_L, MARG_T
+
+            # Title text
+            title_text = (m.get("subject") or "ERP PROJECT DRAWING") if app.pdf_show_project_name else ""
+            if title_text:
+                from PyQt6.QtGui import QTextDocument
+                _doc = QTextDocument()
+                _doc.setDefaultFont(QFont("Arial", 9, QFont.Weight.Bold))
+                _doc.setTextWidth(page_w * 0.70 - 8)
+                _doc.setPlainText(title_text)
+                TITLE_H = max(TITLE_H_MIN, int(_doc.size().height()) + 10)
+            else:
+                TITLE_H = TITLE_H_MIN
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(180, 180, 180), 0.8))
+            painter.drawRect(QRectF(ox, oy, page_w, page_h))
+
+            # Title strip
+            painter.fillRect(QRectF(ox, oy, page_w, TITLE_H), QColor(240, 244, 250))
+            painter.setPen(Qt.GlobalColor.black)
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            if title_text:
+                painter.drawText(
+                    QRectF(ox + 4, oy + 4, page_w * 0.70 - 8, TITLE_H - 4),
+                    Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+                    | Qt.TextFlag.TextWordWrap,
+                    title_text,
+                )
+            painter.setFont(QFont("Arial", 8))
+            painter.drawText(
+                QRectF(ox + page_w * 0.70, oy, page_w * 0.30 - 4, TITLE_H),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                f"Page {page_num} / {total_pages}   [Scale 1:{app.pdf_scale}]",
+            )
+            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+            painter.drawLine(
+                QPointF(ox, oy + TITLE_H), QPointF(ox + page_w, oy + TITLE_H)
+            )
+
+            # Footer strip
+            footer_y = oy + page_h - FOOTER_H
+            painter.fillRect(QRectF(ox, footer_y, page_w, FOOTER_H), QColor(240, 244, 250))
+            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+            painter.drawLine(QPointF(ox, footer_y), QPointF(ox + page_w, footer_y))
+            painter.setPen(Qt.GlobalColor.black)
+            painter.setFont(QFont("Arial", 7))
+
+            from core import db_gateway as _dbg
+            active_profile = _dbg.get_active_profile()
+            profile_txt = f"{active_profile['firm_name']}  |  " if active_profile else ""
+
+            date_str   = datetime.now().strftime("%d-%m-%Y")
+            footer_txt = (
+                f"{m.get('project_type','')}  |  "
+                f"{date_str}  |  "
+                f"Lat: {m.get('lat', '')}   Long: {m.get('long', '')}  |  "
+                f"{profile_txt}"
+                f"{APP_DISPLAY_NAME} v{APP_VERSION}"
+            )
+            painter.drawText(
+                QRectF(ox + 4, footer_y, page_w - 8, FOOTER_H),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                footer_txt,
+            )
+
+            # Drawing area
+            draw_top  = oy + TITLE_H + 2
+            draw_h    = page_h - TITLE_H - FOOTER_H - 4
+            draw_rect = QRectF(
+                ox + PAGE_EDGE_GAP,
+                draw_top + PAGE_EDGE_GAP,
+                max(1.0, page_w - 2 * PAGE_EDGE_GAP),
+                max(1.0, draw_h  - 2 * PAGE_EDGE_GAP),
+            )
+
+            if is_last and app.pdf_show_legend:
+                probe_scene = QRectF(
+                    src_rect.left() + src_rect.width() * 0.58,
+                    src_rect.top() + src_rect.height() * 0.62,
+                    src_rect.width() * 0.42,
+                    src_rect.height() * 0.38,
+                )
+                reserve_legend_strip = any(
+                    item.scene() is not None
+                    and item.isVisible()
+                    and src_rect.intersects(item.sceneBoundingRect())
+                    and probe_scene.intersects(item.sceneBoundingRect())
+                    for item in drawable_items
+                )
+            else:
+                reserve_legend_strip = False
+
+            if reserve_legend_strip:
+                content_rect = QRectF(
+                    draw_rect.left(), draw_rect.top(),
+                    draw_rect.width(),
+                    max(1.0, draw_rect.height() - self.LEGEND_RESERVE),
+                )
+                legend_strip = QRectF(
+                    draw_rect.left(), content_rect.bottom(),
+                    draw_rect.width(), self.LEGEND_RESERVE,
+                )
+            else:
+                content_rect = draw_rect
+                legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
+
+            page_marks = continuation_marks.get(page_num, [])
+
+            hidden_spans: list[SmartSpan] = []
+            for mark in page_marks:
+                span = mark.get("span")
+                if span is None or span in hidden_spans:
+                    continue
+                if span.isVisible():
+                    hidden_spans.append(span)
+                    span.setVisible(False)
+
+            scene_w = src_rect.width()
+            scene_h = src_rect.height()
+            if scene_w > 0 and scene_h > 0:
+                s = min(content_rect.width() / scene_w, content_rect.height() / scene_h)
+                rw = scene_w * s
+                rh = scene_h * s
+                render_rect = QRectF(
+                    content_rect.left() + (content_rect.width()  - rw) / 2.0,
+                    content_rect.top()  + (content_rect.height() - rh) / 2.0,
+                    rw, rh,
+                )
+            else:
+                render_rect = QRectF(content_rect)
+            painter.save()
+            painter.setClipRect(content_rect)
+            app.scene.clearSelection()
+            app.scene.render(
+                painter, render_rect, src_rect,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+            )
+            painter.restore()
+
+            for span in hidden_spans:
+                span.setVisible(True)
+
+            if legend_strip is not None:
+                self._draw_pdf_legend(painter, legend_strip)
+
+            for mark in page_marks:
+                self._draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark)
+

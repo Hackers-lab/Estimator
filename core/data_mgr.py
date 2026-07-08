@@ -42,7 +42,12 @@ def sync_factory_updates():
     if not os.path.exists(user_db_path):
         return
 
-    conn = sqlite3.connect(user_db_path)
+    conn = sqlite3.connect(user_db_path, timeout=10.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except:
+        pass
     cursor = conn.cursor()
 
     # --- 1. Sync Rules ---

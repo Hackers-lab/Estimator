@@ -74,6 +74,7 @@ class SmartSpan(QGraphicsPathItem):
         self.setFlag(QGraphicsPathItem.GraphicsItemFlag.ItemIsSelectable)
 
         self.is_existing_span = False
+        self.override_is_existing = "Auto"
         self.custom_note      = ""
         self.dynamic_props    = {}
 
@@ -130,6 +131,7 @@ class SmartSpan(QGraphicsPathItem):
             "phase": self.phase,
             "custom_note": self.custom_note,
             "dynamic_props": self.dynamic_props,
+            "override_is_existing": getattr(self, "override_is_existing", "Auto"),
             "label_x": self.label.pos().x(),
             "label_y": self.label.pos().y(),
             "label_text": self.label.toPlainText(),
@@ -152,6 +154,7 @@ class SmartSpan(QGraphicsPathItem):
         self.phase = state.get("phase", "3 Phase")
         self.custom_note = state.get("custom_note", "")
         self.dynamic_props = dict(state.get("dynamic_props", {}))
+        self.override_is_existing = state.get("override_is_existing", "Auto")
         self.label.setPos(state.get("label_x", 0), state.get("label_y", 0))
         self.label.setPlainText(state.get("label_text", ""))
 

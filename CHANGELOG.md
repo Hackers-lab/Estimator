@@ -2,6 +2,32 @@
 
 ---
 
+## v9.0 — July 8, 2026
+
+### What's New
+
+#### 📊 All-Projects Billing Report
+A new **"📋 All Projects Report"** button in the Billing dialog generates a landscape PDF summary of every invoiced project stored in the database. The report includes invoice number, date, project ID, PO number, client name, description, labor total, GST, grand total, and creation date — with alternating row colors, pagination, grand totals row, and amount in words.
+
+#### 📑 Restructured Estimate Page (Excel-Match)
+The estimate page included in the billing packet now mirrors the Excel export layout:
+- **Section A: Materials** — all material line items followed by escalation rows (5% per FY), sundries (5%), and TOTAL MATERIAL COST (A).
+- **Section B: Erection / Labor** — all labor line items followed by TOTAL LABOR COST (B).
+- **Section C: Overheads & Taxes** — supervision charge, GST @ 18% on labor, sub-total, cess @ 1%, and GRAND TOTAL.
+
+#### 📏 Separate Material & Labor Measurement Sheets
+Two new checkboxes — **"Include Measurement Sheet (Material)"** and **"Include Measurement Sheet (Labor)"** — let you add paginated, multi-page measurement detail sheets to the billing packet. Each sheet has its own title, page numbering, and signature block.
+
+#### 🏷 Copy Stamp Repositioned
+When printing on letterheads (agency header excluded), the copy designation (e.g. "ORIGINAL FOR RECIPIENT") now appears as small centered text below "TAX INVOICE" instead of floating at the top of a blank header area.
+
+#### ✍️ Simplified Signature Blocks
+- **Abstract page**: now shows only the agency signature box (SAE and AE boxes removed).
+- **Completion Certificate**: now shows only the agency signature (verified-by block removed).
+- **Measurement sheets**: retain all three signature lines (Agency, Measured By, Certified By).
+
+---
+
 ## v8.1 — June 22, 2026
 
 ### What's New
