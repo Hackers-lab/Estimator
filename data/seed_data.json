@@ -1603,93 +1603,75 @@
       "NOS"
     ],
     [
-      "0110020711",
-      "RAIL POLE (11-13 M LONG) 52 KG/MT",
-      93806.05,
-      "MT"
-    ],
-    [
-      "0101011011",
-      "M.S Angle 50X50X6mm",
-      109603.22,
-      "MT"
-    ],
-    [
-      "0103011611",
-      "M.S Flat 65X8 mm",
-      114149.39,
-      "MT"
-    ],
-    [
-      "0103011911",
-      "M.S Flat 75X8 mm",
-      114255.68,
-      "MT"
-    ],
-    [
-      "0103012311",
-      "M.S Flat 75X12 mm",
-      114336.31,
-      "MT"
-    ],
-    [
       "0502011221",
       "ACSR Conductor 100SQMM (Dog)",
-      122653.45,
+      119461.62,
       "KM"
     ],
     [
       "0501031121",
       "HT AB CABLE 11KV 3CX95+1CX70SQMM",
-      879877.46,
+      1162209.12,
       "KM"
-    ],
-    [
-      "0301018341",
-      "DTR 100KVA 11/0.433KV",
-      144370.09,
-      "NOS"
     ],
     [
       "0301018741",
       "DTR 160KVA 11/0.433KV",
-      205888.02,
+      452399.07,
       "NOS"
     ],
     [
       "0301019041",
       "DTR 315KVA 11/0.433KV Indoor Type",
-      987447.23,
+      1235891.06,
       "NOS"
     ],
     [
       "0301019341",
       "DTR 630KVA 11/0.415KV Outdoor Oil Cooled",
-      1843842.08,
+      2024189.93,
       "NOS"
     ],
     [
       "0407010741",
       "LT Distribution KIOSK For 63KVA DTR",
-      9441.26,
+      8260.69,
       "NOS"
     ],
     [
       "0407010541",
       "LT Distribution KIOSK For 100KVA DTR",
-      10456.61,
+      8378.5,
       "NOS"
     ],
     [
       "0504070341",
       "LT Spacer 1 PHASE 2 WIRE",
-      35.51,
+      29.81,
       "NOS"
     ],
     [
       "0508040441",
       "Porcelain Shackle Insulator",
-      23.34,
+      20.13,
+      "NOS"
+    ],
+    [
+      "0504053241",
+      "11KV OUTDOOR HEAT SHRINK TERMINATION JOINT FOR(1X95SQ MM)ABC",
+      971.47,
+      "NOS"
+    ],
+    [
+      "0504053441",
+      "11KV STRAIGHT THROUGH JOINT FOR(1X95SQ MM)ABC",
+      1700.06,
+      "NOS"
+    ],
+    [
+      "0504026841",
+      "INSULATION-PIERCING CONNECTOR (ABC) - 16SQ MM",
+      80.76,
       "NOS"
     ]
   ],

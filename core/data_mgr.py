@@ -128,22 +128,33 @@ def sync_factory_updates():
             
             for m in seed_data.get("materials", []):
                 m_code, m_name, m_rate, m_unit = m[0], m[1], m[2], m[3]
-                if m_code in existing_m:
-                    if existing_m[m_code] != m_name:
-                        # CLASH: Code matches but name differs. 
-                        # Rename user's version to free the code.
-                        print(f"[DataMgr] Material clash on {m_code}: Renaming user version to {m_code}-USER")
-                        cursor.execute("UPDATE materials SET item_code = ? WHERE item_code = ?", (f"{m_code}-USER", m_code))
-                        # Update user rules that were referencing this code
-                        cursor.execute("UPDATE rules SET item_code = ? WHERE item_code = ? AND id > 7000", (f"{m_code}-USER", m_code))
-                    else:
-                        # Matches name. Update rate and unit to the new factory version!
-                        cursor.execute("UPDATE materials SET rate = ?, unit = ? WHERE item_code = ?", (m_rate, m_unit, m_code))
-                        continue
                 
-                # Insert factory version
-                cursor.execute("INSERT OR IGNORE INTO materials VALUES (?,?,?,?)", m)
-                print(f"[DataMgr] Synced material: {m_name}")
+                # Check for existing items with this code to handle potential duplicates
+                cursor.execute("SELECT item_name FROM materials WHERE item_code = ?", (m_code,))
+                db_names = [row[0] for row in cursor.fetchall() if row[0]]
+                
+                if db_names:
+                    if m_name in db_names:
+                        # Canonical name matches. Update its rate and unit
+                        cursor.execute(
+                            "UPDATE materials SET rate = ?, unit = ? WHERE item_code = ? AND item_name = ?",
+                            (m_rate, m_unit, m_code, m_name)
+                        )
+                    else:
+                        # Name differs. Update the first matched name to the canonical name, rate, and unit
+                        cursor.execute(
+                            "UPDATE materials SET item_name = ?, rate = ?, unit = ? WHERE item_code = ? AND item_name = ?",
+                            (m_name, m_rate, m_unit, m_code, db_names[0])
+                        )
+                    # Delete any other duplicate rows under this code that don't match the canonical name
+                    cursor.execute(
+                        "DELETE FROM materials WHERE item_code = ? AND item_name != ?",
+                        (m_code, m_name)
+                    )
+                else:
+                    # Insert new factory version
+                    cursor.execute("INSERT OR IGNORE INTO materials VALUES (?,?,?,?)", m)
+                    print(f"[DataMgr] Synced material: {m_name}")
 
             # Labor (Sync by labor_code)
             cursor.execute("SELECT labor_code, task_name FROM labor")
@@ -151,20 +162,28 @@ def sync_factory_updates():
             
             for l in seed_data.get("labor", []):
                 l_code, l_name, l_rate, l_unit = l[0], l[1], l[2], l[3]
-                if l_code in existing_l:
-                    if existing_l[l_code] != l_name:
-                        # CLASH
-                        print(f"[DataMgr] Labor clash on {l_code}: Renaming user version to {l_code}-USER")
-                        cursor.execute("UPDATE labor SET labor_code = ? WHERE labor_code = ?", (f"{l_code}-USER", l_code))
-                        # Update user rules
-                        cursor.execute("UPDATE rules SET item_code = ? WHERE item_code = ? AND id > 7000", (f"{l_code}-USER", l_code))
-                    else:
-                        # Matches name. Update rate and unit!
-                        cursor.execute("UPDATE labor SET rate = ?, unit = ? WHERE labor_code = ?", (l_rate, l_unit, l_code))
-                        continue
                 
-                cursor.execute("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", l)
-                print(f"[DataMgr] Synced labor: {l_name}")
+                cursor.execute("SELECT task_name FROM labor WHERE labor_code = ?", (l_code,))
+                db_names = [row[0] for row in cursor.fetchall() if row[0]]
+                
+                if db_names:
+                    if l_name in db_names:
+                        cursor.execute(
+                            "UPDATE labor SET rate = ?, unit = ? WHERE labor_code = ? AND task_name = ?",
+                            (l_rate, l_unit, l_code, l_name)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE labor SET task_name = ?, rate = ?, unit = ? WHERE labor_code = ? AND task_name = ?",
+                            (l_name, l_rate, l_unit, l_code, db_names[0])
+                        )
+                    cursor.execute(
+                        "DELETE FROM labor WHERE labor_code = ? AND task_name != ?",
+                        (l_code, l_name)
+                    )
+                else:
+                    cursor.execute("INSERT OR IGNORE INTO labor VALUES (?,?,?,?)", l)
+                    print(f"[DataMgr] Synced labor: {l_name}")
 
         except Exception as e:
             print(f"[DataMgr] Seed data sync failed: {e}")
