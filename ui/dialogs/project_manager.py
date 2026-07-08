@@ -7,11 +7,10 @@ Premium dialog to manage projects (list, open, rename, delete, duplicate, compar
 import os
 import json
 import shutil
-from datetime import datetime
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QMessageBox, QInputDialog, QHeaderView,
-    QFrame, QAbstractItemView, QLineEdit
+    QAbstractItemView, QLineEdit
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor

@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import base64 as _b64
 import struct as _struct
 import urllib.request

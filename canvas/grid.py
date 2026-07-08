@@ -5,7 +5,7 @@ A4 page grid and orientation management for the canvas.
 """
 
 import math
-from PyQt6.QtCore import QRectF, QTimer
+from PyQt6.QtCore import QRectF
 from core.constants import A4_W_MM, A4_H_MM
 from canvas import SmartPole, SmartStructure, SmartConsumer, SmartSpan
 

@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QScrollArea
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QPixmap
 
 from core import db_gateway as _dbg
 

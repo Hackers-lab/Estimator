@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import (
     QPainterPath, QPainterPathStroker, QBrush, QColor, QPen, QFont, QPainter,
-    QCursor,
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF
 

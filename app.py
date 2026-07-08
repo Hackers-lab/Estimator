@@ -17,7 +17,7 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime
 
 # pyrefly: ignore [missing-import]
 from PyQt6.QtWidgets import (
@@ -26,26 +26,22 @@ from PyQt6.QtWidgets import (
     QFormLayout, QGroupBox, QSpinBox, QLineEdit,
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
-    QDialog, QDialogButtonBox, QDoubleSpinBox, QScrollArea,
-    QFrame, QMenu, QTextBrowser, QInputDialog, QSizePolicy, QStyle, QSlider,
-    QStackedWidget, QProgressDialog
+    QDialog, QDoubleSpinBox, QScrollArea, QFrame,
+    QMenu, QTextBrowser, QInputDialog, QSizePolicy, QSlider, QStackedWidget, QProgressDialog
 )
 from PyQt6.QtGui import (
-    QPen, QBrush, QColor, QPainter, QFont,
-    QAction, QKeySequence, QIcon, QPixmap
+    QPen, QColor, QAction, QKeySequence, QIcon,
+    QPixmap
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QPointF, QEvent, QSize, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QTimer, QPointF, QEvent, QSize, pyqtSignal, QThread
 
 from core.constants import (
-    TOOLS, PROJECT_TYPES, SUPERVISION_RATES, 
-    HEIGHT_OPTIONS, CONDUCTOR_SIZES, SERVICE_CABLE_SIZES,
-    SAG_ITEMS
+    TOOLS, SAG_ITEMS
 )
 from core import defaults
 from core.expiry import check_expiry
 from app_config import (
-    APP_DISPLAY_NAME, APP_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY,
-    get_data_path, get_user_data_path
+    APP_DISPLAY_NAME, APP_VERSION, APP_AUTHOR, APP_EXPIRY, get_user_data_path
 )
 from core.database import setup_database, DB_PATH
 from core.rule_engine import DynamicRuleEngine

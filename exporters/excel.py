@@ -11,18 +11,14 @@ Usage::
 
 from __future__ import annotations
 
-import json as _json
 import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
-from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
-from app_config import get_data_path
 
 if TYPE_CHECKING:
-    import openpyxl as _openpyxl_t
     from app import EstimateApp
 
 

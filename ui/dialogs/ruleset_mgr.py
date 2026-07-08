@@ -27,28 +27,22 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
                           SmartConsumer added throughout.
 """
 
-import os
-import sqlite3
 import json
 import re
 
 from core.expression_engine import evaluate_condition, evaluate_formula, validate_expression
 
-from core import defaults
 
-from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
+from app_config import get_data_path
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QListWidget, QPushButton, QCheckBox,
-    QTabWidget, QTableWidget, QTableWidgetItem,
-    QFileDialog, QMessageBox, QGroupBox, QComboBox,
-    QSpinBox, QDoubleSpinBox, QHeaderView, QInputDialog,
-    QWidget, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLabel, QScrollArea, QDialogButtonBox, QFrame,
+    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
+    QPushButton, QCheckBox, QTableWidget, QTableWidgetItem,
+    QMessageBox, QGroupBox, QComboBox,
+    QSpinBox, QHeaderView, QInputDialog, QWidget,
+    QTreeWidget, QTreeWidgetItem, QLabel, QScrollArea,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont
 
 
 
@@ -615,7 +609,7 @@ class RulesetManagerDialog(QDialog):
         
         # 3. Smart Search & Sorting
         if search:
-            from core.ai_rule_parser import find_similar_rules, infer_properties_from_text
+            from core.ai_rule_parser import infer_properties_from_text
             
             # We score all candidate rules across ALL object types
             props = infer_properties_from_text(search)

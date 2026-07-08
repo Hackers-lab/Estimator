@@ -2,14 +2,12 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 from PyQt6.QtWidgets import (
-    QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem,
-    QGraphicsItem, QGraphicsTextItem,
+    QGraphicsPathItem, QWidget, QStyleOptionGraphicsItem,
 )
 from PyQt6.QtGui import (
-    QPainterPath, QPainterPathStroker, QBrush, QColor, QPen, QFont, QPainter,
-    QTransform, QFontMetricsF,
+    QPainterPath, QBrush, QColor, QPen, QFont, QPainter,
 )
-from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
+from PyQt6.QtCore import Qt, QRectF, QPointF
 from core import defaults
 from core import option_colors
 from ui.components import DraggableLabel
@@ -44,14 +42,12 @@ Visual improvements over v4
 import math
 from typing import TYPE_CHECKING, Any
 from PyQt6.QtWidgets import (
-    QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem,
-    QGraphicsItem, QGraphicsTextItem,
+    QGraphicsPathItem, QWidget, QStyleOptionGraphicsItem,
 )
 from PyQt6.QtGui import (
-    QPainterPath, QPainterPathStroker, QBrush, QColor, QPen, QFont, QPainter,
-    QTransform, QFontMetricsF,
+    QPainterPath, QBrush, QColor, QPen, QFont, QPainter,
 )
-from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
+from PyQt6.QtCore import Qt, QRectF, QPointF
 
 
 # ─────────────────────────────────────────────────────────────────────────────

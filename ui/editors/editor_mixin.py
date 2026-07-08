@@ -11,7 +11,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import (
     QComboBox, QSpinBox, QDoubleSpinBox, QLabel, QCheckBox,
     QLineEdit, QPushButton, QHBoxLayout, QWidget, QFrame, QMenu,
-    QInputDialog, QMessageBox, QSizePolicy, QFormLayout
+    QInputDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer
 

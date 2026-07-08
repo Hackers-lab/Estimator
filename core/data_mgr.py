@@ -2,7 +2,7 @@ import os
 import shutil
 import json
 import sqlite3
-from app_config import get_user_data_path, get_data_path, get_app_root, APP_NAME
+from app_config import get_user_data_path, get_data_path
 
 def initialize_user_data():
     """

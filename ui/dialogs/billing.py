@@ -11,9 +11,9 @@ import json
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QMessageBox, QLineEdit, QFormLayout, QDialogButtonBox,
-    QCheckBox, QFileDialog, QHeaderView, QAbstractItemView, QWidget,
-    QComboBox, QTextEdit, QScrollArea, QFrame, QTabWidget
+    QPushButton, QLabel, QMessageBox, QLineEdit, QFormLayout, QCheckBox,
+    QFileDialog, QHeaderView, QAbstractItemView, QWidget, QComboBox,
+    QTextEdit, QScrollArea, QFrame, QTabWidget
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush, QImage

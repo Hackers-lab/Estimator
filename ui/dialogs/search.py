@@ -27,25 +27,14 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
 """
 
 import sqlite3
-import json
-import re
 
-from core import defaults
 from core import property_catalog
 from core.database import DB_PATH
-from app_config import APP_DISPLAY_NAME, APP_VERSION
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QListWidget, QPushButton, QCheckBox,
-    QTabWidget, QTableWidget, QTableWidgetItem,
-    QFileDialog, QMessageBox, QGroupBox, QComboBox,
-    QSpinBox, QDoubleSpinBox, QHeaderView, QInputDialog,
-    QWidget, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLabel, QScrollArea, QDialogButtonBox, QFrame,
+    QDialog, QVBoxLayout, QLineEdit, QListWidget,
+    QPushButton, QLabel,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont
 
 from core.constants import (
     PROPERTY_DATA, 
@@ -62,7 +51,6 @@ def _runtime_sim_defaults() -> dict:
     return property_catalog.build_sim_defaults(SIM_DEFAULTS)
 
 
-from ui.dialogs._shared import ClickableCard
 
 class SearchDialog(QDialog):
     """

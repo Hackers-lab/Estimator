@@ -2,14 +2,12 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 from PyQt6.QtWidgets import (
-    QGraphicsPathItem, QGraphicsItemGroup, QWidget, QStyleOptionGraphicsItem,
-    QGraphicsItem, QGraphicsTextItem,
+    QGraphicsPathItem, QWidget, QStyleOptionGraphicsItem,
 )
 from PyQt6.QtGui import (
     QPainterPath, QPainterPathStroker, QBrush, QColor, QPen, QFont, QPainter,
-    QTransform, QFontMetricsF,
 )
-from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF, QSizeF
+from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 from core import defaults
 from core import option_colors
 from ui.components import DraggableLabel
@@ -18,7 +16,7 @@ if TYPE_CHECKING:
     _NodeBase = QGraphicsPathItem
 else:
     _NodeBase = object
-from canvas._base import _cg_rail_path, _earth_path, SmartPole
+from canvas._base import _cg_rail_path, SmartPole
 from canvas.nodes import SmartStructure, SmartConsumer
 
 class SmartSpan(QGraphicsPathItem):

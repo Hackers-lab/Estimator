@@ -18,10 +18,9 @@ from __future__ import annotations
 
 import difflib
 import math
-import re
 from typing import Any
 
-from simpleeval import EvalWithCompoundTypes, NameNotDefined, InvalidExpression
+from simpleeval import EvalWithCompoundTypes, NameNotDefined
 
 # ─── Iron weight constants (kg per metre) ─────────────────────────────────────
 # These are used in formula expressions throughout the ruleset.

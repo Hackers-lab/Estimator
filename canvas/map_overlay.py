@@ -1,7 +1,7 @@
 import os
 import math
 from PyQt6.QtCore import Qt, QUrl, QRectF
-from PyQt6.QtGui import QPixmap, QImage, QPainter
+from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtWidgets import QGraphicsItem
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 

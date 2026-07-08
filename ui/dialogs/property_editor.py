@@ -26,24 +26,19 @@ RulesetManagerDialog    — full rule builder / simulator / editor.
                           SmartConsumer added throughout.
 """
 
-import sqlite3
 import json
-import re
 
-from core import defaults
 from core import property_catalog
 from core import option_colors
-from app_config import APP_DISPLAY_NAME, APP_VERSION, get_data_path
+from app_config import get_data_path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QListWidget, QPushButton, QCheckBox,
-    QTabWidget, QTableWidget, QTableWidgetItem,
-    QFileDialog, QMessageBox, QGroupBox, QComboBox,
-    QSpinBox, QDoubleSpinBox, QHeaderView, QInputDialog,
-    QWidget, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLabel, QScrollArea, QDialogButtonBox, QFrame,
-    QColorDialog, QSizePolicy,
+    QLineEdit, QPushButton, QCheckBox, QTabWidget,
+    QMessageBox, QGroupBox, QComboBox,
+    QHeaderView, QInputDialog, QWidget, QSplitter,
+    QTreeWidget, QTreeWidgetItem, QLabel, QScrollArea,
+    QDialogButtonBox, QFrame, QColorDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -64,7 +59,6 @@ def _runtime_sim_defaults() -> dict:
     return property_catalog.build_sim_defaults(SIM_DEFAULTS)
 
 
-from ui.dialogs._shared import ClickableCard
 
 class PropertyEntryDialog(QDialog):
     def __init__(self, entry: dict | None = None, parent=None):
