@@ -29,10 +29,12 @@ from PyQt6.QtWidgets import (
     QDialog, QDoubleSpinBox, QScrollArea, QFrame,
     QMenu, QTextBrowser, QInputDialog, QSizePolicy, QSlider, QStackedWidget, QProgressDialog
 )
+# pyrefly: ignore [missing-import]
 from PyQt6.QtGui import (
     QPen, QColor, QAction, QKeySequence, QIcon,
     QPixmap
 )
+# pyrefly: ignore [missing-import]
 from PyQt6.QtCore import Qt, QTimer, QPointF, QEvent, QSize, pyqtSignal, QThread
 
 from core.constants import (
@@ -87,6 +89,10 @@ DEFAULT_PROJECT_META = {
     "meas_taken_by":    "",
     "certified_by":     "",
 }
+
+
+# Mutex handle to enforce single instance of the application on Windows
+_single_instance_mutex = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2272,6 +2278,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         return f"{qty:.3f}"
 
     def _refresh_table(self):
+        if getattr(self, "headless", False):
+            return
         try:
             self.live_table.itemChanged.disconnect(self.on_table_edit)
         except TypeError:
@@ -2442,9 +2450,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         cess     = (mat_sub + lab_sub + sup) * 0.01
         final    = mat_sub + lab_sub + sup + gst + cess
 
-        self.grand_total_label.setText(
-            f"<b>Estimated Cost (incl. taxes): Rs. {final:,.2f}</b>"
-        )
+        if not getattr(self, "headless", False):
+            self.grand_total_label.setText(
+                f"<b>Estimated Cost (incl. taxes): Rs. {final:,.2f}</b>"
+            )
 
     def on_table_edit(self, item):
         if item.column() != 3:
