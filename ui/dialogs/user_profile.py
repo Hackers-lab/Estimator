@@ -373,8 +373,8 @@ class UserProfileDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("User Profiles Manager")
-        self.resize(800, 450)
-        self.setMinimumSize(750, 380)
+        self.resize(850, 580)
+        self.setMinimumSize(800, 500)
         self.setModal(True)
         
         self.profiles = []
@@ -433,7 +433,17 @@ class UserProfileDialog(QDialog):
         left_layout.addLayout(left_btn_lay)
         splitter.addWidget(left_widget)
         
-        # Right Panel: Detail view
+        # Right Panel: Detail view container
+        right_container = QWidget()
+        right_container_layout = QVBoxLayout(right_container)
+        right_container_layout.setContentsMargins(0, 0, 0, 0)
+        right_container_layout.setSpacing(6)
+        
+        # Scroll Area for the labels and previews
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        
         self.detail_widget = QFrame()
         self.detail_widget.setFrameShape(QFrame.Shape.StyledPanel)
         self.detail_widget.setStyleSheet(
@@ -475,7 +485,10 @@ class UserProfileDialog(QDialog):
         
         self.detail_layout.addStretch()
         
-        # Right Actions
+        scroll_area.setWidget(self.detail_widget)
+        right_container_layout.addWidget(scroll_area, 1)
+        
+        # Right Actions (fixed at bottom of container)
         right_btn_lay = QHBoxLayout()
         self.btn_edit = QPushButton("✏️  Edit Details")
         self.btn_edit.clicked.connect(self._edit_profile)
@@ -487,9 +500,9 @@ class UserProfileDialog(QDialog):
         
         right_btn_lay.addWidget(self.btn_edit)
         right_btn_lay.addWidget(self.btn_set_active)
-        self.detail_layout.addLayout(right_btn_lay)
+        right_container_layout.addLayout(right_btn_lay)
         
-        splitter.addWidget(self.detail_widget)
+        splitter.addWidget(right_container)
         splitter.setSizes([220, 480])
         
         # Bottom Buttons

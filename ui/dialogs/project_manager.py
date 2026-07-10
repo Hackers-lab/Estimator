@@ -169,9 +169,9 @@ class ProjectManagerDialog(QDialog):
         
         # Table of projects
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
-            "Project Subject / Name", "Estimated Cost", "Type", "Lat / Long", "Last Modified", "JSON File Path"
+            "Project Subject / Name", "Invoiced?", "Estimated Cost", "Type", "Lat / Long", "Last Modified", "JSON File Path"
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -182,11 +182,12 @@ class ProjectManagerDialog(QDialog):
         # Resize column dimensions nicely
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(1, 130)
-        self.table.setColumnWidth(2, 60)
-        self.table.setColumnWidth(3, 130)
-        self.table.setColumnWidth(4, 140)
-        self.table.setColumnWidth(5, 200)
+        self.table.setColumnWidth(1, 100)
+        self.table.setColumnWidth(2, 130)
+        self.table.setColumnWidth(3, 60)
+        self.table.setColumnWidth(4, 130)
+        self.table.setColumnWidth(5, 140)
+        self.table.setColumnWidth(6, 200)
         
         layout.addWidget(self.table, 1)
         
@@ -237,23 +238,34 @@ class ProjectManagerDialog(QDialog):
             # Col 0: Name
             self.table.setItem(r, 0, QTableWidgetItem(p["name"]))
             
-            # Col 1: Cost
+            # Col 1: Invoiced status
+            is_invoiced = p.get("status") == "Invoiced"
+            inv_item = QTableWidgetItem("Yes (Locked)" if is_invoiced else "No")
+            if is_invoiced:
+                inv_item.setForeground(QColor("#c0392b"))
+                inv_item.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            else:
+                inv_item.setForeground(QColor("#7f8c8d"))
+            inv_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 1, inv_item)
+            
+            # Col 2: Cost
             cost_item = QTableWidgetItem(f"Rs. {p['cost']:,.2f}")
             cost_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.table.setItem(r, 1, cost_item)
+            self.table.setItem(r, 2, cost_item)
             
-            # Col 2: Type
-            self.table.setItem(r, 2, QTableWidgetItem(p["type"]))
+            # Col 3: Type
+            self.table.setItem(r, 3, QTableWidgetItem(p["type"]))
             
-            # Col 3: Coordinates
+            # Col 4: Coordinates
             coord_str = f"{p['lat']}, {p['long']}" if p["lat"] else ""
-            self.table.setItem(r, 3, QTableWidgetItem(coord_str))
+            self.table.setItem(r, 4, QTableWidgetItem(coord_str))
             
-            # Col 4: Last Modified
-            self.table.setItem(r, 4, QTableWidgetItem(p["updated_at"]))
+            # Col 5: Last Modified
+            self.table.setItem(r, 5, QTableWidgetItem(p["updated_at"]))
             
-            # Col 5: Path
-            self.table.setItem(r, 5, QTableWidgetItem(p["path"]))
+            # Col 6: Path
+            self.table.setItem(r, 6, QTableWidgetItem(p["path"]))
             
         # Select first row by default
         if self.projects:

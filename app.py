@@ -284,34 +284,20 @@ class EstimateApp(QMainWindow, EditorMixin):
         file_menu = mb.addMenu("&File")
         assert file_menu is not None
 
-        act_new = QAction("New Drawing", self)
-        act_new.setShortcut(QKeySequence("Ctrl+N"))
-        act_new.triggered.connect(self.new_drawing)
-        file_menu.addAction(act_new)
+        act_new_file = QAction("New Project", self)
+        act_new_file.setShortcut(QKeySequence("Ctrl+N"))
+        act_new_file.triggered.connect(self.new_project)
+        file_menu.addAction(act_new_file)
 
         act_open = QAction("Open…", self)
         act_open.setShortcut(QKeySequence("Ctrl+O"))
         act_open.triggered.connect(self.load_from_file)
         file_menu.addAction(act_open)
 
-        act_my_projects = QAction("My Projects…", self)
-        act_my_projects.setShortcut(QKeySequence("Ctrl+P"))
-        act_my_projects.triggered.connect(self.open_my_projects_dialog)
-        file_menu.addAction(act_my_projects)
-
         act_save = QAction("Save…", self)
         act_save.setShortcut(QKeySequence("Ctrl+S"))
         act_save.triggered.connect(self.save_to_file)
         file_menu.addAction(act_save)
-
-        act_save_as = QAction("Save As…", self)
-        act_save_as.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        act_save_as.triggered.connect(self.save_as_file)
-        file_menu.addAction(act_save_as)
-
-        act_save_bundle = QAction("Save Project Bundle…", self)
-        act_save_bundle.triggered.connect(self.save_project_bundle)
-        file_menu.addAction(act_save_bundle)
 
         file_menu.addSeparator()
 
@@ -332,6 +318,38 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_exit.triggered.connect(self.close)
         file_menu.addAction(act_exit)
 
+        # ── Project ──────────────────────────────────────────────────────
+        proj_menu = mb.addMenu("&Project")
+        assert proj_menu is not None
+
+        act_new = QAction("New Project", self)
+        act_new.setShortcut(QKeySequence("Ctrl+N"))
+        act_new.triggered.connect(self.new_project)
+        proj_menu.addAction(act_new)
+
+        act_my_projects = QAction("My Projects…", self)
+        act_my_projects.setShortcut(QKeySequence("Ctrl+P"))
+        act_my_projects.triggered.connect(self.open_my_projects_dialog)
+        proj_menu.addAction(act_my_projects)
+
+        act_proj = QAction("Project Settings", self)
+        act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
+        proj_menu.addAction(act_proj)
+
+        act_update_proj = QAction("Update Project", self)
+        act_update_proj.triggered.connect(self.update_project_details)
+        proj_menu.addAction(act_update_proj)
+
+        act_save_bundle = QAction("Save Project Bundle…", self)
+        act_save_bundle.triggered.connect(self.save_project_bundle)
+        proj_menu.addAction(act_save_bundle)
+
+        proj_menu.addSeparator()
+
+        act_all_projects_report = QAction("All Projects Report", self)
+        act_all_projects_report.triggered.connect(self.open_all_projects_report)
+        proj_menu.addAction(act_all_projects_report)
+
         # ── Export ────────────────────────────────────────────────────────
         export_menu = mb.addMenu("E&xport")
         assert export_menu is not None
@@ -348,20 +366,22 @@ class EstimateApp(QMainWindow, EditorMixin):
         act_bundle.triggered.connect(self.save_project_bundle)
         export_menu.addAction(act_bundle)
 
-        export_menu.addSeparator()
+        # ── Billing ───────────────────────────────────────────────────────
+        billing_menu = mb.addMenu("&Billing")
+        assert billing_menu is not None
 
         act_invoice = QAction("Generate Tax Invoice PDF…", self)
         act_invoice.setShortcut(QKeySequence("Ctrl+I"))
         act_invoice.triggered.connect(self.open_billing_dialog)
-        export_menu.addAction(act_invoice)
+        billing_menu.addAction(act_invoice)
+
+        act_cert = QAction("Generate Completion Certificate…", self)
+        act_cert.triggered.connect(self.open_completion_cert_dialog)
+        billing_menu.addAction(act_cert)
 
         # ── Settings ─────────────────────────────────────────────────────
         settings_menu = mb.addMenu("&Settings")
         assert settings_menu is not None
-
-        act_proj = QAction("Project Settings", self)
-        act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
-        settings_menu.addAction(act_proj)
 
         act_profiles = QAction("User Profiles…", self)
         act_profiles.triggered.connect(self.open_user_profiles_dialog)
@@ -1090,11 +1110,48 @@ class EstimateApp(QMainWindow, EditorMixin):
     def _run_project_wizard(self, first_run=False):
         dlg = ProjectSetupDialog(self.project_meta, self, first_run=first_run)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            old_path = self.current_project_path
             self.project_meta = dlg.get_meta()
+            
+            # Compute new path
+            folder_key = self.project_meta.get("folder_key", "default").strip()
+            import re
+            folder_key = re.sub(r'[\\/*?:"<>|]', "_", folder_key)
+            stem = self._safe_subject_stem("project")
+            project_dir = os.path.join(self._get_drawings_dir(), folder_key)
+            os.makedirs(project_dir, exist_ok=True)
+            new_path = os.path.join(project_dir, f"{stem}.json")
+            
+            # If the path changed and the old file exists, we rename/move it and update DB
+            if old_path and old_path != new_path and os.path.exists(old_path):
+                import shutil
+                try:
+                    shutil.move(old_path, new_path)
+                    self.current_project_path = new_path
+                    from core import db_gateway as _dbg
+                    _dbg.rename_project_metadata(old_path, new_path, self.project_meta.get("subject", "Unnamed Project"))
+                except Exception:
+                    self.current_project_path = new_path
+            else:
+                self.current_project_path = new_path
+                
+            self._do_save_to_path(self.current_project_path)
             self._refresh_proj_label()
             self.refresh_live_estimate()
-            if getattr(self, "current_project_path", None):
-                self._save_project_to_db()
+
+    def update_project_details(self):
+        if not getattr(self, "current_project_path", None):
+            QMessageBox.warning(self, "No Project", "Please open or create a project first before updating details.")
+            return
+            
+        from ui.dialogs.project_setup import UpdateProjectDialog
+        dlg = UpdateProjectDialog(self.project_meta, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.project_meta = dlg.get_meta()
+            self._save_project_to_db()
+            self._do_save_to_path(self.current_project_path)
+            self._refresh_proj_label()
+            self.statusBar().showMessage("Project billing/PO details updated and saved successfully.", 3000)
 
     def _refresh_proj_label(self):
         if getattr(self, "headless", False):
@@ -1457,6 +1514,9 @@ class EstimateApp(QMainWindow, EditorMixin):
                 
             self.scene.addItem(item)
             self._auto_connect_span(item)
+            self.scene.clearSelection()
+            item.setSelected(True)
+            self.on_selection_changed()
             self.refresh_live_estimate()
 
         # ── Span drawing ──────────────────────────────────────────────────
@@ -1470,13 +1530,13 @@ class EstimateApp(QMainWindow, EditorMixin):
                 # Warn on HT↔LT cross-connection
                 p1, p2 = self.span_start_pole, item_at
                 if self._is_ht_node(p1) != self._is_ht_node(p2):
-                    ans = QMessageBox.question(
-                        self, "Warning",
-                        "Connect HT pole to LT pole?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                    )
-                    if ans == QMessageBox.StandardButton.No:
-                        return
+                     ans = QMessageBox.question(
+                         self, "Warning",
+                         "Connect HT pole to LT pole?",
+                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                     )
+                     if ans == QMessageBox.StandardButton.No:
+                         return
 
                 ok, reason = self._validate_span_creation(p1, p2)
                 if not ok:
@@ -1490,6 +1550,9 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.scene.addItem(span.label)
                 self.span_start_pole.setPen(QPen(Qt.GlobalColor.black, 1))
                 self.span_start_pole = None
+                self.scene.clearSelection()
+                span.setSelected(True)
+                self.on_selection_changed()
                 self.refresh_live_estimate()
 
         # ── Symbol/Text placement ──────────────────────────────────────────
@@ -1501,10 +1564,11 @@ class EstimateApp(QMainWindow, EditorMixin):
                 text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
                 if not (ok and text.strip()): return
                 item = CanvasTextBox(text.strip(), pos.x(), pos.y())
-                item.setSelected(True)
             
             self.scene.addItem(item)
             self.scene.clearSelection()
+            item.setSelected(True)
+            self.on_selection_changed()
             if self.current_tool == "ADD_SYMBOL" or (self.current_tool == "ADD_TEXTBOX"):
                 self.set_tool("SELECT")
             self.refresh_live_estimate()
@@ -2042,6 +2106,31 @@ class EstimateApp(QMainWindow, EditorMixin):
             self._refresh_timer.stop()
             self._do_refresh_live_estimate()
 
+    @staticmethod
+    def calculate_bom_static(*args):
+        """Headless calculation of the BOM.
+
+        Backwards-compatible wrapper: accepts either a single `state` dict
+        or the older signature `(raw_nodes, raw_spans, overrides)`.
+        """
+        # Normalize arguments into a state dict
+        if len(args) == 1:
+            state = args[0]
+        elif len(args) >= 3:
+            raw_nodes, raw_spans, overrides = args[0], args[1], args[2]
+            state = {
+                "nodes": raw_nodes,
+                "spans": raw_spans,
+                "overrides": overrides,
+            }
+        else:
+            raise TypeError("calculate_bom_static requires a state dict or (nodes, spans, overrides)")
+
+        app = EstimateApp(headless=True)
+        app.parse_load_data(state, fit_view=False)
+        app._do_refresh_live_estimate()
+        return app.live_bom_data
+
     def _do_refresh_live_estimate(self):
         if self._refreshing_live:
             return
@@ -2519,6 +2608,10 @@ class EstimateApp(QMainWindow, EditorMixin):
     # =========================================================================
 
     def _default_export_dir(self) -> str:
+        if getattr(self, "current_project_path", None):
+            proj_dir = os.path.dirname(self.current_project_path)
+            if os.path.isdir(proj_dir):
+                return proj_dir
         saved = str(defaults.current.get("export_last_dir", "") or "").strip()
         if saved and os.path.isdir(saved):
             return saved
@@ -2566,6 +2659,18 @@ class EstimateApp(QMainWindow, EditorMixin):
         if self.scene.itemsBoundingRect().isNull():
             QMessageBox.warning(self, "Empty Canvas", "Nothing to export.")
             return
+
+        # Ensure project is saved locally first
+        if not getattr(self, "current_project_path", None):
+            folder_key = self.project_meta.get("folder_key", "default").strip()
+            import re
+            folder_key = re.sub(r'[\\/*?:"<>|]', "_", folder_key)
+            stem = self._safe_subject_stem("project")
+            project_dir = os.path.join(self._get_drawings_dir(), folder_key)
+            os.makedirs(project_dir, exist_ok=True)
+            self.current_project_path = os.path.join(project_dir, f"{stem}.json")
+            
+        self._do_save_to_path(self.current_project_path)
 
         target_dir = QFileDialog.getExistingDirectory(
             self,
@@ -2941,20 +3046,38 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         QTimer.singleShot(80, _fit_blank_page)
 
-    def new_drawing(self):
+    def new_project(self):
         ans = QMessageBox.question(
-            self, "New Canvas", "Clear canvas and start fresh?",
+            self, "New Project", "Clear canvas and start fresh?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if ans == QMessageBox.StandardButton.Yes:
+            # Ask for project details immediately (MUST)
+            temp_meta = dict(DEFAULT_PROJECT_META)
+            dlg = ProjectSetupDialog(temp_meta, self, first_run=True)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                # Abort project creation if setup is cancelled
+                return
+
             # Auto-save current drawing before clearing
             self._save_unsaved_drawing()
             self.scene.clear()
             self.span_start_pole  = None
             self.last_placed_node = None
             self.bom_overrides.clear()
-            self.current_project_path = None
-            self.project_meta = dict(DEFAULT_PROJECT_META)
+            self.project_meta = dlg.get_meta()
+            
+            # Formulate the project path immediately!
+            folder_key = self.project_meta.get("folder_key", "default").strip()
+            import re
+            folder_key = re.sub(r'[\\/*?:"<>|]', "_", folder_key)
+            stem = self._safe_subject_stem("project")
+            project_dir = os.path.join(self._get_drawings_dir(), folder_key)
+            os.makedirs(project_dir, exist_ok=True)
+            self.current_project_path = os.path.join(project_dir, f"{stem}.json")
+            
+            self._do_save_to_path(self.current_project_path)
+            
             SmartPole.reset_counters()
             SmartStructure.reset_counters()
             SmartConsumer.reset_counters()
@@ -2978,34 +3101,18 @@ class EstimateApp(QMainWindow, EditorMixin):
         if getattr(self, "project_locked", False):
             QMessageBox.warning(self, "Project Locked", "This project has been billed/invoiced and is locked from further saving.")
             return
-        if getattr(self, "current_project_path", None):
-            self._do_save_to_path(self.current_project_path)
-            self.statusBar().showMessage(f"Project saved to: {self.current_project_path}", 3000)
-        else:
-            self.save_as_file()
-
-    def save_as_file(self):
-        if getattr(self, "project_locked", False):
-            QMessageBox.warning(self, "Project Locked", "This project has been billed/invoiced and is locked from further saving.")
-            return
-        last_dir = str(defaults.current.get("export_last_dir", "") or "").strip()
-        stem     = self._safe_subject_stem("project")
-        default  = os.path.join(last_dir, f"{stem}.json") if last_dir else f"{stem}.json"
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Project As", default, "JSON Files (*.json)"
-        )
-        if filename:
-            self._do_save_to_path(filename)
-            defaults.save({"export_last_dir": os.path.dirname(filename)})
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Information)
-            msg.setWindowTitle("Project Saved")
-            msg.setText(f"Project saved to:\n{filename}")
-            open_folder_btn = msg.addButton("Open Folder", QMessageBox.ButtonRole.ActionRole)
-            msg.addButton(QMessageBox.StandardButton.Close)
-            msg.exec()
-            if msg.clickedButton() == open_folder_btn:
-                self._open_saved_folder(filename)
+            
+        if not getattr(self, "current_project_path", None):
+            folder_key = self.project_meta.get("folder_key", "default").strip()
+            import re
+            folder_key = re.sub(r'[\\/*?:"<>|]', "_", folder_key)
+            stem = self._safe_subject_stem("project")
+            project_dir = os.path.join(self._get_drawings_dir(), folder_key)
+            os.makedirs(project_dir, exist_ok=True)
+            self.current_project_path = os.path.join(project_dir, f"{stem}.json")
+            
+        self._do_save_to_path(self.current_project_path)
+        self.statusBar().showMessage(f"Project saved to: {self.current_project_path}", 3000)
 
     def _do_save_to_path(self, path):
         with open(path, "w", encoding="utf-8") as f:
@@ -3073,10 +3180,26 @@ class EstimateApp(QMainWindow, EditorMixin):
                 if os.path.getsize(self.autosave_file) > 0:
                     with open(self.autosave_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    # Only load if there is actual canvas content
-                    if data.get("nodes") or data.get("spans") or data.get("annotations"):
-                        self.parse_load_data(data)
-                        loaded_any = True
+                    # If autosave refers to a project file and that file exists,
+                    # prefer loading the project file so the app opens the last project.
+                    proj_path = data.get("current_project_path")
+                    if proj_path and os.path.exists(proj_path):
+                        try:
+                            with open(proj_path, "r", encoding="utf-8") as pf:
+                                pdata = json.load(pf)
+                            if pdata.get("nodes") or pdata.get("spans") or pdata.get("annotations"):
+                                self.parse_load_data(pdata)
+                                loaded_any = True
+                        except Exception:
+                            # Fallback to autosave if project file can't be read
+                            if data.get("nodes") or data.get("spans") or data.get("annotations"):
+                                self.parse_load_data(data)
+                                loaded_any = True
+                    else:
+                        # Only load autosave if there is actual canvas content
+                        if data.get("nodes") or data.get("spans") or data.get("annotations"):
+                            self.parse_load_data(data)
+                            loaded_any = True
             except (json.JSONDecodeError, KeyError):
                 pass
         # Blank canvas — show a blank A4 page only
@@ -3214,13 +3337,47 @@ class EstimateApp(QMainWindow, EditorMixin):
             if not data.get("nodes") and not data.get("spans") and not data.get("annotations"):
                 return
 
-            drawings_dir = self._get_drawings_dir()
-            n = 1
-            while os.path.exists(os.path.join(drawings_dir, f"unsaved{n}.json")):
-                n += 1
-            target = os.path.join(drawings_dir, f"unsaved{n}.json")
-            with open(target, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            # If this session is associated with a project file, write the
+            # working state back into that project JSON so the work stays with
+            # the project instead of creating untidy files in Documents.
+            target = None
+            if getattr(self, "current_project_path", None):
+                try:
+                    proj_path = self.current_project_path
+                    # Read existing project file if present, merge minimal fields
+                    proj_data = {}
+                    if os.path.exists(proj_path):
+                        try:
+                            with open(proj_path, "r", encoding="utf-8") as pf:
+                                proj_data = json.load(pf)
+                        except Exception:
+                            proj_data = {}
+                    # Update core canvas state fields
+                    proj_data.update({
+                        "version": data.get("version", proj_data.get("version", 5)),
+                        "project_meta": data.get("project_meta", proj_data.get("project_meta", {})),
+                        "overrides": data.get("overrides", proj_data.get("overrides", {})),
+                        "nodes": data.get("nodes", proj_data.get("nodes", [])),
+                        "spans": data.get("spans", proj_data.get("spans", [])),
+                        "annotations": data.get("annotations", proj_data.get("annotations", [])),
+                        "current_project_path": proj_path,
+                    })
+                    with open(proj_path, "w", encoding="utf-8") as pf:
+                        json.dump(proj_data, pf, indent=2)
+                    target = proj_path
+                except Exception as exc:
+                    print(f"[AutoSave] Could not write into project file {self.current_project_path}: {exc}")
+
+            # Fallback: if not associated with a project file, continue saving
+            # the traditional unsavedN.json into Documents for session restore.
+            if not target:
+                drawings_dir = self._get_drawings_dir()
+                n = 1
+                while os.path.exists(os.path.join(drawings_dir, f"unsaved{n}.json")):
+                    n += 1
+                target = os.path.join(drawings_dir, f"unsaved{n}.json")
+                with open(target, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
         except Exception as exc:
             # Never crash the app because of auto-save
             print(f"[AutoSave] Could not save drawing: {exc}")
@@ -3394,9 +3551,37 @@ class EstimateApp(QMainWindow, EditorMixin):
         dlg.exec()
 
     def open_billing_dialog(self):
-        from ui.dialogs.billing import BillingDialog
-        dlg = BillingDialog(self)
+        try:
+            from ui.dialogs.billing import BillingDialog
+            dlg = BillingDialog(self)
+            dlg.exec()
+        except Exception as _exc:
+            import traceback as _tb
+            try:
+                log_path = get_user_data_path("last_runtime_error.log")
+                with open(log_path, "w", encoding="utf-8") as fh:
+                    fh.write(f"{APP_DISPLAY_NAME} v{APP_VERSION}\n")
+                    fh.write(f"{datetime.now().isoformat()}\n\n")
+                    fh.write("".join(_tb.format_exception(type(_exc), _exc, _exc.__traceback__)))
+            except Exception:
+                pass
+            try:
+                QMessageBox.critical(
+                    self,
+                    f"{APP_DISPLAY_NAME} — Error",
+                    f"Failed to open Billing dialog:\n{type(_exc).__name__}: {_exc}\n\nDetails written to: {log_path if 'log_path' in locals() else '(n/a)'}",
+                )
+            except Exception:
+                pass
+
+    def open_completion_cert_dialog(self):
+        from ui.dialogs.billing import CompletionCertificateDialog
+        dlg = CompletionCertificateDialog(self)
         dlg.exec()
+
+    def open_all_projects_report(self):
+        from ui.dialogs.billing import generate_all_projects_report
+        generate_all_projects_report(self)
 
     def _check_profile_on_startup(self):
         from core import db_gateway as _dbg
@@ -3468,6 +3653,50 @@ def main() -> int:
                 "Please switch to the existing window.",
             )
             return 0
+
+    # Install a Qt message handler to turn Qt warnings/errors into Python
+    # exceptions so they generate tracebacks we can inspect during debugging.
+    try:
+        from PyQt6.QtCore import qInstallMessageHandler
+
+        def _qt_msg_handler(msg_type, context, message):
+            try:
+                import traceback as _tb
+                log_path = get_user_data_path("qt_messages.log")
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    fh.write(f"--- Qt Message ---\n")
+                    fh.write(f"Type: {msg_type}\n")
+                    try:
+                        fh.write(f"File: {context.file} Line: {context.line} Func: {context.function}\n")
+                    except Exception:
+                        pass
+                    fh.write(f"Message: {message}\n")
+                    fh.write("Python stack:\n")
+                    fh.write("".join(_tb.format_stack()))
+                    fh.write("\n")
+            except Exception:
+                pass
+
+        qInstallMessageHandler(_qt_msg_handler)
+    except Exception:
+        # Best-effort; continue if qInstallMessageHandler is unavailable.
+        pass
+
+    # Install a global exception hook to capture uncaught exceptions during runtime
+    def _global_excepthook(exc_type, exc_value, exc_tb):
+        import traceback as _tb
+        try:
+            log_path = get_user_data_path("last_runtime_error.log")
+            with open(log_path, "w", encoding="utf-8") as fh:
+                fh.write(f"{APP_DISPLAY_NAME} v{APP_VERSION}\n")
+                fh.write(f"{datetime.now().isoformat()}\n\n")
+                fh.write("".join(_tb.format_exception(exc_type, exc_value, exc_tb)))
+        except Exception:
+            pass
+        # fallback to default
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _global_excepthook
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
