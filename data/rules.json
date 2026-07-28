@@ -1841,12 +1841,12 @@
   {
     "id": 206,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '25KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and (dtr_new_size == '16KVA' or dtr_new_size == '25KVA')",
     "items": [
       {
         "type": "Labor",
         "item_code": "LAB-80",
-        "item_name": "DTR Aug. 16KVA to 25KVA Dismantling & Installation",
+        "item_name": "DTR Aug. Dismantling & Installation (upto 25KVA)",
         "formula": "1"
       }
     ]
@@ -1854,12 +1854,12 @@
   {
     "id": 207,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '63KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '63KVA'",
     "items": [
       {
         "type": "Labor",
         "item_code": "LAB-81",
-        "item_name": "DTR Aug. 16KVA to 63KVA Dismantling & Installation",
+        "item_name": "DTR Aug. Dismantling & Installation (63KVA)",
         "formula": "1"
       }
     ]
@@ -1867,12 +1867,12 @@
   {
     "id": 208,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '16KVA' and dtr_new_size == '100KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '100KVA'",
     "items": [
       {
         "type": "Labor",
         "item_code": "LAB-82",
-        "item_name": "DTR Aug. 16KVA to 100KVA Dismantling & Installation",
+        "item_name": "DTR Aug. Dismantling & Installation (100KVA)",
         "formula": "1"
       }
     ]
@@ -1880,38 +1880,142 @@
   {
     "id": 209,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '63KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_new_size == '160KVA'",
     "items": [
       {
         "type": "Labor",
         "item_code": "LAB-83",
-        "item_name": "DTR Aug. 25KVA to 63KVA Dismantling & Installation",
+        "item_name": "DTR Aug. Dismantling & Installation (160/250/315KVA)",
         "formula": "1"
       }
     ]
   },
   {
-    "id": 210,
+    "id": 235,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '25KVA' and dtr_new_size == '100KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '10KVA' and dtr_return_condition == 'defective'",
     "items": [
       {
-        "type": "Labor",
-        "item_code": "LAB-84",
-        "item_name": "DTR Aug. 25KVA to 100KVA Dismantling & Installation",
+        "type": "Material",
+        "item_code": "391020541",
+        "item_name": "Return of Defective DTR 10KVA (DAM1)",
         "formula": "1"
       }
     ]
   },
   {
-    "id": 211,
+    "id": 236,
     "object": "SmartPole",
-    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and existing_dtr_size == '63KVA' and dtr_new_size == '100KVA'",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '10KVA' and dtr_return_condition == 'healthy'",
     "items": [
       {
-        "type": "Labor",
-        "item_code": "LAB-85",
-        "item_name": "DTR Aug. 63KVA to 100KVA Dismantling & Installation",
+        "type": "Material",
+        "item_code": "391030541",
+        "item_name": "Return of Use & Healthy DTR 10KVA (UH01)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 237,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '16KVA' and dtr_return_condition == 'defective'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391021041",
+        "item_name": "Return of Defective DTR 16KVA (DAM1)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 238,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '16KVA' and dtr_return_condition == 'healthy'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391031041",
+        "item_name": "Return of Use & Healthy DTR 16KVA (UH01)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 239,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '25KVA' and dtr_return_condition == 'defective'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391021541",
+        "item_name": "Return of Defective DTR 25KVA (DAM1)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 240,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '25KVA' and dtr_return_condition == 'healthy'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391031541",
+        "item_name": "Return of Use & Healthy DTR 25KVA (UH01)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 241,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '63KVA' and dtr_return_condition == 'defective'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391022541",
+        "item_name": "Return of Defective DTR 63KVA (DAM1)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 242,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '63KVA' and dtr_return_condition == 'healthy'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391032541",
+        "item_name": "Return of Use & Healthy DTR 63KVA (UH01)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 243,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '100KVA' and dtr_return_condition == 'defective'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391023441",
+        "item_name": "Return of Defective DTR 100KVA (DAM1)",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 244,
+    "object": "SmartPole",
+    "condition": "is_existing == True and existing_subtype == 'DTR' and dtr_aug_required == True and dtr_return_old_dtr == True and existing_dtr_size == '100KVA' and dtr_return_condition == 'healthy'",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "391033441",
+        "item_name": "Return of Use & Healthy DTR 100KVA (UH01)",
         "formula": "1"
       }
     ]

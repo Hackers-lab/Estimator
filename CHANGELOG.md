@@ -2,6 +2,37 @@
 
 ---
 
+## v9.2 — July 28, 2026
+
+### What's New
+
+#### 🔧 DTR Augmentation Labour
+Augmenting an existing DTR now automatically adds the correct **dismantling & installation labour** to the estimate, with rates based on the target DTR capacity:
+
+| Augmentation Target | Rate |
+|---|---|
+| Up to 25 KVA | ₹2,205 |
+| 63 KVA | ₹2,665 |
+| 100 KVA | ₹2,998 |
+| 160 / 250 / 315 KVA | ₹5,087 |
+
+#### 📦 Return DTR Material Codes
+When a DTR is augmented, the old DTR's **return-to-store** code now appears on the estimate automatically. A new **"Return Condition"** dropdown lets you choose between:
+- **Defective (DAM1)** — codes 391020541 through 391023441
+- **Use & Healthy (UH01)** — codes 391030541 through 391033441
+
+Return items appear at rate ₹0 so they do not affect the estimate total.
+
+### Fixes
+
+#### 🎨 DTR Code Painting Rate
+Corrected from ₹65 to **₹60** per unit.
+
+#### 🛠 AB Cable Clamp Iron Recipe
+Updated the M.S. Flat 65×6 requirement from **1 NOS to 2 NOS** (0.5m each) per AB cable span.
+
+---
+
 ## v9.1 — July 28, 2026
 
 ### What's New

@@ -1,6 +1,6 @@
-# ERP Estimate Generator v9.1
+# ERP Estimate Generator v9.2
 
-![Version](https://img.shields.io/badge/version-9.1-blue.svg)
+![Version](https://img.shields.io/badge/version-9.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,22 +8,18 @@
 
 ---
 
-## 🚀 What's New in Version 9.1
+## 🚀 What's New in Version 9.2
 
-* **⚡ 33kV HT Lines & Poles:** Full support for 33kV high-tension lines and poles alongside the existing LT and 11kV HT infrastructure.
-* **🏷 3-Letter Pole Prefixes:** Clearer pole identification with new prefixes — PLT, PHT, P33 for new poles and ELT, EHT, E33 for existing poles.
-* **🔌 Solid Service Cable Spans:** Service Cable spans now render as solid lines for better visual distinction on the drawing canvas.
-* **👁 Drawing Declutter Options:** New toggles to show/hide pole-height and span-length labels for cleaner, less cluttered drawings.
-* **🖱 InstantPopup Toolbar Dropdowns:** Toolbar dropdown menus now open instantly on click for a snappier workflow.
-* **🎨 Opaque Existing Poles:** Existing poles are now rendered with full opacity for better visibility.
-* **🔧 HT Classification Fix:** Corrected HT pole classification logic for accurate estimation.
-* **📅 Extended Validity:** App validity extended until **31.08.2026**.
+* **🔧 DTR Augmentation Labour:** Automatic labour charges for dismantling & installing DTR during augmentation — rates by target capacity (≤25KVA ₹2,205 • 63KVA ₹2,665 • 100KVA ₹2,998 • 160KVA+ ₹5,087).
+* **📦 Return DTR Codes:** Augmentation now adds the correct return-to-store material code for the old DTR, with a **"Return Condition"** selector: Defective (DAM1) or Use & Healthy (UH01).
+* **🎨 DTR Code Painting Rate Fix:** Corrected from ₹65 to ₹60.
+* **🛠 AB Cable Clamp Iron Fix:** Flat 65×6 requirement updated from 1 NOS to 2 NOS (0.5m each) per AB cable span.
 
-## 🔄 Previous Highlights (v9.0)
+## 🔄 Previous Highlights (v9.1)
 
-* **📊 All-Projects Billing Report:** Generate a landscape PDF summary of every invoiced project with totals.
-* **📑 Restructured Estimate (Excel-Match):** Billing packet estimate now mirrors the Excel export layout.
-* **📏 Separate Measurement Sheets:** Optional Material and Labor measurement sheets with pagination.
+* **⚡ 33kV HT Lines & Poles:** Full 33kV support with 3-letter pole prefixes (PLT/PHT/P33/ELT/EHT/E33).
+* **👁 Drawing Declutter:** Toggle pole-height and span-length labels independently.
+* **📅 Extended Validity:** App validity extended until 31.08.2026.
 
 ## 🔄 Previous Highlights (v8.1)
 
@@ -71,5 +67,5 @@
 ---
 
 ## 📝 Release Notes & Installation
-Please check the releases tab to download the standalone executable for **v9.1**. 
-*(Note: Existing users upgrading to v9.1 will automatically receive all fixes and new features directly on launch, with all saved local estimates and custom overrides fully preserved!).*
+Please check the releases tab to download the standalone executable for **v9.2**. 
+*(Note: Existing users upgrading to v9.2 will automatically receive all fixes and new features directly on launch, with all saved local estimates and custom overrides fully preserved!).*

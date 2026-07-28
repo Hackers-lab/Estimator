@@ -799,6 +799,19 @@ class EditorMixin:
         else:
             self._set_dynamic_prop(item, "dtr_return_old_pole", False)
 
+        # DTR return condition — Defective (DAM1) vs Use & Healthy (UH01)
+        ret_cond = QComboBox()
+        ret_cond.addItems(["Defective (DAM1)", "Use & Healthy (UH01)"])
+        cur_cond = str(props.get("dtr_return_condition", "defective"))
+        ret_cond.setCurrentIndex(0 if cur_cond == "defective" else 1)
+
+        def _on_ret_cond_change(idx: int, i=item):
+            val = "defective" if idx == 0 else "healthy"
+            self._set_dynamic_prop(i, "dtr_return_condition", val)
+
+        ret_cond.currentIndexChanged.connect(_on_ret_cond_change)
+        self.editor_layout.addRow("Return Condition:", ret_cond)
+
         labour_txt = "Includes labour: dismantling existing DTR and fixing new DTR"
         labour_lbl = QLabel(labour_txt)
         labour_lbl.setStyleSheet("color:#555; font-style:italic;")

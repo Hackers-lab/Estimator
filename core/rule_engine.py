@@ -185,6 +185,7 @@ class DynamicRuleEngine:
             "dtr_return_old_dtr":           bool(dyn.get("dtr_return_old_dtr", dtr_aug_required_pole)),
             "dtr_return_old_pole":          bool(dyn.get("dtr_return_old_pole", bool(dyn.get("dtr_structure_change_required", False)))),
             "dtr_return_old_iron":          bool(dyn.get("dtr_return_old_iron", False)),
+            "dtr_return_condition":          str(dyn.get("dtr_return_condition", "defective")),
             "iron_recipe":                  getattr(item, "iron_recipe", "None"),
         }
 
@@ -323,6 +324,7 @@ class DynamicRuleEngine:
                 dyn.get("dtr_return_old_pole", bool(dyn.get("dtr_structure_change_required", False)))
             ),
             "dtr_return_old_iron": bool(dyn.get("dtr_return_old_iron", False)),
+            "dtr_return_condition": str(dyn.get("dtr_return_condition", "defective")),
             "use_uh":           use_uh,
             "project_type":     project_type,
             "iron_recipe":      getattr(item, "iron_recipe", "None"),

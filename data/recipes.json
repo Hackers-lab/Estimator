@@ -342,7 +342,7 @@
         "description": "AB Cable Clamp (Flat)",
         "section": "FLAT_65X6",
         "length_per_piece": 0.5,
-        "qty_per_object": 1,
+        "qty_per_object": 2,
         "length_formula": "=0.5"
       }
     ]

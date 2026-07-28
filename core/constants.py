@@ -125,6 +125,7 @@ PROPERTY_DATA = {
         "ab_needs_suspension": [True, False],
         "use_uh":           [True, False],
         "project_type":     ["NSC", "FDS / TURNKEY"],
+        "dtr_return_condition": ["defective", "healthy"],
     },
     "SmartStructure": {
         "structure_type":   ["DP", "TP", "4P", "DTR"],
@@ -146,6 +147,7 @@ PROPERTY_DATA = {
         "dtr_return_old_dtr": [True, False],
         "dtr_return_old_pole": [True, False],
         "dtr_return_old_iron": [True, False],
+        "dtr_return_condition": ["defective", "healthy"],
         "use_uh":           [True, False],
         "project_type":     ["NSC", "FDS / TURNKEY"],
     },
