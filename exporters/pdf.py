@@ -396,9 +396,41 @@ class PDFExporter:
             painter.drawEllipse(QPointF(cx + ox, cy + oy), r, r)
 
         if kind == "lt_pole":
-            _circle(d.get("canvas_lt_pole", "#2980b9"))
+            painter.setBrush(QBrush(QColor(d.get("canvas_lt_pole", "#2980b9"))))
+            painter.setPen(QPen(QColor("#222222"), 0.5))
+            painter.drawEllipse(QPointF(cx, cy), 3.5, 3.5)
+            painter.setPen(QPen(QColor("#ffffff")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "LT")
         elif kind == "ht_pole":
-            _circle(d.get("canvas_ht_pole", "#c0392b"))
+            painter.setBrush(QBrush(QColor(d.get("canvas_ht_pole", "#c0392b"))))
+            painter.setPen(QPen(QColor("#222222"), 0.5))
+            painter.drawRect(QRectF(cx - 3.5, cy - 3.5, 7, 7))
+            painter.setPen(QPen(QColor("#ffffff")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "HT")
+        elif kind == "ex_lt_pole":
+            painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+            painter.setPen(QPen(QColor("#222222"), 0.8))
+            painter.drawEllipse(QPointF(cx, cy), 3.5, 3.5)
+            painter.setPen(QPen(QColor("#222222")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "LT")
+        elif kind == "ex_ht_pole":
+            painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+            painter.setPen(QPen(QColor("#222222"), 0.8))
+            painter.drawRect(QRectF(cx - 3.5, cy - 3.5, 7, 7))
+            painter.setPen(QPen(QColor("#222222")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "HT")
         elif kind == "ex_pole":
             _circle(d.get("canvas_ex_pole", "#cccccc"), border="#777777", bw=0.6)
         elif kind == "dp":
@@ -475,24 +507,25 @@ class PDFExporter:
         # Each entry carries a "draw" kind so the legend paints the SAME shapes
         # and colours the canvas uses (not emoji/ASCII, which never matched).
         legend_data = {
-            "New LT Pole":   {"s": None, "draw": "lt_pole",  "q": 0},
-            "New HT Pole":   {"s": None, "draw": "ht_pole",  "q": 0},
-            "DP Structure":  {"s": None, "draw": "dp",       "q": 0},
-            "TP Structure":  {"s": None, "draw": "tp",       "q": 0},
-            "4P Structure":  {"s": None, "draw": "4p",       "q": 0},
-            "DTR":           {"s": None, "draw": "dtr",      "q": 0},
-            "Existing Pole": {"s": None, "draw": "ex_pole",  "q": 0},
-            "Extension":     {"s": "[E]",                    "q": 0},
-            "Consumer":      {"s": None, "draw": "consumer", "q": 0},
-            "Earthing":      {"s": None, "draw": "earth",    "q": 0},
-            "Stay":          {"s": None, "draw": "stay",     "q": 0},
-            "CG (SP)":       {"s": None, "draw": "cg",       "q": 0},
-            "CG (DP)":       {"s": None, "draw": "cg",       "q": 0},
-            "New ACSR":      {"s": None, "draw": "span_acsr",     "l": 0},
-            "New AB Cable":  {"s": None, "draw": "span_ab",       "l": 0},
-            "New PVC Cable": {"s": None, "draw": "span_pvc",      "l": 0},
-            "Existing Span": {"s": None, "draw": "span_existing", "l": 0},
-            "Service Drop":  {"s": None, "draw": "span_svc",      "l": 0},
+            "New LT Pole":      {"s": None, "draw": "lt_pole",    "q": 0},
+            "New HT Pole":      {"s": None, "draw": "ht_pole",    "q": 0},
+            "Existing LT Pole": {"s": None, "draw": "ex_lt_pole", "q": 0},
+            "Existing HT Pole": {"s": None, "draw": "ex_ht_pole", "q": 0},
+            "DP Structure":     {"s": None, "draw": "dp",         "q": 0},
+            "TP Structure":     {"s": None, "draw": "tp",         "q": 0},
+            "4P Structure":     {"s": None, "draw": "4p",         "q": 0},
+            "DTR":              {"s": None, "draw": "dtr",        "q": 0},
+            "Extension":        {"s": "[E]",                      "q": 0},
+            "Consumer":         {"s": None, "draw": "consumer",   "q": 0},
+            "Earthing":         {"s": None, "draw": "earth",      "q": 0},
+            "Stay":             {"s": None, "draw": "stay",       "q": 0},
+            "CG (SP)":          {"s": None, "draw": "cg",         "q": 0},
+            "CG (DP)":          {"s": None, "draw": "cg",         "q": 0},
+            "New ACSR":         {"s": None, "draw": "span_acsr",     "l": 0},
+            "New AB Cable":     {"s": None, "draw": "span_ab",       "l": 0},
+            "New PVC Cable":    {"s": None, "draw": "span_pvc",      "l": 0},
+            "Existing Span":    {"s": None, "draw": "span_existing", "l": 0},
+            "Service Drop":     {"s": None, "draw": "span_svc",      "l": 0},
         }
 
         for item in app.scene.items():
@@ -502,7 +535,14 @@ class PDFExporter:
                 if item.has_extension:
                     legend_data["Extension"]["q"] += 1
                 if item.is_existing:
-                    legend_data["Existing Pole"]["q"] += 1
+                    if item.existing_subtype == "HT":
+                        legend_data["Existing HT Pole"]["q"] += 1
+                    elif item.existing_subtype in ("DP", "TP", "4P", "DTR"):
+                        st_key = item.existing_subtype if item.existing_subtype == "DTR" else f"{item.existing_subtype} Structure"
+                        if st_key in legend_data:
+                            legend_data[st_key]["q"] += 1
+                    else:
+                        legend_data["Existing LT Pole"]["q"] += 1
                 elif item.pole_type == "LT":
                     legend_data["New LT Pole"]["q"] += 1
                 else:

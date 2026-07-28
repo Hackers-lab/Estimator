@@ -164,7 +164,7 @@ class ExcelExporter:
         ws.cell(row, 3, "A. MATERIALS").font = Font(bold=True)
         row += 1
 
-        mat_start_row = 6
+        mat_start_row = row
         mat_end_row = mat_start_row + len(mat_items) - 1
         for i, item in enumerate(mat_items, 1):
             qty_val = round(item["qty"], 3)

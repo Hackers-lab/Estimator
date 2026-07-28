@@ -517,45 +517,16 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         try:
             path = QPainterPath()
 
-            # Main pole symbol
+            # Main pole symbol shape according to type/condition
             r = self._RADIUS
             if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
                 path.addPath(_existing_struct_path(self.existing_subtype))
-            else:
+            elif self.pole_type == "LT" and not (self.is_existing and self.existing_subtype == "HT"):
+                # LT Pole: Circle
                 path.addEllipse(-r, -r, r * 2, r * 2)
-
-            # ── Determine stay / earth angles ─────────────────────────────────
-            if self.stay_angle_override is not None:
-                stay_angle = self.stay_angle_override % 360
             else:
-                stay_angle = self._calc_stay_angle()
-
-            if self.earth_angle_override is not None:
-                earth_angle = self.earth_angle_override % 360
-            else:
-                earth_angle = self._calc_earth_angle(stay_angle)
-
-            # ── Earth symbol at pole edge in earth_angle direction ────────────
-            if self.detail_view and self.earth_count > 0:
-                n         = min(self.earth_count, 3)
-                erad      = math.radians(earth_angle)
-                perp_rad  = math.radians(earth_angle + 90)
-                # attachment point on pole edge
-                att_x = math.cos(erad) * (r + 2)
-                att_y = math.sin(erad) * (r + 2)
-                for i in range(n):
-                    offset = (i - (n - 1) / 2) * 10   # tighter spacing for smaller symbol
-                    ex = att_x + math.cos(perp_rad) * offset
-                    ey = att_y + math.sin(perp_rad) * offset
-                    path.addPath(_earth_path(ex, ey, earth_angle))
-
-            # ── Stay wire symbols in stay_angle direction ─────────────────────
-            if self.detail_view and self.stay_count > 0:
-                # For multiple stays, fan them around the main stay angle
-                spread = [0, -25, 25, -50]
-                for i in range(min(self.stay_count, 4)):
-                    ang = (stay_angle + spread[i]) % 360
-                    path.addPath(_stay_path(ang))
+                # HT Pole: Perfect Square with sharp corners
+                path.addRect(-r, -r, r * 2, r * 2)
 
             self.setPath(path)
 
@@ -569,10 +540,10 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 )
                 if is_aug_dtr:
                     self.setBrush(QBrush(QColor(_c.get("canvas_ex_aug_dtr", "#f7b267"))))
-                    self.setPen(QPen(QColor("#7a4000"), 1.6, Qt.PenStyle.DashLine))
+                    self.setPen(QPen(QColor("#7a4000"), 1.6, Qt.PenStyle.SolidLine))
                 else:
-                    self.setBrush(QBrush(QColor(_c.get("canvas_ex_pole", "#cccccc"))))
-                    self.setPen(QPen(Qt.GlobalColor.darkGray, 1, Qt.PenStyle.DashLine))
+                    self.setBrush(QBrush(QColor(255, 255, 255, 220)))
+                    self.setPen(QPen(QColor("#222222"), 1.5, Qt.PenStyle.SolidLine))
             elif self.pole_type == "LT":
                 _hk = "canvas_lt_pole_" + self.height.lower().replace(".", "_")
                 _default_col = _c.get(_hk, _c.get("canvas_lt_pole", "#2980b9"))
@@ -674,44 +645,51 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
-        super().paint(painter, option, widget)
         if painter is None:
             return
 
-        if (
-            self.is_existing
-            and self.existing_subtype == "DTR"
-            and bool(getattr(self, "dynamic_props", {}).get("dtr_aug_required", False))
-        ):
-            # Emphasize augmented DTR with a larger shadow halo.
-            painter.save()
-            painter.translate(3.0, 3.0)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 0, 0, 80)))
-            painter.drawPath(self.path())
-            painter.restore()
+        r = self._RADIUS
 
-            painter.save()
-            painter.setPen(self.pen())
-            painter.setBrush(self.brush())
-            painter.drawPath(self.path())
-            painter.restore()
-
-        # Existing poles use dashed grey pen for body; redraw stay in dark stroke
-        # so it remains as visible as new stays.
-        if self.is_existing and self.detail_view and self.stay_count > 0:
+        # ── 1. Draw stays and earthing BEHIND main pole body ───────────────────
+        if self.detail_view:
             if self.stay_angle_override is not None:
                 stay_angle = self.stay_angle_override % 360
             else:
                 stay_angle = self._calc_stay_angle()
-            painter.save()
-            painter.setPen(QPen(Qt.GlobalColor.black, 1.2))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            spread = [0, -25, 25, -50]
-            for i in range(min(self.stay_count, 4)):
-                ang = (stay_angle + spread[i]) % 360
-                painter.drawPath(_stay_path(ang))
-            painter.restore()
+
+            if self.earth_angle_override is not None:
+                earth_angle = self.earth_angle_override % 360
+            else:
+                earth_angle = self._calc_earth_angle(stay_angle)
+
+            # Earthing symbols
+            if self.earth_count > 0:
+                n        = min(self.earth_count, 3)
+                erad     = math.radians(earth_angle)
+                perp_rad = math.radians(earth_angle + 90)
+                att_x    = math.cos(erad) * (r + 2)
+                att_y    = math.sin(erad) * (r + 2)
+                painter.save()
+                for i in range(n):
+                    offset = (i - (n - 1) / 2) * 10
+                    ex = att_x + math.cos(perp_rad) * offset
+                    ey = att_y + math.sin(perp_rad) * offset
+                    painter.drawPath(_earth_path(ex, ey, earth_angle))
+                painter.restore()
+
+            # Stay wire symbols
+            if self.stay_count > 0:
+                spread = [0, -25, 25, -50]
+                painter.save()
+                painter.setPen(QPen(QColor("#222222"), 1.2))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                for i in range(min(self.stay_count, 4)):
+                    ang = (stay_angle + spread[i]) % 360
+                    painter.drawPath(_stay_path(ang))
+                painter.restore()
+
+        # ── 2. Draw main pole body (circle/square) ON TOP of stays/earthing ─────
+        super().paint(painter, option, widget)
 
         if self.has_extension:
             r = self._RADIUS
@@ -761,6 +739,30 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             painter.setPen(QPen(QColor("#7a4000"), 1))
             painter.setFont(QFont("Arial", 5, QFont.Weight.Bold))
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "AUG")
+            painter.restore()
+
+        # Inner symbol badge text inside pole (LT, HT)
+        r = self._RADIUS
+        symbol_rect = QRectF(-r, -r, r * 2, r * 2)
+        
+        if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
+            badge_text = ""
+        elif self.pole_type == "LT" or (self.is_existing and self.existing_subtype == "LT"):
+            badge_text = "LT"
+        else:
+            badge_text = "HT"
+
+        if badge_text:
+            painter.save()
+            if self.is_existing:
+                text_col = QColor("#222222")
+            else:
+                text_col = QColor("#ffffff")
+            painter.setPen(QPen(text_col))
+            font = QFont("Arial", 5, QFont.Weight.Bold)
+            font.setPixelSize(7)
+            painter.setFont(font)
+            painter.drawText(symbol_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
             painter.restore()
     def itemChange(self, change: QGraphicsPathItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsPathItem.GraphicsItemChange.ItemPositionHasChanged:
