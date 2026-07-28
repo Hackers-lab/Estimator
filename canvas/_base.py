@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QGraphicsPathItem, QWidget, QStyleOptionGraphicsItem,
 )
 from PyQt6.QtGui import (
-    QPainterPath, QBrush, QColor, QPen, QFont, QPainter,
+    QPainterPath, QBrush, QColor, QPen, QFont, QPainter, QPolygonF,
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from core import defaults
@@ -179,6 +179,41 @@ def _cg_rail_path(ux: float, uy: float, nx: float, ny: float,
     return p
 
 
+def _diamond_path(r: float = 10.0) -> QPainterPath:
+    path = QPainterPath()
+    poly = QPolygonF([
+        QPointF(0, -r * 1.3),
+        QPointF(r * 1.3, 0),
+        QPointF(0, r * 1.3),
+        QPointF(-r * 1.3, 0),
+        QPointF(0, -r * 1.3)
+    ])
+    path.addPolygon(poly)
+    path.closeSubpath()
+    return path
+
+
+def _get_2char_pole_badge(pole) -> str:
+    """Concise 2-character material/height badge code inside pole symbol."""
+    pt2 = str(getattr(pole, "pole_type2", "")).upper().strip()
+    if pt2 in ("STP", "ST", "ST_POLE"): return "ST"
+    if pt2 in ("H-BEAM", "H_BEAM", "HB", "HBEAM"): return "HB"
+    if pt2 in ("GI_PIPE", "GI", "GI_POLE"): return "GI"
+
+    h = str(getattr(pole, "height", "")).strip().lower()
+    if "8" in h: return "8M"
+    if "9" in h: return "9M"
+    if "11" in h: return "11"
+
+    if getattr(pole, "voltage_level", None) == "33kV" or getattr(pole, "existing_subtype", None) == "33":
+        return "33"
+
+    if getattr(pole, "is_existing", False):
+        sub = getattr(pole, "existing_subtype", "LT")
+        return "HT" if sub in ("HT", "DP", "TP", "4P") else "LT"
+    return "LT" if getattr(pole, "pole_type", "LT") == "LT" else "HT"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  BASE MIXIN  — common flags + itemChange + detail_view propagation
 # ─────────────────────────────────────────────────────────────────────────────
@@ -258,10 +293,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
     # ── Sequential label counters (per category) ──────────────────────────
     _lt_seq: int = 0   # new LT poles
-    _ht_seq: int = 0   # new HT poles
+    _ht_seq: int = 0   # new HT 11kV poles
+    _33_seq: int = 0   # new HT 33kV poles
     
     # Existing pole counters (partitioned by subtype)
-    _ex_type_seq: dict = {"LT": 0, "HT": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
+    _ex_type_seq: dict = {"LT": 0, "HT": 0, "33": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
 
     @classmethod
     def _next_seq(cls, category: str, subtype: str = "LT") -> int:
@@ -271,6 +307,9 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         elif category == "ht":
             cls._ht_seq += 1
             return cls._ht_seq
+        elif category == "33":
+            cls._33_seq += 1
+            return cls._33_seq
         else: # ex
             cur = cls._ex_type_seq.get(subtype, 0) + 1
             cls._ex_type_seq[subtype] = cur
@@ -280,7 +319,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
     def reset_counters(cls) -> None:
         cls._lt_seq = 0
         cls._ht_seq = 0
-        cls._ex_type_seq = {"LT": 0, "HT": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
+        cls._33_seq = 0
+        cls._ex_type_seq = {"LT": 0, "HT": 0, "33": 0, "DP": 0, "TP": 0, "4P": 0, "DTR": 0}
 
     def __init__(
         self, x: float, y: float, refresh_signal: Any,
@@ -349,6 +389,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             "override_auto_stay": self.override_auto_stay,
             "stay_angle_override": self.stay_angle_override,
             "earth_angle_override": self.earth_angle_override,
+            "voltage_level": getattr(self, "voltage_level", "11kV" if self.pole_type == "HT" else "LT"),
             "dist_box_required": self.dist_box_required,
             "iron_recipe": getattr(self, "iron_recipe", "None"),
         })
@@ -360,6 +401,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.pole_type2 = state.get("pole_type2", "PCC")
         self.is_existing = state.get("is_existing", False)
         self.existing_subtype = state.get("existing_subtype", self.pole_type)
+        self.voltage_level = state.get("voltage_level", "33kV" if self.existing_subtype == "33" else ("11kV" if self.pole_type == "HT" else "LT"))
         self.existing_dtr_size = state.get("existing_dtr_size", "None")
         self.height = state.get("height", "8MTR")
         self.has_extension = state.get("has_extension", False)
@@ -514,10 +556,14 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
         try:
             # Lazy-assign (or re-assign on subtype change) the sequential label number
-            current_cat = ("ex", self.existing_subtype) if self.is_existing else ("pole", self.pole_type)
+            v_level = getattr(self, "voltage_level", "11kV")
+            ex_sub = getattr(self, "existing_subtype", "")
+            current_cat = ("ex", ex_sub) if self.is_existing else ("pole", v_level if v_level == "33kV" else self.pole_type)
             if not self.seq_id or getattr(self, "_seq_type", None) != current_cat:
                 if self.is_existing:
-                    self.seq_id = SmartPole._next_seq("ex", self.existing_subtype)
+                    self.seq_id = SmartPole._next_seq("ex", ex_sub)
+                elif v_level == "33kV":
+                    self.seq_id = SmartPole._next_seq("33")
                 elif self.pole_type == "LT":
                     self.seq_id = SmartPole._next_seq("lt")
                 else:
@@ -528,9 +574,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
 
             # Main pole symbol shape according to type/condition
             r = self._RADIUS
-            if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
-                path.addPath(_existing_struct_path(self.existing_subtype))
-            elif self.pole_type == "LT" and not (self.is_existing and self.existing_subtype == "HT"):
+            if self.is_existing and ex_sub in ("DP", "TP", "4P", "DTR"):
+                path.addPath(_existing_struct_path(ex_sub))
+            elif v_level == "33kV" or (self.is_existing and ex_sub == "33"):
+                path.addPath(_diamond_path(r))
+            elif self.pole_type == "LT" and not (self.is_existing and ex_sub == "HT"):
                 # LT Pole: Circle
                 path.addEllipse(-r, -r, r * 2, r * 2)
             else:
@@ -553,6 +601,9 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 else:
                     self.setBrush(QBrush(QColor(255, 255, 255, 255)))
                     self.setPen(QPen(QColor("#222222"), 1.5, Qt.PenStyle.SolidLine))
+            elif v_level == "33kV":
+                self.setBrush(QBrush(QColor("#7e22ce")))
+                self.setPen(black_pen)
             elif self.pole_type == "LT":
                 _hk = "canvas_lt_pole_" + self.height.lower().replace(".", "_")
                 _default_col = _c.get(_hk, _c.get("canvas_lt_pole", "#2980b9"))
@@ -586,9 +637,11 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             _pfx_d = defaults.current
             if self.is_existing:
                 _sub = self.existing_subtype
-                # e.g. label_ex_pole (for LT), label_ex_ht, label_ex_dp, etc.
-                _lbl_key = "label_ex_pole" if _sub == "LT" else f"label_ex_{_sub.lower()}"
-                _lbl = _pfx_d.get(_lbl_key, _pfx_d.get("label_ex_pole", "EP"))
+                if _sub == "33":
+                    _lbl = _pfx_d.get("label_ex_33", "E33")
+                else:
+                    _lbl_key = "label_ex_pole" if _sub == "LT" else f"label_ex_{_sub.lower()}"
+                    _lbl = _pfx_d.get(_lbl_key, _pfx_d.get("label_ex_pole", "ELT"))
                 txt = f"{_lbl}{self.seq_id}"
                 
                 _sin = getattr(self, "dynamic_props", {}).get("sin", "")
@@ -608,10 +661,12 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 else:
                     pass   # no extra line for plain existing poles
             else:
-                if self.pole_type == "LT":
-                    _lbl = _pfx_d.get("label_new_lt", "PP")
+                if getattr(self, "voltage_level", "11kV") == "33kV":
+                    _lbl = _pfx_d.get("label_new_33", "P33")
+                elif self.pole_type == "LT":
+                    _lbl = _pfx_d.get("label_new_lt", "PLT")
                 else:
-                    _lbl = _pfx_d.get("label_new_ht", "HP")
+                    _lbl = _pfx_d.get("label_new_ht", "PHT")
                 txt  = f"{_lbl}{self.seq_id}"
                 if self.has_extension:
                     txt += f"\n+Ext {self.extension_height:.1f}m"
@@ -625,6 +680,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 txt += f"\n📝 {self.custom_note}"
 
             self.label.setPlainText(txt)
+            show_lbl = getattr(getattr(self.scene(), "parent_app", None), "show_pole_labels", True)
+            self.label.setVisible(show_lbl)
 
             # ── Label position auto-placement ──────────────────────────────────
             # Preserve old behavior for pure vertical spans: label on right.
@@ -751,16 +808,12 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, "AUG")
             painter.restore()
 
-        # Inner symbol badge text inside pole (LT, HT)
+        # Inner symbol badge text inside pole (max 2 characters)
         r = self._RADIUS
         symbol_rect = QRectF(-r, -r, r * 2, r * 2)
-        
+        badge_text = _get_2char_pole_badge(self)
         if self.is_existing and self.existing_subtype in ("DP", "TP", "4P", "DTR"):
             badge_text = ""
-        elif self.pole_type == "LT" or (self.is_existing and self.existing_subtype == "LT"):
-            badge_text = "LT"
-        else:
-            badge_text = "HT"
 
         if badge_text:
             painter.save()

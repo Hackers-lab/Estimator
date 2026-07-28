@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt6.QtGui import (
-    QPen, QBrush, QColor, QPainter, QPainterPath,
+    QPen, QBrush, QColor, QPainter, QPainterPath, QPolygonF,
     QPageLayout, QPageSize, QFont,
 )
 from PyQt6.QtCore import QMarginsF
@@ -417,7 +417,26 @@ class PDFExporter:
             font = QFont("Arial", 4, QFont.Weight.Bold)
             font.setPixelSize(5)
             painter.setFont(font)
-            painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "HT")
+        elif kind == "33kv_ht_pole":
+            painter.setBrush(QBrush(QColor("#7e22ce")))
+            painter.setPen(QPen(QColor("#222222"), 0.5))
+            poly = QPolygonF([QPointF(cx, cy - 4.5), QPointF(cx + 4.5, cy), QPointF(cx, cy + 4.5), QPointF(cx - 4.5, cy)])
+            painter.drawPolygon(poly)
+            painter.setPen(QPen(QColor("#ffffff")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 4, cy - 4, 8, 8), Qt.AlignmentFlag.AlignCenter, "33")
+        elif kind == "ex_33kv_ht_pole":
+            painter.setBrush(QBrush(QColor(255, 255, 255, 255)))
+            painter.setPen(QPen(QColor("#222222"), 0.8))
+            poly = QPolygonF([QPointF(cx, cy - 4.5), QPointF(cx + 4.5, cy), QPointF(cx, cy + 4.5), QPointF(cx - 4.5, cy)])
+            painter.drawPolygon(poly)
+            painter.setPen(QPen(QColor("#222222")))
+            font = QFont("Arial", 4, QFont.Weight.Bold)
+            font.setPixelSize(5)
+            painter.setFont(font)
+            painter.drawText(QRectF(cx - 4, cy - 4, 8, 8), Qt.AlignmentFlag.AlignCenter, "33")
         elif kind == "ex_lt_pole":
             painter.setBrush(QBrush(QColor(255, 255, 255, 255)))
             painter.setPen(QPen(QColor("#222222"), 0.8))
@@ -513,25 +532,27 @@ class PDFExporter:
         # Each entry carries a "draw" kind so the legend paints the SAME shapes
         # and colours the canvas uses (not emoji/ASCII, which never matched).
         legend_data = {
-            "New LT Pole":      {"s": None, "draw": "lt_pole",    "q": 0},
-            "New HT Pole":      {"s": None, "draw": "ht_pole",    "q": 0},
-            "Existing LT Pole": {"s": None, "draw": "ex_lt_pole", "q": 0},
-            "Existing HT Pole": {"s": None, "draw": "ex_ht_pole", "q": 0},
-            "DP Structure":     {"s": None, "draw": "dp",         "q": 0},
-            "TP Structure":     {"s": None, "draw": "tp",         "q": 0},
-            "4P Structure":     {"s": None, "draw": "4p",         "q": 0},
-            "DTR":              {"s": None, "draw": "dtr",        "q": 0},
-            "Extension":        {"s": "[E]",                      "q": 0},
-            "Consumer":         {"s": None, "draw": "consumer",   "q": 0},
-            "Earthing":         {"s": None, "draw": "earth",      "q": 0},
-            "Stay":             {"s": None, "draw": "stay",       "q": 0},
-            "CG (SP)":          {"s": None, "draw": "cg",         "q": 0},
-            "CG (DP)":          {"s": None, "draw": "cg",         "q": 0},
-            "New ACSR":         {"s": None, "draw": "span_acsr",     "l": 0},
-            "New AB Cable":     {"s": None, "draw": "span_ab",       "l": 0},
-            "New PVC Cable":    {"s": None, "draw": "span_pvc",      "l": 0},
-            "Existing Span":    {"s": None, "draw": "span_existing", "l": 0},
-            "Service Drop":     {"s": None, "draw": "span_svc",      "l": 0},
+            "New LT Pole (PLT)":        {"s": None, "draw": "lt_pole",        "q": 0},
+            "New 11kV Pole (PHT)":      {"s": None, "draw": "ht_pole",        "q": 0},
+            "New 33kV Pole (P33)":      {"s": None, "draw": "33kv_ht_pole",    "q": 0},
+            "Existing LT Pole (ELT)":   {"s": None, "draw": "ex_lt_pole",     "q": 0},
+            "Existing 11kV Pole (EHT)": {"s": None, "draw": "ex_ht_pole",     "q": 0},
+            "Existing 33kV Pole (E33)": {"s": None, "draw": "ex_33kv_ht_pole", "q": 0},
+            "DP Structure":             {"s": None, "draw": "dp",             "q": 0},
+            "TP Structure":             {"s": None, "draw": "tp",             "q": 0},
+            "4P Structure":             {"s": None, "draw": "4p",             "q": 0},
+            "DTR Substation":           {"s": None, "draw": "dtr",            "q": 0},
+            "Extension":                {"s": "[E]",                          "q": 0},
+            "Consumer":                 {"s": None, "draw": "consumer",       "q": 0},
+            "Earthing":                 {"s": None, "draw": "earth",          "q": 0},
+            "Stay":                     {"s": None, "draw": "stay",           "q": 0},
+            "CG (SP)":                  {"s": None, "draw": "cg",             "q": 0},
+            "CG (DP)":                  {"s": None, "draw": "cg",             "q": 0},
+            "New ACSR":                 {"s": None, "draw": "span_acsr",     "l": 0},
+            "New AB Cable":             {"s": None, "draw": "span_ab",       "l": 0},
+            "New PVC Cable":            {"s": None, "draw": "span_pvc",      "l": 0},
+            "Existing Span":            {"s": None, "draw": "span_existing", "l": 0},
+            "Service Drop":             {"s": None, "draw": "span_svc",      "l": 0},
         }
 
         for item in app.scene.items():
@@ -541,18 +562,22 @@ class PDFExporter:
                 if item.has_extension:
                     legend_data["Extension"]["q"] += 1
                 if item.is_existing:
-                    if item.existing_subtype == "HT":
-                        legend_data["Existing HT Pole"]["q"] += 1
+                    if item.existing_subtype == "33":
+                        legend_data["Existing 33kV Pole (E33)"]["q"] += 1
+                    elif item.existing_subtype == "HT":
+                        legend_data["Existing 11kV Pole (EHT)"]["q"] += 1
                     elif item.existing_subtype in ("DP", "TP", "4P", "DTR"):
-                        st_key = item.existing_subtype if item.existing_subtype == "DTR" else f"{item.existing_subtype} Structure"
+                        st_key = "DTR Substation" if item.existing_subtype == "DTR" else f"{item.existing_subtype} Structure"
                         if st_key in legend_data:
                             legend_data[st_key]["q"] += 1
                     else:
-                        legend_data["Existing LT Pole"]["q"] += 1
+                        legend_data["Existing LT Pole (ELT)"]["q"] += 1
+                elif getattr(item, "voltage_level", "11kV") == "33kV":
+                    legend_data["New 33kV Pole (P33)"]["q"] += 1
                 elif item.pole_type == "LT":
-                    legend_data["New LT Pole"]["q"] += 1
+                    legend_data["New LT Pole (PLT)"]["q"] += 1
                 else:
-                    legend_data["New HT Pole"]["q"] += 1
+                    legend_data["New 11kV Pole (PHT)"]["q"] += 1
             elif isinstance(item, SmartStructure):
                 st_key = (
                     item.structure_type
@@ -709,7 +734,7 @@ class PDFExporter:
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(QRectF(leg_left, cy, total_w, ll_h))
         painter.setPen(QPen(Qt.GlobalColor.black))
-        painter.setFont(QFont("Arial", 6, QFont.Weight.Normal, True))
+        painter.setFont(QFont("Arial", 6, QFont.Weight.Bold))
         painter.drawText(
             QRectF(leg_left, cy, total_w, ll_h),
             Qt.AlignmentFlag.AlignCenter,
@@ -890,6 +915,19 @@ class PDFExporter:
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                 footer_txt,
             )
+
+            # Italic Acronym Explanation in white space directly ABOVE main page footer
+            painter.save()
+            note_font = QFont("Arial", 6, QFont.Weight.Normal, True)  # Italic
+            painter.setFont(note_font)
+            painter.setPen(QPen(QColor("#444444")))
+            acronym_note = "* Note: PLT = Proposed LT Pole  |  ELT = Existing LT Pole  |  PHT = Proposed 11kV Pole  |  EHT = Existing 11kV Pole  |  P33 = Proposed 33kV Pole  |  E33 = Existing 33kV Pole"
+            painter.drawText(
+                QRectF(ox + 4, footer_y - 10.0, page_w - 8, 9.0),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter,
+                acronym_note,
+            )
+            painter.restore()
 
             # ── Drawing area ──────────────────────────────────────────────
             draw_top  = oy + TITLE_H + 2
@@ -1116,6 +1154,19 @@ class PDFExporter:
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                 footer_txt,
             )
+
+            # Italic Acronym Explanation in white space directly ABOVE main page footer
+            painter.save()
+            note_font = QFont("Arial", 6, QFont.Weight.Normal, True)  # Italic
+            painter.setFont(note_font)
+            painter.setPen(QPen(QColor("#444444")))
+            acronym_note = "* Note: PLT = Proposed LT Pole  |  ELT = Existing LT Pole  |  PHT = Proposed 11kV Pole  |  EHT = Existing 11kV Pole  |  P33 = Proposed 33kV Pole  |  E33 = Existing 33kV Pole"
+            painter.drawText(
+                QRectF(ox + 4, footer_y - 10.0, page_w - 8, 9.0),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter,
+                acronym_note,
+            )
+            painter.restore()
 
             # Drawing area
             draw_top  = oy + TITLE_H + 2

@@ -435,21 +435,29 @@ class PlacementDefaultsDialog(QDialog):
         note.setStyleSheet("color: #555; font-size: 11px;")
         frm.addRow(note)
 
-        self.lbl_new_lt = QLineEdit(d.get("label_new_lt", "PP"))
+        self.lbl_new_lt = QLineEdit(d.get("label_new_lt", "PLT"))
         self.lbl_new_lt.setMaxLength(8)
         frm.addRow("New LT Pole prefix:", self.lbl_new_lt)
 
-        self.lbl_new_ht = QLineEdit(d.get("label_new_ht", "HP"))
+        self.lbl_new_ht = QLineEdit(d.get("label_new_ht", "PHT"))
         self.lbl_new_ht.setMaxLength(8)
-        frm.addRow("New HT Pole prefix:", self.lbl_new_ht)
+        frm.addRow("New 11kV Pole prefix:", self.lbl_new_ht)
 
-        self.lbl_ex_pole = QLineEdit(d.get("label_ex_pole", "EP"))
+        self.lbl_new_33 = QLineEdit(d.get("label_new_33", "P33"))
+        self.lbl_new_33.setMaxLength(8)
+        frm.addRow("New 33kV Pole prefix:", self.lbl_new_33)
+
+        self.lbl_ex_pole = QLineEdit(d.get("label_ex_pole", "ELT"))
         self.lbl_ex_pole.setMaxLength(8)
         frm.addRow("Ex LT Pole prefix:", self.lbl_ex_pole)
 
         self.lbl_ex_ht = QLineEdit(d.get("label_ex_ht", "EHT"))
         self.lbl_ex_ht.setMaxLength(8)
-        frm.addRow("Ex HT Pole prefix:", self.lbl_ex_ht)
+        frm.addRow("Ex 11kV Pole prefix:", self.lbl_ex_ht)
+
+        self.lbl_ex_33 = QLineEdit(d.get("label_ex_33", "E33"))
+        self.lbl_ex_33.setMaxLength(8)
+        frm.addRow("Ex 33kV Pole prefix:", self.lbl_ex_33)
 
         self.lbl_ex_dp = QLineEdit(d.get("label_ex_dp", "EDP"))
         self.lbl_ex_dp.setMaxLength(8)
@@ -555,10 +563,12 @@ class PlacementDefaultsDialog(QDialog):
             "sd_length":         self.sd_len.value(),
             "sd_phase":          self.sd_phase.currentText(),
             # Label prefixes
-            "label_new_lt":   self.lbl_new_lt.text().strip() or "PP",
-            "label_new_ht":   self.lbl_new_ht.text().strip() or "HP",
-            "label_ex_pole":  self.lbl_ex_pole.text().strip() or "EP",
+            "label_new_lt":   self.lbl_new_lt.text().strip() or "PLT",
+            "label_new_ht":   self.lbl_new_ht.text().strip() or "PHT",
+            "label_new_33":   self.lbl_new_33.text().strip() or "P33",
+            "label_ex_pole":  self.lbl_ex_pole.text().strip() or "ELT",
             "label_ex_ht":    self.lbl_ex_ht.text().strip()   or "EHT",
+            "label_ex_33":    self.lbl_ex_33.text().strip()   or "E33",
             "label_ex_dp":    self.lbl_ex_dp.text().strip()   or "EDP",
             "label_ex_tp":    self.lbl_ex_tp.text().strip()   or "ETP",
             "label_ex_4p":    self.lbl_ex_4p.text().strip()   or "E4P",
@@ -622,8 +632,10 @@ class PlacementDefaultsDialog(QDialog):
         elif idx == 2:   # Labels
             self.lbl_new_lt.setText(f["label_new_lt"])
             self.lbl_new_ht.setText(f["label_new_ht"])
+            self.lbl_new_33.setText(f["label_new_33"])
             self.lbl_ex_pole.setText(f["label_ex_pole"])
             self.lbl_ex_ht.setText(f["label_ex_ht"])
+            self.lbl_ex_33.setText(f["label_ex_33"])
             self.lbl_ex_dp.setText(f["label_ex_dp"])
             self.lbl_ex_tp.setText(f["label_ex_tp"])
             self.lbl_ex_4p.setText(f["label_ex_4p"])

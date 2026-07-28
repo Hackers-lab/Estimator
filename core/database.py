@@ -825,10 +825,6 @@ def _seed_config_tables(cursor) -> None:
         ("sd_length",          "20",                 "placement"),
         ("sd_phase",           "3 Phase",            "placement"),
         ("canvas_lt_pole",         "#2980b9",         "canvas_color"),
-        ("canvas_ht_pole",         "#c0392b",         "canvas_color"),
-        ("canvas_ex_pole",         "#cccccc",         "canvas_color"),
-        ("canvas_ex_aug_dtr",      "#f7b267",         "canvas_color"),
-        ("canvas_dp",              "#27ae60",         "canvas_color"),
         ("canvas_tp",              "#1abc9c",         "canvas_color"),
         ("canvas_4p",              "#16a085",         "canvas_color"),
         ("canvas_dtr",             "#e67e22",         "canvas_color"),
@@ -839,9 +835,12 @@ def _seed_config_tables(cursor) -> None:
         ("canvas_pvc_cable",       "#107C41",         "canvas_color"),
         ("canvas_svc_drop",        "#d35400",         "canvas_color"),
         ("export_last_dir",        "",                "export"),
-        ("label_new_lt",   "PP",   "label"),
-        ("label_new_ht",   "HP",   "label"),
-        ("label_ex_pole",  "EP",   "label"),
+        ("label_new_lt",   "PLT",  "label"),
+        ("label_new_ht",   "PHT",  "label"),
+        ("label_new_33",   "P33",  "label"),
+        ("label_ex_pole",  "ELT",  "label"),
+        ("label_ex_ht",    "EHT",  "label"),
+        ("label_ex_33",    "E33",  "label"),
         ("label_dp",       "DP",   "label"),
         ("label_tp",       "TP",   "label"),
         ("label_4p",       "4P",   "label"),
@@ -855,6 +854,13 @@ def _seed_config_tables(cursor) -> None:
             (_key, _val, _cat),
         )
 
+    # Upgrade legacy defaults (PP -> PLT, HP -> PHT, EP -> ELT) if legacy defaults were stored
+    cursor.execute("UPDATE settings SET value = 'PLT' WHERE key = 'label_new_lt' AND value IN ('PP', 'PLT')")
+    cursor.execute("UPDATE settings SET value = 'PHT' WHERE key = 'label_new_ht' AND value IN ('HP', 'PHT')")
+    cursor.execute("UPDATE settings SET value = 'ELT' WHERE key = 'label_ex_pole' AND value IN ('EP', 'ELT')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value, category) VALUES ('label_new_33', 'P33', 'label')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value, category) VALUES ('label_ex_33', 'E33', 'label')")
+
     # Migrate existing defaults.json (user's customised values take precedence)
     _dfile = get_data_path("defaults.json")
     if os.path.exists(_dfile):
@@ -862,6 +868,8 @@ def _seed_config_tables(cursor) -> None:
             with open(_dfile, "r", encoding="utf-8") as _df:
                 _existing_defaults = json.load(_df)
             for _k, _v in _existing_defaults.items():
+                if _k in ("label_new_lt", "label_new_ht", "label_ex_pole") and _v in ("PP", "HP", "EP"):
+                    continue  # do not overwrite upgraded 3-letter defaults with obsolete 2-letter ones
                 cursor.execute(
                     "UPDATE settings SET value=? WHERE key=?",
                     (str(_v), _k),

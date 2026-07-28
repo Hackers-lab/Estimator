@@ -116,15 +116,17 @@ _FACTORY: dict = {
     "export_last_dir":    "",
 
     # Canvas label prefixes (prefix + sequential number shown on canvas objects)
-    "label_new_lt":   "PP",    # New LT pole     e.g. PP1, PP2
-    "label_new_ht":   "HP",    # New HT pole     e.g. HP1, HP2
-    "label_ex_pole":  "EP",    # Existing LT pole     e.g. EP1, EP2
-    "label_ex_ht":    "EHT",   # Existing HT pole     e.g. EHT1, EHT2
-    "label_ex_dp":    "EDP",   # Existing DP          e.g. EDP1, EDP2
-    "label_ex_tp":    "ETP",   # Existing TP          e.g. ETP1, ETP2
-    "label_ex_4p":    "E4P",   # Existing 4P          e.g. E4P1, E4P2
-    "label_ex_dtr":   "EDTR",  # Existing DTR         e.g. EDTR1, EDTR2
-    "label_consumer": "SC",    # Consumer        e.g. SC1,  SC2
+    "label_new_lt":   "PLT",   # Proposed LT pole      e.g. PLT1, PLT2
+    "label_new_ht":   "PHT",   # Proposed 11kV HT pole e.g. PHT1, PHT2
+    "label_new_33":   "P33",   # Proposed 33kV HT pole e.g. P331, P332
+    "label_ex_pole":  "ELT",   # Existing LT pole      e.g. ELT1, ELT2
+    "label_ex_ht":    "EHT",   # Existing 11kV HT pole e.g. EHT1, EHT2
+    "label_ex_33":    "E33",   # Existing 33kV HT pole e.g. E331, E332
+    "label_ex_dp":    "EDP",   # Existing DP           e.g. EDP1, EDP2
+    "label_ex_tp":    "ETP",   # Existing TP           e.g. ETP1, ETP2
+    "label_ex_4p":    "E4P",   # Existing 4P           e.g. E4P1, E4P2
+    "label_ex_dtr":   "EDTR",  # Existing DTR          e.g. EDTR1, EDTR2
+    "label_consumer": "SC",    # Consumer              e.g. SC1,  SC2
     "rate_chart_base_year": 2026,
 }
 
@@ -160,7 +162,11 @@ def load() -> None:
         db_settings = _dbg.get_all_settings()
         for k, v_str in db_settings.items():
             if k in _FACTORY:
-                merged[k] = _cast(v_str, _FACTORY[k])
+                val = _cast(v_str, _FACTORY[k])
+                if k == "label_new_lt" and val == "PP": val = "PLT"
+                elif k == "label_new_ht" and val == "HP": val = "PHT"
+                elif k == "label_ex_pole" and val == "EP": val = "ELT"
+                merged[k] = val
             elif k.startswith("canvas_"):  # dynamic colour keys (e.g. user-added conductors)
                 merged[k] = v_str
         current = merged

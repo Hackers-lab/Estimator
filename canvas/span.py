@@ -130,6 +130,7 @@ class SmartSpan(QGraphicsPathItem):
             "custom_note": self.custom_note,
             "dynamic_props": self.dynamic_props,
             "override_is_existing": getattr(self, "override_is_existing", "Auto"),
+            "voltage_level": getattr(self, "voltage_level", "11kV"),
             "label_x": self.label.pos().x(),
             "label_y": self.label.pos().y(),
             "label_text": self.label.toPlainText(),
@@ -139,6 +140,8 @@ class SmartSpan(QGraphicsPathItem):
         """Apply serialized state back to the span."""
         self.length = state.get("length", 40)
         self.conductor = state.get("conductor", "ACSR")
+        if "voltage_level" in state:
+            self.voltage_level = state["voltage_level"]
         # Handle v4 compat conductor_size
         self.conductor_size = state.get(
             "conductor_size",
@@ -379,14 +382,29 @@ class SmartSpan(QGraphicsPathItem):
             and self.is_existing_span
         )
 
+        is_33kv = (
+            getattr(self, "voltage_level", None) == "33kV"
+            or getattr(self.p1, "voltage_level", None) == "33kV"
+            or getattr(self.p2, "voltage_level", None) == "33kV"
+            or getattr(self.p1, "existing_subtype", None) == "33"
+            or getattr(self.p2, "existing_subtype", None) == "33"
+        )
+
         if aug_overlay_pair:
             # The pair (existing + projected) is drawn manually in paint().
             pen = QPen(Qt.PenStyle.NoPen)
         elif self.is_existing_span:
             pen.setStyle(Qt.PenStyle.SolidLine)
-            pen.setWidthF(1.2)
-        elif self.conductor == "ACSR":
+            pen.setWidthF(3.0 if is_33kv else 1.2)
+        elif is_33kv:
+            pen.setStyle(Qt.PenStyle.DashLine if self.conductor == "ACSR" else Qt.PenStyle.SolidLine)
+            pen.setWidthF(3.0)
+        elif self.conductor in ("AB Cable", "PVC Cable", "Service Drop") or getattr(self, "is_service_drop", False):
+            pen.setStyle(Qt.PenStyle.SolidLine)
+            pen.setWidthF(1.8)
+        else:
             pen.setStyle(Qt.PenStyle.DashLine)
+            pen.setWidthF(1.8)
 
         self.setPen(pen)
 

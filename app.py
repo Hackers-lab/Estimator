@@ -516,6 +516,27 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.ex_len_chk.toggled.connect(self._toggle_existing_span_length)
         bottom_bar.addWidget(self.ex_len_chk)
 
+        # Hide/Show Pole Names & Labels
+        self.pole_label_chk = QCheckBox("Pole Names")
+        self.pole_label_chk.setChecked(True)
+        self.pole_label_chk.setToolTip("Show or hide pole name labels (PLT1, PHT1, P331, etc.) on drawing")
+        self.pole_label_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")
+        self.pole_label_chk.toggled.connect(self._toggle_pole_labels)
+        bottom_bar.addWidget(self.pole_label_chk)
+
+        # Separator
+        sep1_2 = QLabel("|")
+        sep1_2.setStyleSheet("color:#ccc; font-size:14px;")
+        bottom_bar.addWidget(sep1_2)
+
+        # Hide/Show PDF Legend Table
+        self.legend_chk = QCheckBox("PDF Legend")
+        self.legend_chk.setChecked(True)
+        self.legend_chk.setToolTip("Include the legend table and object counts in PDF export")
+        self.legend_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")
+        self.legend_chk.toggled.connect(self._toggle_pdf_legend)
+        bottom_bar.addWidget(self.legend_chk)
+
         # Separator
         sep2 = QLabel("|");
         sep2.setStyleSheet("color:#ccc; font-size:14px;")
@@ -711,7 +732,27 @@ class EstimateApp(QMainWindow, EditorMixin):
             }
         """
         for key, txt in TOOLS.items():
-            if key == "ADD_STRUCTURE":
+            if key == "ADD_HT":
+                btn = QToolButton()
+                btn.setText("🟥 HT Pole ▼")
+                btn.setToolTip("Click to choose 11kV HT Pole (Square) or 33kV HT Pole (Diamond)")
+                btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+                menu = QMenu(btn)
+                menu.setStyleSheet(menu_style)
+
+                def _set_ht(v_level):
+                    self.active_ht_voltage = v_level
+                    self.set_tool("ADD_HT")
+
+                a_11 = menu.addAction("⬛ 11kV HT Pole (Square)")
+                a_11.triggered.connect(lambda: _set_ht("11kV"))
+                a_33 = menu.addAction("🔷 33kV HT Pole (Diamond)")
+                a_33.triggered.connect(lambda: _set_ht("33kV"))
+
+                btn.setMenu(menu)
+                bar.addWidget(btn)
+                self.tools_btns[key] = btn
+            elif key == "ADD_STRUCTURE":
                 btn = QToolButton()
                 btn.setText("🟩 Structure ▼")
                 btn.setToolTip("Click to choose Structure type (DP, TP, 4P, or DTR Substation)")
@@ -749,8 +790,10 @@ class EstimateApp(QMainWindow, EditorMixin):
 
                 a_lt = menu.addAction("⚪ Ex LT Pole")
                 a_lt.triggered.connect(lambda: _set_ex("LT"))
-                a_ht = menu.addAction("⬛ Ex HT Pole")
+                a_ht = menu.addAction("⬛ Ex 11kV HT Pole")
                 a_ht.triggered.connect(lambda: _set_ex("HT"))
+                a_33 = menu.addAction("🔷 Ex 33kV HT Pole")
+                a_33.triggered.connect(lambda: _set_ex("33"))
                 a_dp = menu.addAction("🟢 Ex DP Structure")
                 a_dp.triggered.connect(lambda: _set_ex("DP"))
                 a_tp = menu.addAction("🔷 Ex TP Structure")
@@ -1403,6 +1446,19 @@ class EstimateApp(QMainWindow, EditorMixin):
         for item in self.scene.items():
             if isinstance(item, SmartSpan) and getattr(item, "is_existing_span", False):
                 item.update_visuals()
+
+    def _toggle_pole_labels(self, checked):
+        """Show/hide pole name labels (PLT1, PHT1, P331, ELT1, EHT1, E331, etc.) on canvas & export."""
+        self.show_pole_labels = checked
+        for item in self.scene.items():
+            if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
+                if hasattr(item, "label") and item.label:
+                    item.label.setVisible(checked)
+
+    def _toggle_pdf_legend(self, checked):
+        """Include/exclude the legend table and object counts in PDF export."""
+        self.pdf_show_legend = checked
+        self._refresh_page_grid()
     def _toggle_gps_bg(self, checked):
         if checked:
             import urllib.request
@@ -1622,7 +1678,10 @@ class EstimateApp(QMainWindow, EditorMixin):
                         item.update_visuals()
                 else:
                     p_type = "LT" if self.current_tool == "ADD_LT" else "HT"
+                    v_level = getattr(self, "active_ht_voltage", "11kV") if self.current_tool == "ADD_HT" else "LT"
                     item = SmartPole(pos.x(), pos.y(), self.refresh_signal, p_type, is_existing=False, detail_view=self.detail_view)
+                    item.voltage_level = v_level
+                    item.update_visuals()
             elif self.current_tool == "ADD_STRUCTURE":
                 st_type = getattr(self, "active_structure_type", "DP")
                 item = SmartStructure(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
@@ -1780,6 +1839,25 @@ class EstimateApp(QMainWindow, EditorMixin):
         # Prevent closing loops; layout should stay tree-like.
         if self._has_path_between(p1, p2):
             return False, "This connection would create a loop."
+
+        def _get_node_volts(n):
+            if isinstance(n, SmartStructure):
+                return "BRIDGE"
+            if isinstance(n, SmartPole):
+                if getattr(n, "is_existing", False):
+                    sub = getattr(n, "existing_subtype", "LT")
+                    if sub == "33": return "33kV"
+                    if sub in ("HT", "DP", "TP", "4P", "DTR"): return "11kV"
+                    return "LT"
+                v = getattr(n, "voltage_level", None)
+                if v: return v
+                return "11kV" if n.pole_type == "HT" else "LT"
+            return "LT"
+
+        v1, v2 = _get_node_volts(p1), _get_node_volts(p2)
+        if (v1 == "33kV" and v2 in ("11kV", "LT")) or (v2 == "33kV" and v1 in ("11kV", "LT")):
+            return False, "33kV lines cannot connect directly to 11kV or LT nodes. Use a DTR Substation to step down voltage."
+
         return True, ""
 
     def _auto_connect_span(self, new_node):
@@ -2948,7 +3026,10 @@ class EstimateApp(QMainWindow, EditorMixin):
                     item.structure_type = "DTR"
                 else:
                     item = SmartPole(x, y, self.refresh_signal, nd.get("pole_type", "LT"), 
-                                     nd.get("is_existing", False), detail_view=self.detail_view)
+                                     nd.get("is_existing", False), detail_view=self.detail_view,
+                                     existing_subtype=nd.get("existing_subtype", "LT"))
+                    if "voltage_level" in nd:
+                        item.voltage_level = nd["voltage_level"]
                     item.apply_state(nd)
             elif ntype == "Structure":
                 item = SmartStructure(x, y, self.refresh_signal, detail_view=self.detail_view)
@@ -3010,26 +3091,30 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def _renumber_labels(self) -> None:
         """
-        After a node is deleted, compact the sequential label numbers for every
-        category so there are no gaps.
+        After nodes are deleted or canvas is cleared, compact sequential label numbers
+        for every category so there are no gaps and reset counters when items are removed.
         """
         buckets: dict = {
             "lt":  [],   # new LT poles
-            "ht":  [],   # new HT poles
+            "ht":  [],   # new HT 11kV poles
+            "33":  [],   # new HT 33kV poles
             "DP":  [],
             "TP":  [],
             "4P":  [],
             "DTR": [],
             "con": [],   # consumers
         }
-        # Dynamic ex buckets
-        ex_buckets: dict = {}
+        ex_buckets: dict = {
+            "LT": [], "HT": [], "33": [], "DP": [], "TP": [], "4P": [], "DTR": []
+        }
 
         for item in self.scene.items():
             if isinstance(item, SmartPole):
                 if item.is_existing:
                     sub = item.existing_subtype
                     ex_buckets.setdefault(sub, []).append(item)
+                elif getattr(item, "voltage_level", "11kV") == "33kV":
+                    buckets["33"].append(item)
                 elif item.pole_type == "LT":
                     buckets["lt"].append(item)
                 else:
@@ -3057,9 +3142,10 @@ class EstimateApp(QMainWindow, EditorMixin):
                     obj.seq_id = new_id
                     obj.update_visuals()
 
-        # Update class-level counters to match new maximums
+        # Update class-level counters to match exact scene counts
         SmartPole._lt_seq = len(buckets["lt"])
         SmartPole._ht_seq = len(buckets["ht"])
+        SmartPole._33_seq = len(buckets["33"])
         SmartPole._ex_type_seq = {s: len(g) for s, g in ex_buckets.items()}
         SmartStructure._type_seq = {
             "DP":  len(buckets["DP"]),
@@ -3070,44 +3156,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         SmartConsumer._con_seq = len(buckets["con"])
 
     def _calibrate_label_counters(self) -> None:
-        """
-        After loading a file, set each class-level label counter to the
-        maximum seq_id already in use so that newly placed objects get
-        the next available number rather than potentially colliding with
-        existing labels.
-        """
-        ex_max = lt_max = ht_max = 0
-        dp_max = tp_max = fp_max = dtr_max = 0
-        con_max = 0
-
-        for item in self.scene.items():
-            if isinstance(item, SmartPole):
-                sid = getattr(item, "seq_id", 0)
-                if item.is_existing:
-                    ex_max = max(ex_max, sid)
-                elif item.pole_type == "LT":
-                    lt_max = max(lt_max, sid)
-                else:
-                    ht_max = max(ht_max, sid)
-            elif isinstance(item, SmartStructure):
-                sid = getattr(item, "seq_id", 0)
-                st  = getattr(item, "structure_type", "DP")
-                if st == "DP":
-                    dp_max = max(dp_max, sid)
-                elif st == "TP":
-                    tp_max = max(tp_max, sid)
-                elif st == "4P":
-                    fp_max = max(fp_max, sid)
-                elif st == "DTR":
-                    dtr_max = max(dtr_max, sid)
-            elif isinstance(item, SmartConsumer):
-                con_max = max(con_max, getattr(item, "seq_id", 0))
-
-        SmartPole._ex_seq = ex_max
-        SmartPole._lt_seq = lt_max
-        SmartPole._ht_seq = ht_max
-        SmartStructure._type_seq = {"DP": dp_max, "TP": tp_max, "4P": fp_max, "DTR": dtr_max}
-        SmartConsumer._con_seq   = con_max
+        """Calibrate class-level counters after loading or clearing drawing state."""
+        self._renumber_labels()
 
     # =========================================================================
     #  UNDO / REDO
