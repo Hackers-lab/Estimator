@@ -1684,10 +1684,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                     item.update_visuals()
             elif self.current_tool == "ADD_STRUCTURE":
                 st_type = getattr(self, "active_structure_type", "DP")
-                item = SmartStructure(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
-                item.structure_type = st_type
-                _default_recipes = {"DP": "DP_IRON", "TP": "TP_IRON", "4P": "4P_IRON", "DTR": "DTR_IRON"}
-                item.iron_recipe = _default_recipes.get(st_type, "None")
+                item = SmartStructure(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view, structure_type=st_type)
                 item.update_visuals()
             else: # ADD_CONSUMER
                 item = SmartConsumer(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)

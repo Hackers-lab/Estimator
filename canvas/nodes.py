@@ -54,21 +54,28 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     def reset_counters(cls) -> None:
         cls._type_seq = {"DP": 0, "TP": 0, "4P": 0, "DTR": 0}
 
-    def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True) -> None:
+    def __init__(self, x: float, y: float, refresh_signal: Any, detail_view: bool = True, structure_type: str = "DP") -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
 
         _d = defaults.current
 
-        self.structure_type   = "DP"
+        self.structure_type   = structure_type
         self.pole_type2       = _d["struct_pole_type2"]
         self.height           = _d["struct_height"]
         self.orientation      = _d.get("struct_orientation", "Horizontal")
         self.has_extension    = False
         self.extension_height = _d["extension_height"]
-        self.earth_count      = _d.get("earth_default_dp", 2)
+
+        _earth_map = {
+            "DP":  _d.get("earth_default_dp", 2),
+            "TP":  _d.get("earth_default_tp", 3),
+            "4P":  _d.get("earth_default_4p", 4),
+            "DTR": _d.get("earth_default_dtr", 5),
+        }
+        self.earth_count      = _earth_map.get(structure_type, 2)
         self.stay_count       = _d["struct_stay_count"]
-        self.dtr_size         = "None"
+        self.dtr_size         = _d.get("struct_dtr_size", "25KVA") if structure_type == "DTR" else "None"
         self.kiosk_required   = bool(_d.get("dtr_kiosk_required", True))
         _default_recipes = {
             "DP":  "DP_IRON",
@@ -76,7 +83,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             "4P":  "4P_IRON",
             "DTR": "DTR_IRON",
         }
-        self.iron_recipe = _default_recipes.get(self.structure_type, "None")
+        self.iron_recipe = _default_recipes.get(structure_type, "None")
 
         # seq_id starts at 0; assigned lazily on first update_visuals call
         # (because structure_type may be changed after __init__)

@@ -1,6 +1,6 @@
-# ERP Estimate Generator v9.0
+# ERP Estimate Generator v9.1
 
-![Version](https://img.shields.io/badge/version-9.0-blue.svg)
+![Version](https://img.shields.io/badge/version-9.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,13 +8,22 @@
 
 ---
 
-## 🚀 What's New in Version 9.0
+## 🚀 What's New in Version 9.1
 
-* **📊 All-Projects Billing Report:** Generate a landscape PDF summary of every invoiced project in the database — showing invoice number, date, project ID, PO, client, description, labor total, GST, grand total, and creation date with grand totals and amount in words.
-* **📑 Restructured Estimate (Excel-Match):** The billing packet's estimate page now mirrors the Excel export with **Section A (Materials + escalations + sundries)**, **Section B (Labor)**, and **Section C (Overheads & Taxes — supervision, GST, cess, grand total)**.
-* **📏 Separate Measurement Sheets:** New checkboxes to include **Material Measurement Sheet** and/or **Labor Measurement Sheet** — each with full pagination, page numbering, and signature blocks.
-* **🏷 Copy Stamp Repositioned:** When printing on letterheads (agency header excluded), the copy designation now appears below "TAX INVOICE" as small centered text.
-* **✍️ Simplified Signatures:** Abstract and Certificate pages now show only the agency signature. Measurement sheets retain all three signatures.
+* **⚡ 33kV HT Lines & Poles:** Full support for 33kV high-tension lines and poles alongside the existing LT and 11kV HT infrastructure.
+* **🏷 3-Letter Pole Prefixes:** Clearer pole identification with new prefixes — PLT, PHT, P33 for new poles and ELT, EHT, E33 for existing poles.
+* **🔌 Solid Service Cable Spans:** Service Cable spans now render as solid lines for better visual distinction on the drawing canvas.
+* **👁 Drawing Declutter Options:** New toggles to show/hide pole-height and span-length labels for cleaner, less cluttered drawings.
+* **🖱 InstantPopup Toolbar Dropdowns:** Toolbar dropdown menus now open instantly on click for a snappier workflow.
+* **🎨 Opaque Existing Poles:** Existing poles are now rendered with full opacity for better visibility.
+* **🔧 HT Classification Fix:** Corrected HT pole classification logic for accurate estimation.
+* **📅 Extended Validity:** App validity extended until **31.08.2026**.
+
+## 🔄 Previous Highlights (v9.0)
+
+* **📊 All-Projects Billing Report:** Generate a landscape PDF summary of every invoiced project with totals.
+* **📑 Restructured Estimate (Excel-Match):** Billing packet estimate now mirrors the Excel export layout.
+* **📏 Separate Measurement Sheets:** Optional Material and Labor measurement sheets with pagination.
 
 ## 🔄 Previous Highlights (v8.1)
 
@@ -27,13 +36,6 @@
 * **📦 Windows Installer with Automatic Updates:** Ships as Setup.exe with Start-menu shortcut, checks GitHub for updates on launch.
 * **🪶 Smaller, Faster Install:** Removed AI Rule Creator dependency, pruned unused Qt payload (~50% smaller download).
 * **🛟 Startup Crash Log:** Full error written to `last_crash.log` if the app fails to start.
-
-## 🔄 Previous Highlights (v7.9)
-
-* **⚡ Massive Speed Boost:** Live estimate refresh up to ~220× faster on large drawings.
-* **🔌 New Service-Drop Cable Sizes:** 4 SQMM, 6 SQMM, and 25 SQMM options added.
-* **🎨 PDF Legend Symbols Fixed:** Legend now draws exact canvas symbols.
-* **♻️ Factory Reset:** New Settings → Reset App Data option.
 
 ---
 
@@ -69,5 +71,5 @@
 ---
 
 ## 📝 Release Notes & Installation
-Please check the releases tab to download the standalone executable for **v9.0**. 
-*(Note: Existing users upgrading to v9.0 will automatically receive all fixes and new features directly on launch, with all saved local estimates and custom overrides fully preserved!).*
+Please check the releases tab to download the standalone executable for **v9.1**. 
+*(Note: Existing users upgrading to v9.1 will automatically receive all fixes and new features directly on launch, with all saved local estimates and custom overrides fully preserved!).*

@@ -58,11 +58,11 @@ def get_data_path(filename: str = "") -> str:
 
 APP_DISPLAY_NAME = "ERP Estimate Generator"
 APP_NAME = "ERP_Estimate"
-APP_VERSION = "9.0"
+APP_VERSION = "9.1"
 APP_AUTHOR = "Pramod Verma"
 
 # Expiry date in ISO format "YYYY-MM-DD", or None to disable.
-APP_EXPIRY = "2026-07-30"
+APP_EXPIRY = "2026-08-31"
 
 # GitHub repository used for the in-app auto-updater (owner/name).
 GITHUB_REPO = "Hackers-lab/Estimator"

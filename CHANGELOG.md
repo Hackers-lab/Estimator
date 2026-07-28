@@ -2,6 +2,38 @@
 
 ---
 
+## v9.1 — July 28, 2026
+
+### What's New
+
+#### ⚡ 33kV HT Lines & Poles
+Full support for **33kV high-tension** lines and poles. You can now place 33kV new and existing poles, connect them with HT spans, and the estimation engine handles them alongside the existing LT and 11kV infrastructure.
+
+#### 🏷 3-Letter Pole Prefixes
+Pole label prefixes have been expanded to **three letters** for clearer identification:
+- **PLT** / **PHT** / **P33** — New LT / HT / 33kV poles
+- **ELT** / **EHT** / **E33** — Existing LT / HT / 33kV poles
+
+#### 🔌 Solid Service Cable Spans
+Service Cable spans now render as **solid lines** instead of dashed, making them visually distinct from existing spans on the drawing canvas.
+
+#### 👁 Drawing Declutter Options
+New toolbar toggles to **show/hide pole-height labels** and **span-length labels** independently, giving you full control over drawing clutter for cleaner prints and exports.
+
+#### 🖱 InstantPopup Toolbar Dropdowns
+Toolbar dropdown menus (pole types, span tools, etc.) now open **instantly on click** — no more press-and-hold delay.
+
+#### 🎨 Opaque Existing Poles
+Existing poles are now rendered with **full opacity** for better visibility on the canvas.
+
+#### 🔧 HT Classification Fix
+Fixed an issue where certain HT poles were incorrectly classified, causing estimation inaccuracies.
+
+#### 📅 Extended Validity
+Application validity extended until **31.08.2026**.
+
+---
+
 ## v9.0 — July 8, 2026
 
 ### What's New
