@@ -285,7 +285,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
     def __init__(
         self, x: float, y: float, refresh_signal: Any,
         pole_type: str = "LT", is_existing: bool = False,
-        detail_view: bool = True
+        detail_view: bool = True, existing_subtype: str = "LT"
     ) -> None:
         QGraphicsPathItem.__init__(self)
         self._init_node(x, y, refresh_signal, detail_view)
@@ -296,7 +296,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.pole_type          = pole_type
         self.pole_type2         = _d[_pfx + "pole_type2"] if not is_existing else "PCC"
         self.is_existing        = is_existing
-        self.existing_subtype   = pole_type   # LT | HT | DP | TP | 4P | DTR
+        self.existing_subtype   = existing_subtype if is_existing else pole_type   # LT | HT | DP | TP | 4P | DTR
         self.existing_dtr_size  = "None"
         self.height             = _d[_pfx + "height"] if not is_existing else ("8MTR" if pole_type == "LT" else "9MTR")
         self.has_extension      = False
@@ -304,13 +304,9 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.override_auto_stay = False
         self.iron_recipe        = "None"
 
-        # Assign unique sequential label number for this pole category
-        if is_existing:
-            self.seq_id = SmartPole._next_seq("ex", self.existing_subtype)
-        elif pole_type == "LT":
-            self.seq_id = SmartPole._next_seq("lt")
-        else:
-            self.seq_id = SmartPole._next_seq("ht")
+        # Sequential label counter assigned lazily on update_visuals call
+        self.seq_id    = 0
+        self._seq_type = None
 
         if is_existing:
             self.earth_count = 0
@@ -376,6 +372,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.dist_box_required = state.get("dist_box_required", False)
         self.iron_recipe = state.get("iron_recipe", "None")
         self.seq_id = state.get("seq_id", self.seq_id)
+        if self.seq_id:
+            self._seq_type = ("ex", self.existing_subtype) if self.is_existing else ("pole", self.pole_type)
 
     # ── Stay / Earth angle calculation ────────────────────────────────────────
 
@@ -515,6 +513,17 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self._updating_visuals = True
 
         try:
+            # Lazy-assign (or re-assign on subtype change) the sequential label number
+            current_cat = ("ex", self.existing_subtype) if self.is_existing else ("pole", self.pole_type)
+            if not self.seq_id or getattr(self, "_seq_type", None) != current_cat:
+                if self.is_existing:
+                    self.seq_id = SmartPole._next_seq("ex", self.existing_subtype)
+                elif self.pole_type == "LT":
+                    self.seq_id = SmartPole._next_seq("lt")
+                else:
+                    self.seq_id = SmartPole._next_seq("ht")
+                self._seq_type = current_cat
+
             path = QPainterPath()
 
             # Main pole symbol shape according to type/condition
@@ -542,7 +551,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                     self.setBrush(QBrush(QColor(_c.get("canvas_ex_aug_dtr", "#f7b267"))))
                     self.setPen(QPen(QColor("#7a4000"), 1.6, Qt.PenStyle.SolidLine))
                 else:
-                    self.setBrush(QBrush(QColor(255, 255, 255, 220)))
+                    self.setBrush(QBrush(QColor(255, 255, 255, 255)))
                     self.setPen(QPen(QColor("#222222"), 1.5, Qt.PenStyle.SolidLine))
             elif self.pole_type == "LT":
                 _hk = "canvas_lt_pole_" + self.height.lower().replace(".", "_")
@@ -629,6 +638,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                     if layout == "vertical":
                         self.label.set_auto_pos(r + 10, -lh / 2)
                     elif layout == "mixed":
+                        stay_angle = self.stay_angle_override % 360 if self.stay_angle_override is not None else self._calc_stay_angle()
                         p = self._label_pos_from_stay(r, lw, lh, stay_angle)
                         self.label.set_auto_pos(p.x(), p.y())
                     else:

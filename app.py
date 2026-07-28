@@ -27,7 +27,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QCheckBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QGraphicsView,
     QDialog, QDoubleSpinBox, QScrollArea, QFrame,
-    QMenu, QTextBrowser, QInputDialog, QSizePolicy, QSlider, QStackedWidget, QProgressDialog
+    QMenu, QTextBrowser, QInputDialog, QSizePolicy, QSlider, QStackedWidget, QProgressDialog,
+    QToolButton
 )
 # pyrefly: ignore [missing-import]
 from PyQt6.QtGui import (
@@ -165,6 +166,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         self._resetting     = False            # True during a factory reset (skips close autosave)
         self.current_tool   = "SELECT"
         self._pending_symbol_shape = "circle"   # last chosen symbol shape
+        self.active_structure_type  = "DP"       # default active structure subtype
+        self.active_existing_subtype = "LT"      # default active existing subtype
 
         # ── Page grid state ────────────────────────────────────────────────
         # 17.5 scene units ≈ 1 real-world metre  (calibrated: 40m span = ~700 units)
@@ -689,14 +692,82 @@ class EstimateApp(QMainWindow, EditorMixin):
         bar = QHBoxLayout()
         bar.setSpacing(3)
         self.tools_btns = {}
+        menu_style = """
+            QMenu {
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 4px 0px;
+            }
+            QMenu::item {
+                padding: 6px 18px 6px 12px;
+                font-weight: bold;
+                font-size: 12px;
+                color: #1e293b;
+            }
+            QMenu::item:selected {
+                background-color: #eff6ff;
+                color: #2563eb;
+            }
+        """
         for key, txt in TOOLS.items():
-            btn = QPushButton(txt)
-            btn.clicked.connect(lambda checked, t=key: self.set_tool(t))
-            btn.setStyleSheet(
-                "padding:7px 5px; font-weight:bold; background:lightgray;"
-            )
-            bar.addWidget(btn)
-            self.tools_btns[key] = btn
+            if key == "ADD_STRUCTURE":
+                btn = QToolButton()
+                btn.setText("🟩 Structure ▼")
+                btn.setToolTip("Click to choose Structure type (DP, TP, 4P, or DTR Substation)")
+                btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+                menu = QMenu(btn)
+                menu.setStyleSheet(menu_style)
+                
+                def _set_struct(st_type):
+                    self.active_structure_type = st_type
+                    self.set_tool("ADD_STRUCTURE")
+
+                a_dp = menu.addAction("🟢 DP Structure")
+                a_dp.triggered.connect(lambda: _set_struct("DP"))
+                a_tp = menu.addAction("🔷 TP Structure")
+                a_tp.triggered.connect(lambda: _set_struct("TP"))
+                a_4p = menu.addAction("🔶 4P Structure")
+                a_4p.triggered.connect(lambda: _set_struct("4P"))
+                a_dtr = menu.addAction("⚡ DTR Substation")
+                a_dtr.triggered.connect(lambda: _set_struct("DTR"))
+
+                btn.setMenu(menu)
+                bar.addWidget(btn)
+                self.tools_btns[key] = btn
+            elif key == "ADD_EXISTING":
+                btn = QToolButton()
+                btn.setText("⚪ Ex. Objects ▼")
+                btn.setToolTip("Click to choose Existing Pole or Structure type")
+                btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+                menu = QMenu(btn)
+                menu.setStyleSheet(menu_style)
+
+                def _set_ex(ex_type):
+                    self.active_existing_subtype = ex_type
+                    self.set_tool("ADD_EXISTING")
+
+                a_lt = menu.addAction("⚪ Ex LT Pole")
+                a_lt.triggered.connect(lambda: _set_ex("LT"))
+                a_ht = menu.addAction("⬛ Ex HT Pole")
+                a_ht.triggered.connect(lambda: _set_ex("HT"))
+                a_dp = menu.addAction("🟢 Ex DP Structure")
+                a_dp.triggered.connect(lambda: _set_ex("DP"))
+                a_tp = menu.addAction("🔷 Ex TP Structure")
+                a_tp.triggered.connect(lambda: _set_ex("TP"))
+                a_4p = menu.addAction("🔶 Ex 4P Structure")
+                a_4p.triggered.connect(lambda: _set_ex("4P"))
+                a_dtr = menu.addAction("⚡ Ex DTR Substation")
+                a_dtr.triggered.connect(lambda: _set_ex("DTR"))
+
+                btn.setMenu(menu)
+                bar.addWidget(btn)
+                self.tools_btns[key] = btn
+            else:
+                btn = QPushButton(txt)
+                btn.clicked.connect(lambda checked, t=key: self.set_tool(t))
+                bar.addWidget(btn)
+                self.tools_btns[key] = btn
 
         # Thin visual separator
         sep = QLabel("|")
@@ -1237,10 +1308,47 @@ class EstimateApp(QMainWindow, EditorMixin):
             self.last_placed_node = None
         for key, btn in self.tools_btns.items():
             active = key == tool_name
-            btn.setStyleSheet(
-                "padding:7px 5px; font-weight:bold; background:"
-                + ("lightblue;" if active else "lightgray;")
-            )
+            is_tb = isinstance(btn, QToolButton)
+            bg = "#dbeafe" if active else "#f1f5f9"
+            border = "#2563eb" if active else "#cbd5e1"
+            color = "#1e40af" if active else "#334155"
+            if is_tb:
+                qss = f"""
+                    QToolButton {{
+                        padding: 6px 12px;
+                        font-weight: bold;
+                        font-size: 12px;
+                        background-color: {bg};
+                        border: 1.5px solid {border};
+                        border-radius: 4px;
+                        color: {color};
+                    }}
+                    QToolButton:hover {{
+                        background-color: #e2e8f0;
+                        border-color: #94a3b8;
+                    }}
+                    QToolButton::menu-indicator {{
+                        image: none;
+                        width: 0px;
+                    }}
+                """
+            else:
+                qss = f"""
+                    QPushButton {{
+                        padding: 6px 10px;
+                        font-weight: bold;
+                        font-size: 12px;
+                        background-color: {bg};
+                        border: 1.5px solid {border};
+                        border-radius: 4px;
+                        color: {color};
+                    }}
+                    QPushButton:hover {{
+                        background-color: #e2e8f0;
+                        border-color: #94a3b8;
+                    }}
+                """
+            btn.setStyleSheet(qss)
         self.update_view_drag_mode()
 
     def update_view_drag_mode(self):
@@ -1504,11 +1612,24 @@ class EstimateApp(QMainWindow, EditorMixin):
                 return
                 
             if self.current_tool in ("ADD_LT", "ADD_HT", "ADD_EXISTING"):
-                p_type = "LT" if self.current_tool in ("ADD_LT", "ADD_EXISTING") else "HT"
                 is_exist = self.current_tool == "ADD_EXISTING"
-                item = SmartPole(pos.x(), pos.y(), self.refresh_signal, p_type, is_exist, detail_view=self.detail_view)
+                if is_exist:
+                    ex_sub = getattr(self, "active_existing_subtype", "LT")
+                    p_type = "LT" if ex_sub == "LT" else "HT"
+                    item = SmartPole(pos.x(), pos.y(), self.refresh_signal, p_type, is_existing=True, detail_view=self.detail_view, existing_subtype=ex_sub)
+                    item.existing_subtype = ex_sub
+                    if ex_sub in ("DP", "TP", "4P", "DTR"):
+                        item.update_visuals()
+                else:
+                    p_type = "LT" if self.current_tool == "ADD_LT" else "HT"
+                    item = SmartPole(pos.x(), pos.y(), self.refresh_signal, p_type, is_existing=False, detail_view=self.detail_view)
             elif self.current_tool == "ADD_STRUCTURE":
+                st_type = getattr(self, "active_structure_type", "DP")
                 item = SmartStructure(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
+                item.structure_type = st_type
+                _default_recipes = {"DP": "DP_IRON", "TP": "TP_IRON", "4P": "4P_IRON", "DTR": "DTR_IRON"}
+                item.iron_recipe = _default_recipes.get(st_type, "None")
+                item.update_visuals()
             else: # ADD_CONSUMER
                 item = SmartConsumer(pos.x(), pos.y(), self.refresh_signal, detail_view=self.detail_view)
                 
@@ -1597,6 +1718,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         if isinstance(node, SmartStructure):
             return True
         if isinstance(node, SmartPole):
+            if getattr(node, "is_existing", False):
+                return getattr(node, "existing_subtype", "LT") != "LT"
             return node.pole_type == "HT"
         return False  # SmartConsumer = LT
 

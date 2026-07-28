@@ -395,6 +395,11 @@ class PDFExporter:
             painter.setPen(QPen(QColor(border), bw))
             painter.drawEllipse(QPointF(cx + ox, cy + oy), r, r)
 
+        def _square(color_hex, r=2.2, ox=0.0, oy=0.0, border="#333333", bw=0.5):
+            painter.setBrush(QBrush(QColor(color_hex)))
+            painter.setPen(QPen(QColor(border), bw))
+            painter.drawRect(QRectF(cx + ox - r, cy + oy - r, r * 2, r * 2))
+
         if kind == "lt_pole":
             painter.setBrush(QBrush(QColor(d.get("canvas_lt_pole", "#2980b9"))))
             painter.setPen(QPen(QColor("#222222"), 0.5))
@@ -414,7 +419,7 @@ class PDFExporter:
             painter.setFont(font)
             painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "HT")
         elif kind == "ex_lt_pole":
-            painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+            painter.setBrush(QBrush(QColor(255, 255, 255, 255)))
             painter.setPen(QPen(QColor("#222222"), 0.8))
             painter.drawEllipse(QPointF(cx, cy), 3.5, 3.5)
             painter.setPen(QPen(QColor("#222222")))
@@ -423,7 +428,7 @@ class PDFExporter:
             painter.setFont(font)
             painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "LT")
         elif kind == "ex_ht_pole":
-            painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+            painter.setBrush(QBrush(QColor(255, 255, 255, 255)))
             painter.setPen(QPen(QColor("#222222"), 0.8))
             painter.drawRect(QRectF(cx - 3.5, cy - 3.5, 7, 7))
             painter.setPen(QPen(QColor("#222222")))
@@ -433,6 +438,7 @@ class PDFExporter:
             painter.drawText(QRectF(cx - 3.5, cy - 3.5, 7, 7), Qt.AlignmentFlag.AlignCenter, "HT")
         elif kind == "ex_pole":
             _circle(d.get("canvas_ex_pole", "#cccccc"), border="#777777", bw=0.6)
+
         elif kind == "dp":
             col = d.get("canvas_dp", "#27ae60")
             _circle(col, 2.2, -2.6); _circle(col, 2.2, 2.6)
