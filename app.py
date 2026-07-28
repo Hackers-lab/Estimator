@@ -493,7 +493,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         bottom_bar.setContentsMargins(2, 0, 2, 0)
 
         # Show Symbols checkbox
-        self.detail_chk = QCheckBox("Show Symbols")
+        self.detail_chk = QCheckBox("Symbol")
         self.detail_chk.setChecked(True)
         self.detail_chk.setStyleSheet(
             "font-size:11px; font-weight:bold; color:#555; spacing:4px;"
@@ -507,7 +507,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         bottom_bar.addWidget(sep1)
 
         # Hide existing-span length labels (declutter busy drawings)
-        self.ex_len_chk = QCheckBox("Existing Length")
+        self.ex_len_chk = QCheckBox("Ex Length")
         self.ex_len_chk.setChecked(True)
         self.ex_len_chk.setToolTip("Show the length label on existing spans")
         self.ex_len_chk.setStyleSheet(
@@ -517,7 +517,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         bottom_bar.addWidget(self.ex_len_chk)
 
         # Hide/Show Pole Names & Labels
-        self.pole_label_chk = QCheckBox("Pole Names")
+        self.pole_label_chk = QCheckBox("Mark")
         self.pole_label_chk.setChecked(True)
         self.pole_label_chk.setToolTip("Show or hide pole name labels (PLT1, PHT1, P331, etc.) on drawing")
         self.pole_label_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")
@@ -530,7 +530,7 @@ class EstimateApp(QMainWindow, EditorMixin):
         bottom_bar.addWidget(sep1_2)
 
         # Hide/Show PDF Legend Table
-        self.legend_chk = QCheckBox("PDF Legend")
+        self.legend_chk = QCheckBox("Legend")
         self.legend_chk.setChecked(True)
         self.legend_chk.setToolTip("Include the legend table and object counts in PDF export")
         self.legend_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")

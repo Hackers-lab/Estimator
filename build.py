@@ -98,9 +98,12 @@ def main() -> None:
     for d in ("build", "dist", f"{APP_NAME}.spec"):
         p = os.path.join(ROOT, d)
         if os.path.isdir(p):
-            shutil.rmtree(p)
+            shutil.rmtree(p, ignore_errors=True)
         elif os.path.isfile(p):
-            os.remove(p)
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
     print("=== Building with PyInstaller ===")
 
@@ -108,6 +111,7 @@ def main() -> None:
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
+        "--noupx",
         "--onedir",
         "--windowed",
         "--name", APP_NAME,
@@ -170,7 +174,7 @@ def main() -> None:
     # ── 4. Rename dist folder to versioned name ──────────────────────────────
     final_dir = os.path.join(ROOT, DIST_DIR, FOLDER)
     if os.path.exists(final_dir):
-        shutil.rmtree(final_dir)
+        shutil.rmtree(final_dir, ignore_errors=True)
     # shutil.move is more robust than os.rename on Windows (avoids AV lock errors)
     shutil.move(exe_dir, final_dir)
 

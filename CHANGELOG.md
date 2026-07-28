@@ -2,6 +2,22 @@
 
 ---
 
+## v9.3 — July 28, 2026
+
+### What's New
+
+#### 📐 Compact Footer Controls
+Shortened canvas bottom-bar checkbox labels to prevent horizontal overflow and expand viewing room for the live estimate panel:
+- **Show Symbols** → **Symbol**
+- **Existing Length** → **Ex Length**
+- **Pole Names** → **Mark**
+- **PDF Legend** → **Legend**
+
+#### 🛡️ Antivirus False Positive Fix
+- Disabled UPX compression (`upx=False` / `--noupx`) in build scripts to prevent false positive detections (`Trojan.GenericRI...`) by endpoint protection software like Seqrite / Quick Heal.
+
+---
+
 ## v9.2 — July 28, 2026
 
 ### What's New

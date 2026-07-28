@@ -1,11 +1,12 @@
 {
-    "version": "9.2",
+    "version": "9.3",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-08-31",
     "release_date": "2026-07-28",
     "changelog": {
+        "9.3": "Compact canvas footer checkbox labels (Show Symbols→Symbol, Existing Length→Ex Length, Pole Names→Mark, PDF Legend→Legend) to prevent horizontal overflow and maximize live estimate pane width. Disabled UPX compression in build spec to prevent false-positive antivirus triggers.",
         "9.2": "DTR Augmentation labour rates (dismantling & installation by target capacity), Return DTR codes with Defective (DAM1) / Use & Healthy (UH01) condition selector, DTR Code Painting rate corrected to Rs.60, AB Cable Clamp iron recipe updated to 2 NOS flat per span.",
         "9.1": "33kV HT lines and poles, 3-letter pole prefixes (PLT/PHT/P33/ELT/EHT/E33), solid Service Cable spans, drawing declutter options (toggle pole-height and span-length labels), InstantPopup toolbar dropdowns, opaque existing poles, and HT classification fix. Extended validity until 31.08.2026.",
         "9.0": "Billing Packet v2 — Restructured estimate page matching Excel export (Section A: Materials with escalations & sundries, Section B: Labor, Section C: Overheads & Taxes with supervision, GST, cess, grand total). Separate paginated Measurement Sheets for Material and Labor with dynamic multi-page flow. Copy stamp moved below TAX INVOICE when agency header is excluded. Abstract and Certificate pages now show only agency signature. New All-Projects Billing Report generates a landscape PDF summary of every invoiced project with totals. New checkboxes to optionally include Material and Labor measurement sheets in billing packet.",
