@@ -1,6 +1,6 @@
-# ERP Estimate Generator v9.2
+# ERP Estimate Generator v9.4
 
-![Version](https://img.shields.io/badge/version-9.2-blue.svg)
+![Version](https://img.shields.io/badge/version-9.4-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,7 +8,16 @@
 
 ---
 
-## 🚀 What's New in Version 9.2
+## 🚀 What's New in Version 9.4
+
+* **📅 Extended Validity:** App validity extended until 31.12.2026.
+
+## 🔄 Previous Highlights (v9.3)
+
+* **📐 Compact Footer Controls:** Shortened bottom-bar checkbox labels (Symbol, Ex Length, Mark, Legend) to maximize live estimate pane width.
+* **🛡️ Antivirus Fix:** Disabled UPX compression to prevent false-positive AV detections.
+
+## 🔄 Previous Highlights (v9.2)
 
 * **🔧 DTR Augmentation Labour:** Automatic labour charges for dismantling & installing DTR during augmentation — rates by target capacity (≤25KVA ₹2,205 • 63KVA ₹2,665 • 100KVA ₹2,998 • 160KVA+ ₹5,087).
 * **📦 Return DTR Codes:** Augmentation now adds the correct return-to-store material code for the old DTR, with a **"Return Condition"** selector: Defective (DAM1) or Use & Healthy (UH01).

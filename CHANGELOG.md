@@ -2,6 +2,15 @@
 
 ---
 
+## v9.4 — September 01, 2026
+
+### What's New
+
+#### 📅 Extended Application Validity
+- Application validity extended until **31.12.2026**.
+
+---
+
 ## v9.3 — July 28, 2026
 
 ### What's New
