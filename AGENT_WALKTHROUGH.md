@@ -7,7 +7,7 @@
 
 ## What This App Does
 
-**ERP Estimate Generator** is a PyQt6 desktop application for electrical network estimation, used by WBSEDCL field engineers. The user draws an electrical network schematic on a 2D canvas (poles, structures, spans, consumers), and the app automatically generates a Bill of Materials (BOM) + Labour estimate by evaluating a rule engine against every drawn object. Final output is an Excel workbook (multi-sheet) and a PDF drawing.
+**ERP Estimate Generator** is a PyQt6 desktop application for electrical network estimation, used by w*****l field engineers. The user draws an electrical network schematic on a 2D canvas (poles, structures, spans, consumers), and the app automatically generates a Bill of Materials (BOM) + Labour estimate by evaluating a rule engine against every drawn object. Final output is an Excel workbook (multi-sheet) and a PDF drawing.
 
 **Core user workflow:**
 1. Launch → Project Setup Wizard (project type, subject, GPS coords, UH toggle)
@@ -85,7 +85,7 @@ Estimator/
 │
 ├── data/                     ← RUNTIME DATA BACKUPS & SEEDS
 │   ├── rules.json            ← 230+ baseline estimation rules
-│   ├── seed_data.json        ← Baseline WBSEDCL materials and labour rates
+│   ├── seed_data.json        ← Baseline w*****l materials and labour rates
 │   ├── property_catalog.json ← Baseline property declarations
 │   └── defaults.json         ← Backup / default configuration settings
 │

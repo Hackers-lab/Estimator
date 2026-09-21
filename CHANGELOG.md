@@ -465,7 +465,7 @@ The **Estimate** panel on the right shows a live bill of materials and labour as
 | Column | Description |
 |---|---|
 | Sl No. | Serial number |
-| Code | WBSEDCL material/labour code |
+| Code | w*****l material/labour code |
 | Description | Item name |
 | Qty | Calculated quantity |
 | Unit | Unit of measure |
@@ -576,7 +576,7 @@ The estimate is calculated by a set of **rules** stored in `data/rules.json`. Ea
 - Export the full database to Excel for offline review.
 - Import a modified Excel file back into the database.
 
-The database is stored in `erp_master.db` (SQLite) in the application folder. It uses WBSEDCL FY 2023-24 rates as the baseline.
+The database is stored in `erp_master.db` (SQLite) in the application folder. It uses w*****l FY 2023-24 rates as the baseline.
 
 ---
 
@@ -695,7 +695,7 @@ Press **F1** or open **Help → User Guide** to open the built-in HTML help guid
 ## v6.0 — December 2025
 
 ### Initial Release
-- First packaged release of ERP Estimate Generator for WBSEDCL project estimation.
+- First packaged release of ERP Estimate Generator for w*****l project estimation.
 - Canvas-based drawing tool for electrical network layouts involving LT/HT poles, structures, spans, and consumers.
 - Live bill-of-materials estimate updates as you draw.
 - Save and load project files (`.json`).
