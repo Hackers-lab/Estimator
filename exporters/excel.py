@@ -105,17 +105,17 @@ class ExcelExporter:
         assert ws is not None
         ws.title = "Estimate"
 
-        # ── Page Setup (Fit 1 page wide, let rows flow naturally if long) ──
+        # ── Page Setup (Print strictly on 1 single page with minimum margins) ──
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.page_setup.fitToPage = True
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
+        ws.page_setup.fitToHeight = 1
         ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_margins.left = 0.25
-        ws.page_margins.right = 0.25
-        ws.page_margins.top = 0.35
-        ws.page_margins.bottom = 0.35
+        ws.page_margins.left = 0.20
+        ws.page_margins.right = 0.20
+        ws.page_margins.top = 0.30
+        ws.page_margins.bottom = 0.30
         ws.print_options.horizontalCentered = True
         ws.views.sheetView[0].showGridLines = True
 
@@ -228,14 +228,26 @@ class ExcelExporter:
         lab_items = [x for x in app.live_bom_data if x["type"] == "Labor"]
 
         # Dynamically compute flexible width for Column C (Description of Item)
-        # Finds max item text length to avoid artificial horizontal shrinking or unnecessary wrapping
+        # When an estimate has many rows (e.g. 35 to 60+ rows), Excel compresses the sheet
+        # vertically to fit on 1 page. By expanding Column C's width proportionally,
+        # the table width expands to fill 100% of the printed page margins instead of shrinking.
+        total_data_rows = len(mat_items) + len(lab_items)
         max_desc_len = max(
             [len("Description of Item")] +
             [len(str(x.get("name", ""))) for x in mat_items + lab_items]
         )
-        # Provide clean padding (min 45, max 68) to fill page width proportionately
-        flexible_desc_width = max(45.0, min(float(max_desc_len + 4), 68.0))
-        ws.column_dimensions["C"].width = flexible_desc_width
+        base_desc_w = max(46.0, float(max_desc_len + 4))
+
+        if total_data_rows <= 20:
+            flexible_desc_width = max(base_desc_w, 48.0)
+        elif total_data_rows <= 32:
+            flexible_desc_width = max(base_desc_w, 58.0)
+        elif total_data_rows <= 45:
+            flexible_desc_width = max(base_desc_w, 72.0)
+        else:
+            flexible_desc_width = max(base_desc_w, 88.0)
+
+        ws.column_dimensions["C"].width = min(flexible_desc_width, 98.0)
 
         row = 6
 
@@ -497,17 +509,17 @@ class ExcelExporter:
         _, Font, Alignment, PatternFill, Border, Side = _xl()
         ws = wb.create_sheet("Iron Breakup")
 
-        # ── Page Setup (Fit 1 page wide, let rows flow naturally if long) ──
+        # ── Page Setup (Print strictly on 1 single page with minimum margins) ──
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.page_setup.fitToPage = True
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
+        ws.page_setup.fitToHeight = 1
         ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_margins.left = 0.25
-        ws.page_margins.right = 0.25
-        ws.page_margins.top = 0.35
-        ws.page_margins.bottom = 0.35
+        ws.page_margins.left = 0.20
+        ws.page_margins.right = 0.20
+        ws.page_margins.top = 0.30
+        ws.page_margins.bottom = 0.30
         ws.print_options.horizontalCentered = True
         ws.views.sheetView[0].showGridLines = True
 
