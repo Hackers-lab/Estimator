@@ -105,12 +105,12 @@ class ExcelExporter:
         assert ws is not None
         ws.title = "Estimate"
 
-        # ── Page Setup (Print on single page with clean margins) ───────────
+        # ── Page Setup (Fit 1 page wide, let rows flow naturally if long) ──
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.page_setup.fitToPage = True
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 1
+        ws.page_setup.fitToHeight = 0
         ws.sheet_properties.pageSetUpPr.fitToPage = True
         ws.page_margins.left = 0.25
         ws.page_margins.right = 0.25
@@ -219,7 +219,6 @@ class ExcelExporter:
 
         ws.column_dimensions["A"].width = 7.5
         ws.column_dimensions["B"].width = 13.5
-        ws.column_dimensions["C"].width = 46.0
         ws.column_dimensions["D"].width = 10.0
         ws.column_dimensions["E"].width = 8.5
         ws.column_dimensions["F"].width = 13.0
@@ -227,6 +226,16 @@ class ExcelExporter:
 
         mat_items = [x for x in app.live_bom_data if x["type"] == "Material"]
         lab_items = [x for x in app.live_bom_data if x["type"] == "Labor"]
+
+        # Dynamically compute flexible width for Column C (Description of Item)
+        # Finds max item text length to avoid artificial horizontal shrinking or unnecessary wrapping
+        max_desc_len = max(
+            [len("Description of Item")] +
+            [len(str(x.get("name", ""))) for x in mat_items + lab_items]
+        )
+        # Provide clean padding (min 45, max 68) to fill page width proportionately
+        flexible_desc_width = max(45.0, min(float(max_desc_len + 4), 68.0))
+        ws.column_dimensions["C"].width = flexible_desc_width
 
         row = 6
 
@@ -488,12 +497,12 @@ class ExcelExporter:
         _, Font, Alignment, PatternFill, Border, Side = _xl()
         ws = wb.create_sheet("Iron Breakup")
 
-        # ── Page Setup (Print on single page with clean margins) ───────────
+        # ── Page Setup (Fit 1 page wide, let rows flow naturally if long) ──
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.page_setup.fitToPage = True
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 1
+        ws.page_setup.fitToHeight = 0
         ws.sheet_properties.pageSetUpPr.fitToPage = True
         ws.page_margins.left = 0.25
         ws.page_margins.right = 0.25
@@ -503,7 +512,7 @@ class ExcelExporter:
         ws.views.sheetView[0].showGridLines = True
 
         ws.column_dimensions["A"].width = 6
-        ws.column_dimensions["B"].width = 38
+        ws.column_dimensions["B"].width = 42
         ws.column_dimensions["C"].width = 8
         ws.column_dimensions["D"].width = 16
         ws.column_dimensions["E"].width = 12
