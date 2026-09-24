@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, QTimer
 from core import defaults
 from core import property_catalog
 from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
+from ui.editors import editor_helpers as _eh
 
 class EditorMixin:
     """Mixin providing all property-editor building and update callbacks.
@@ -123,6 +124,7 @@ class EditorMixin:
             self.editor_group.setTitle(f"Existing — {subtype}")
         else:
             self.editor_group.setTitle(f"{item.pole_type} Pole")
+        self._add_delete_btn(item)
 
         # Existing subtype picker
         if item.is_existing:
@@ -208,8 +210,6 @@ class EditorMixin:
         )
         self._add_field_pair("Note:", note)
 
-        self._add_iron_recipe_picker(item)
-
         # Checkboxes grouped at bottom
         ext_chk = QCheckBox("Extension required")
         ext_chk.setChecked(item.has_extension)
@@ -289,8 +289,6 @@ class EditorMixin:
         if item.is_existing and subtype == "DTR":
             self._build_dtr_augmentation_editor(item)
 
-        self._add_delete_btn(item)
-
     def _set_pole_advanced_props(self, enabled: bool) -> None:
         self._show_advanced_pole_props = enabled
         self.on_selection_changed()
@@ -299,6 +297,7 @@ class EditorMixin:
 
     def _build_structure_editor(self, item):
         self.editor_group.setTitle(f"Structure — {item.structure_type}")
+        self._add_delete_btn(item)
 
         # Structure type + Orientation paired
         st_cb = QComboBox()
@@ -363,8 +362,6 @@ class EditorMixin:
         )
         self._add_field_pair("Note:", note)
 
-        self._add_iron_recipe_picker(item)
-
         # Checkboxes at bottom
         ext_chk = QCheckBox("Extension required")
         ext_chk.setChecked(item.has_extension)
@@ -390,16 +387,18 @@ class EditorMixin:
             )
             self.editor_layout.addRow(kiosk_chk)
 
-        self._add_delete_btn(item)
-
     # ── Span editor ───────────────────────────────────────────────────────────
 
     def _build_span_editor(self, item):
         if item.is_service_drop:
             self.editor_group.setTitle("Service Connection")
-            self._build_service_drop_editor(item)
         else:
             self.editor_group.setTitle("Span")
+        self._add_delete_btn(item)
+
+        if item.is_service_drop:
+            self._build_service_drop_editor(item)
+        else:
             self._build_line_span_editor(item)
 
         self._add_custom_slots_editor(item)
@@ -410,7 +409,6 @@ class EditorMixin:
             lambda t, i=item: self._update_note(i, t)
         )
         self._add_field_pair("Note:", note)
-        self._add_delete_btn(item)
 
     def _build_service_drop_editor(self, item):
         # Phase + Connection Type
@@ -526,7 +524,7 @@ class EditorMixin:
             self._build_conductor_augmentation_editor(item)
 
         # Checkbox at bottom
-        cg_chk = QCheckBox("Cattle Guard required")
+        cg_chk = QCheckBox("Cradle Guard required")
         cg_chk.setChecked(item.has_cg)
         cg_chk.stateChanged.connect(
             lambda v, i=item: self._update_span_refresh(i, "has_cg", v == 2)
@@ -537,6 +535,7 @@ class EditorMixin:
 
     def _build_consumer_editor(self, item):
         self.editor_group.setTitle("Consumer")
+        self._add_delete_btn(item)
 
         # Phase + Connection Type
         phase_cb = QComboBox()
@@ -615,107 +614,33 @@ class EditorMixin:
         )
         self.editor_layout.addRow(cons_chk)
 
-        self._add_delete_btn(item)
-
-    # ── Editor helpers ────────────────────────────────────────────────────────
-
     def _height_options(self, pole_type2: str, obj_type: str = "SmartPole") -> list[str]:
-        """Return height option strings for the given pole_type2 from DB.
-        Falls back to hardcoded + extended_options if DB not available.
-        """
-        try:
-            from core import db_gateway as _dbg  # noqa: PLC0415
-            opts = _dbg.get_height_options(pole_type2)
-            if opts:
-                return opts
-        except Exception:
-            pass
-        # Fallback: hardcoded base + extended_options
-        base: list[str] = {
-            "PCC":    ["8MTR", "9MTR"],
-            "STP":    ["9MTR", "9.5MTR", "11MTR"],
-            "H-BEAM": ["13MTR"],
-        }.get(pole_type2, ["8MTR", "9MTR"])
-        from core import property_catalog as _pc
-        ext = _pc.get_extended_options(obj_type, f"height__{pole_type2}")
-        base_fold = {v.casefold() for v in base}
-        return base + [o for o in ext if o.casefold() not in base_fold]
+        return _eh.get_height_options(pole_type2, obj_type)
 
     def _conductor_sizes(self, conductor: str, is_lt: bool) -> list[str]:
-        """Return conductor-size option strings from DB.
-        Falls back to hardcoded + extended_options if DB not available.
-        """
-        try:
-            from core import db_gateway as _dbg  # noqa: PLC0415
-            vc   = "LT" if is_lt else "HT"
-            opts = _dbg.get_conductor_options(conductor, vc)
-            if opts:
-                return opts
-        except Exception:
-            pass
-        # Fallback: hardcoded base + extended_options
-        if conductor == "ACSR":
-            base = ["30SQMM", "50SQMM"]
-        elif conductor == "AB Cable":
-            base = (
-                ["3CX50+1CX35", "3CX50+1CX16+1CX35", "3CX70+1CX16+1CX50"]
-                if is_lt else ["3CX50+1CX150", "3CX95+1CX70"]
-            )
-        elif conductor == "PVC Cable":
-            base = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM", "95 SQMM", "120 SQMM"]
-        else:
-            base = ["10 SQMM"]
-        from core import property_catalog as _pc
-        vlt = "lt" if is_lt else "ht"
-        ext = _pc.get_extended_options("SmartSpan", f"conductor_size__{vlt}_{conductor}")
-        base_fold = {v.casefold() for v in base}
-        return base + [o for o in ext if o.casefold() not in base_fold]
+        return _eh.get_conductor_sizes(conductor, is_lt)
 
     def _service_conn_types(self, phase: str) -> list[str]:
-        """Connection types for consumer / service drop."""
-        if phase == "1 Phase":
-            return ["I Type", "L Type"]
-        return ["I Type", "L Type", "Drop Type"]
+        return _eh.get_service_conn_types(phase)
 
     def _service_cable_sizes(self, phase: str) -> list[str]:
-        """Cable sizes for consumer / service drop according to phase."""
-        if phase == "1 Phase":
-            return ["4 SQMM", "6 SQMM"]
-        else:
-            return ["16 SQMM", "25 SQMM"]
+        return _eh.get_service_cable_sizes(phase)
 
     @staticmethod
     def _consumer_service_drop(consumer):
-        """Return the active service-drop span connected to a consumer, or None."""
-        for s in getattr(consumer, "connected_spans", []):
-            if getattr(s, "is_service_drop", False) and s.scene() is not None:
-                return s
-        return None
+        return _eh.get_consumer_service_drop(consumer)
 
     @staticmethod
     def _service_drop_consumer(span):
-        """Return the SmartConsumer endpoint of a service-drop span, or None."""
-        if isinstance(span.p1, SmartConsumer):
-            return span.p1
-        if isinstance(span.p2, SmartConsumer):
-            return span.p2
-        return None
+        return _eh.get_service_drop_consumer(span)
 
     def _pole_type2_options(self, obj_type: str = "SmartPole") -> list[str]:
-        """Pole material options (PCC/STP/H-BEAM) merged with user-added values."""
-        base = ["PCC", "STP", "H-BEAM"]
-        ext  = property_catalog.get_extended_options(obj_type, "pole_type2")
-        base_fold = {v.casefold() for v in base}
-        return base + [o for o in ext if o.casefold() not in base_fold]
+        return _eh.get_pole_type2_options(obj_type)
 
     def _dtr_size_options(
         self, obj_type: str = "SmartStructure", prop: str = "dtr_size"
     ) -> list[str]:
-        """DTR kVA size options merged with user-added values."""
-        base = ["None", "10KVA", "16KVA", "25KVA", "63KVA", "100KVA", "160KVA"]
-        ext  = property_catalog.get_extended_options(obj_type, prop)
-        base_fold = {v.casefold() for v in base}
-        return base + [o for o in ext if o.casefold() not in base_fold]
+        return _eh.get_dtr_size_options(obj_type, prop)
 
     def _add_section_separator(self, title: str) -> None:
         sep = QFrame()
@@ -734,11 +659,7 @@ class EditorMixin:
 
     @staticmethod
     def _parse_kva(size_text: str) -> int:
-        txt = str(size_text or "").upper().replace("KVA", "").strip()
-        try:
-            return int(txt)
-        except ValueError:
-            return 0
+        return _eh.parse_kva(size_text)
 
     def _set_dynamic_prop(self, item, key: str, value, refresh_selection: bool = False) -> None:
         props = dict(getattr(item, "dynamic_props", {}) or {})
@@ -1055,7 +976,7 @@ class EditorMixin:
                         "Wire Count", ["2", "3", "4"], str(item.wire_count),
                         lambda v, i=item: self._update_span(i, "wire_count", v)
                     )
-                cg_act = menu.addAction("Cattle Guard Required")
+                cg_act = menu.addAction("Cradle Guard Required")
                 if cg_act is not None:
                     cg_act.setCheckable(True)
                     cg_act.setChecked(item.has_cg)
@@ -1098,12 +1019,44 @@ class EditorMixin:
             callback(val)
 
     def _add_delete_btn(self, item):
-        del_btn = QPushButton("🗑 Delete Selected")
+        row = QWidget()
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(0, 0, 0, 2)
+        lay.setSpacing(6)
+
+        node_id = getattr(item, "node_id", None)
+        if node_id is not None and str(node_id):
+            lbl = QLabel(f"#{node_id}")
+            lbl.setStyleSheet("color:#64748b; font-size:10px; font-weight:bold;")
+            lay.addWidget(lbl)
+
+        lay.addStretch(1)
+
+        del_btn = QPushButton("🗑")
+        del_btn.setToolTip("Delete from canvas (Del)")
+        del_btn.setFixedSize(24, 20)
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         del_btn.setStyleSheet(
-            "background:#ff4c4c; color:white; padding:5px; font-weight:bold;"
+            "QPushButton {"
+            "  background: #fee2e2;"
+            "  color: #dc2626;"
+            "  border: 1px solid #fca5a5;"
+            "  border-radius: 3px;"
+            "  font-size: 11px;"
+            "  padding: 0;"
+            "}"
+            "QPushButton:hover {"
+            "  background: #fecaca;"
+            "  border-color: #ef4444;"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #f87171;"
+            "  color: white;"
+            "}"
         )
         del_btn.clicked.connect(lambda: self.delete_item(item))
-        self.editor_layout.addRow(del_btn)
+        lay.addWidget(del_btn)
+        self.editor_layout.addRow(row)
 
     # =========================================================================
     #  UPDATE CALLBACKS

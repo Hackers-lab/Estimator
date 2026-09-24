@@ -317,13 +317,13 @@
         "type": "Material",
         "item_code": "",
         "item_name": "Structural Iron (from Recipe)",
-        "formula": "CG_BRACKET"
+        "formula": "CG_BRACKET * cg_spans_count"
       },
       {
         "type": "Labor",
         "item_code": "LAB-43",
         "item_name": "Fabrication & Fixing of CG Bracket Single Pole",
-        "formula": "1"
+        "formula": "cg_spans_count"
       }
     ]
   },
@@ -806,8 +806,8 @@
       },
       {
         "type": "Material",
-        "item_code": "0309010841",
-        "item_name": "Lightning Arrestor 12KV 5KA Porcelain Gapless Type 11KV",
+        "item_code": "0309011041",
+        "item_name": "LIGHTNING ARRESTER 12 KV 10KA PORCELAIN HOUSED STATION CLASS",
         "formula": "3"
       },
       {
@@ -2388,6 +2388,25 @@
         "item_code": "LAB-47",
         "item_name": "Fixing of LT Shackle Insulator with N/B",
         "formula": "int(new_lt_wire_count)"
+      }
+    ]
+  },
+  {
+    "id": 248,
+    "object": "SmartStructure",
+    "condition": "has_cg and structure_type in ('DP', 'DTR')",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "CG_DP_BRACKET * cg_spans_count"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-44",
+        "item_name": "Fabrication & Fixing of CG Bracket Double Pole",
+        "formula": "cg_spans_count"
       }
     ]
   }

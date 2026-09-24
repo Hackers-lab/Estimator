@@ -82,19 +82,20 @@ _STAY_LENGTH: int = 18
 _ARROW_LEN: int = 6
 
 
-def _stay_path(angle_deg: float = 225) -> QPainterPath:
+def _stay_path(angle_deg: float = 225, origin_x: float = 0.0, origin_y: float = 0.0) -> QPainterPath:
     """
     Draws a stay-wire symbol: a diagonal line from pole centre outward,
     with an arrowhead at the far end pointing in the stay direction.
     angle_deg — direction of stay wire (default: lower-left = 225°)
+    origin_x, origin_y — origin point (default: 0, 0)
     """
     length = _STAY_LENGTH
     rad    = math.radians(angle_deg)
-    ex     = math.cos(rad) * length
-    ey     = math.sin(rad) * length
+    ex     = origin_x + math.cos(rad) * length
+    ey     = origin_y + math.sin(rad) * length
 
     p = QPainterPath()
-    p.moveTo(0, 0)
+    p.moveTo(origin_x, origin_y)
     p.lineTo(ex, ey)
     # Arrowhead — two wings going back from tip at ±140° from forward direction
     arrow_len = _ARROW_LEN
@@ -815,9 +816,23 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 painter.save()
                 painter.setPen(QPen(QColor("#222222"), 1.2))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                for i in range(min(self.stay_count, 4)):
-                    ang = (stay_angle + spread[i]) % 360
-                    painter.drawPath(_stay_path(ang))
+                if self.is_existing and self.existing_subtype in ("DP", "DTR"):
+                    r_ex = self._RADIUS
+                    cx = (r_ex + 3) if self.existing_subtype == "DP" else (r_ex + 7)
+                    # Stays perpendicular to centerline: up (270°) and down (90°)
+                    dp_stay_configs = [
+                        (-cx, 0.0, 270),  # Left pole, up
+                        ( cx, 0.0, 270),  # Right pole, up
+                        (-cx, 0.0,  90),  # Left pole, down
+                        ( cx, 0.0,  90),  # Right pole, down
+                    ]
+                    for i in range(min(self.stay_count, 4)):
+                        ox, oy, ang = dp_stay_configs[i % len(dp_stay_configs)]
+                        painter.drawPath(_stay_path(ang, ox, oy))
+                else:
+                    for i in range(min(self.stay_count, 4)):
+                        ang = (stay_angle + spread[i]) % 360
+                        painter.drawPath(_stay_path(ang))
                 painter.restore()
 
         # ── 2. Draw main pole body (circle/square) ON TOP of stays/earthing ─────

@@ -96,40 +96,7 @@ DEFAULT_PROJECT_META = {
 _single_instance_mutex = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  AUTO-UPDATE WORKER THREADS
-# ─────────────────────────────────────────────────────────────────────────────
-class _UpdateCheckThread(QThread):
-    """Query GitHub Releases off the UI thread. Emits the result dict or None."""
-    done = pyqtSignal(object)
 
-    def run(self):
-        try:
-            from core.updater import check_for_update
-            self.done.emit(check_for_update())
-        except Exception:
-            self.done.emit(None)
-
-
-class _UpdateDownloadThread(QThread):
-    """Download the installer off the UI thread, reporting progress."""
-    progress = pyqtSignal(int, int)   # downloaded, total
-    finished_path = pyqtSignal(str)
-    failed = pyqtSignal(str)
-
-    def __init__(self, url, parent=None):
-        super().__init__(parent)
-        self._url = url
-
-    def run(self):
-        try:
-            from core.updater import download_installer
-            path = download_installer(
-                self._url, lambda d, t: self.progress.emit(d, t)
-            )
-            self.finished_path.emit(path)
-        except Exception as exc:
-            self.failed.emit(str(exc))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -220,9 +187,11 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.rule_engine = DynamicRuleEngine()
 
         # ── History state (Undo/Redo) ──────────────────────────────────────
-        self.history = []
-        self.history_index = -1
-        self._is_undoing = False
+        from canvas.history_manager import CanvasHistoryManager
+        self.history_mgr = CanvasHistoryManager(
+            get_state_fn=self.compile_save_data,
+            apply_state_fn=self.parse_load_data,
+        )
         self._refreshing_live = False
         self._history_timer = QTimer(self)
         self._history_timer.setSingleShot(True)
@@ -270,228 +239,8 @@ class EstimateApp(QMainWindow, EditorMixin):
     # =========================================================================
 
     def _build_menu_bar(self):
-        mb = self.menuBar()
-        assert mb is not None
-        mb.setStyleSheet("""
-            QMenuBar {
-                background: #ffffff;
-                border-bottom: 1px solid #e0e0e0;
-                font-size: 12px;
-                font-family: 'Segoe UI', sans-serif;
-                padding: 2px 0px;
-            }
-            QMenuBar::item {
-                padding: 4px 10px;
-                background: transparent;
-                border-radius: 3px;
-            }
-            QMenuBar::item:selected {
-                background: #e8e8e8;
-                color: #1a1a1a;
-            }
-            QMenuBar::item:pressed {
-                background: #d0d0d0;
-            }
-            QMenu {
-                background: #ffffff;
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                font-size: 12px;
-                font-family: 'Segoe UI', sans-serif;
-                padding: 4px 0px;
-            }
-            QMenu::item {
-                padding: 6px 24px 6px 16px;
-                color: #1a1a1a;
-            }
-            QMenu::item:selected {
-                background: #0078d4;
-                color: #ffffff;
-                border-radius: 2px;
-            }
-            QMenu::item:disabled {
-                color: #a0a0a0;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #e8e8e8;
-                margin: 3px 8px;
-            }
-        """)
-
-        # ── File ──────────────────────────────────────────────────────────
-        file_menu = mb.addMenu("&File")
-        assert file_menu is not None
-
-        act_new_file = QAction("New Project", self)
-        act_new_file.setShortcut(QKeySequence("Ctrl+N"))
-        act_new_file.triggered.connect(self.new_project)
-        file_menu.addAction(act_new_file)
-
-        act_open = QAction("Open…", self)
-        act_open.setShortcut(QKeySequence("Ctrl+O"))
-        act_open.triggered.connect(self.load_from_file)
-        file_menu.addAction(act_open)
-
-        act_save = QAction("Save…", self)
-        act_save.setShortcut(QKeySequence("Ctrl+S"))
-        act_save.triggered.connect(self.save_to_file)
-        file_menu.addAction(act_save)
-
-        file_menu.addSeparator()
-
-        self.act_undo = QAction("Undo", self)
-        self.act_undo.setShortcut(QKeySequence("Ctrl+Z"))
-        self.act_undo.triggered.connect(self.undo)
-        file_menu.addAction(self.act_undo)
-
-        self.act_redo = QAction("Redo", self)
-        self.act_redo.setShortcut(QKeySequence("Ctrl+Y"))
-        self.act_redo.triggered.connect(self.redo)
-        file_menu.addAction(self.act_redo)
-
-        file_menu.addSeparator()
-
-        act_exit = QAction("Exit", self)
-        act_exit.setShortcut(QKeySequence("Ctrl+Q"))
-        act_exit.triggered.connect(self.close)
-        file_menu.addAction(act_exit)
-
-        # ── Project ──────────────────────────────────────────────────────
-        proj_menu = mb.addMenu("&Project")
-        assert proj_menu is not None
-
-        act_new = QAction("New Project", self)
-        act_new.setShortcut(QKeySequence("Ctrl+N"))
-        act_new.triggered.connect(self.new_project)
-        proj_menu.addAction(act_new)
-
-        act_my_projects = QAction("My Projects…", self)
-        act_my_projects.setShortcut(QKeySequence("Ctrl+P"))
-        act_my_projects.triggered.connect(self.open_my_projects_dialog)
-        proj_menu.addAction(act_my_projects)
-
-        act_proj = QAction("Project Settings", self)
-        act_proj.triggered.connect(lambda: self._run_project_wizard(first_run=False))
-        proj_menu.addAction(act_proj)
-
-        act_update_proj = QAction("Update Project", self)
-        act_update_proj.triggered.connect(self.update_project_details)
-        proj_menu.addAction(act_update_proj)
-
-        act_save_bundle = QAction("Save Project Bundle…", self)
-        act_save_bundle.triggered.connect(self.save_project_bundle)
-        proj_menu.addAction(act_save_bundle)
-
-        proj_menu.addSeparator()
-
-        act_all_projects_report = QAction("All Projects Report", self)
-        act_all_projects_report.triggered.connect(self.open_all_projects_report)
-        proj_menu.addAction(act_all_projects_report)
-
-        # ── Export ────────────────────────────────────────────────────────
-        export_menu = mb.addMenu("E&xport")
-        assert export_menu is not None
-
-        act_pdf = QAction("Export PDF Drawing", self)
-        act_pdf.triggered.connect(self.export_pdf)
-        export_menu.addAction(act_pdf)
-
-        act_xl = QAction("Generate Excel Estimate", self)
-        act_xl.triggered.connect(self.generate_excel)
-        export_menu.addAction(act_xl)
-
-        act_bundle = QAction("Save PDF + Excel + JSON Bundle", self)
-        act_bundle.triggered.connect(self.save_project_bundle)
-        export_menu.addAction(act_bundle)
-
-        # ── Billing ───────────────────────────────────────────────────────
-        billing_menu = mb.addMenu("&Billing")
-        assert billing_menu is not None
-
-        act_invoice = QAction("Generate Tax Invoice PDF…", self)
-        act_invoice.setShortcut(QKeySequence("Ctrl+I"))
-        act_invoice.triggered.connect(self.open_billing_dialog)
-        billing_menu.addAction(act_invoice)
-
-        act_cert = QAction("Generate Completion Certificate…", self)
-        act_cert.triggered.connect(self.open_completion_cert_dialog)
-        billing_menu.addAction(act_cert)
-
-        # ── Settings ─────────────────────────────────────────────────────
-        settings_menu = mb.addMenu("&Settings")
-        assert settings_menu is not None
-
-        act_profiles = QAction("User Profiles…", self)
-        act_profiles.triggered.connect(self.open_user_profiles_dialog)
-        settings_menu.addAction(act_profiles)
-
-        settings_menu.addSeparator()
-
-        act_db = QAction("Master Database", self)
-        act_db.triggered.connect(self.open_db_manager)
-        settings_menu.addAction(act_db)
-
-        act_rules = QAction("Ruleset Manager", self)
-        act_rules.triggered.connect(self.open_rule_manager)
-        settings_menu.addAction(act_rules)
-
-        settings_menu.addSeparator()
-
-        act_year = QAction("Rate Chart Year", self)
-        act_year.triggered.connect(self.change_rate_chart_year)
-        settings_menu.addAction(act_year)
-
-        act_defs = QAction("Placement Defaults", self)
-        act_defs.triggered.connect(self.open_placement_defaults)
-        settings_menu.addAction(act_defs)
-
-        act_recipes = QAction("Iron Recipes Manager", self)
-        act_recipes.triggered.connect(self.open_recipe_manager)
-        settings_menu.addAction(act_recipes)
-
-        act_props = QAction("Property Editor", self)
-        act_props.triggered.connect(self.open_property_editor)
-        settings_menu.addAction(act_props)
-
-        settings_menu.addSeparator()
-
-        act_reset = QAction("Reset App Data (Factory Reset)…", self)
-        act_reset.setToolTip("Clear all data and restore the app to a fresh install")
-        act_reset.triggered.connect(self.reset_all_app_data)
-        settings_menu.addAction(act_reset)
-
-        # ── Help ──────────────────────────────────────────────────────────
-        help_menu = mb.addMenu("&Help")
-        assert help_menu is not None
-
-        act_help = QAction("User Guide", self)
-        act_help.setShortcut(QKeySequence("F1"))
-        act_help.triggered.connect(self.show_help)
-        help_menu.addAction(act_help)
-
-        help_menu.addSeparator()
-
-        act_update = QAction("Check for Updates…", self)
-        act_update.triggered.connect(self.check_for_updates)
-        help_menu.addAction(act_update)
-
-        help_menu.addSeparator()
-
-        act_credits = QAction("Credits", self)
-        act_credits.triggered.connect(self.show_credits)
-        help_menu.addAction(act_credits)
-
-        act_about = QAction("About", self)
-        act_about.triggered.connect(self.show_about_dialog)
-        help_menu.addAction(act_about)
-
-        help_menu.addSeparator()
-
-        exp_str = f"Valid Till: {APP_EXPIRY}" if APP_EXPIRY else "Permanent Build"
-        act_valid = QAction(exp_str, self)
-        act_valid.setEnabled(False)
-        help_menu.addAction(act_valid)
+        from ui.menu_bar import build_menu_bar
+        build_menu_bar(self)
 
     # =========================================================================
     #  UI CONSTRUCTION
@@ -1371,7 +1120,15 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         from canvas.span import SmartSpan
         spans = [i for i in scene_items if isinstance(i, SmartSpan)]
-        cg_pole_count = len([p for p in new_lt_poles if any(getattr(s, "has_cg", False) for s in getattr(p, "connected_spans", []))])
+        new_poles_all = [p for p in poles if not p.is_existing]
+        cg_pole_brackets = sum(
+            sum(1 for s in getattr(p, "connected_spans", []) if getattr(s, "has_cg", False))
+            for p in new_poles_all
+        )
+        cg_dp_brackets = sum(
+            sum(1 for s in getattr(st, "connected_spans", []) if getattr(s, "has_cg", False))
+            for st in structs if getattr(st, "structure_type", "") in ("DP", "DTR")
+        )
         lt_acsr_count = (
             len([p for p in new_lt_poles if any(getattr(s, "conductor", "") == "ACSR" for s in getattr(p, "connected_spans", []))]) +
             len([p for p in poles if getattr(p, "is_existing", False) and getattr(p, "pole_type", "") == "LT" and bool(getattr(p, "lt_extension_continuous", lambda: False)())])
@@ -1417,10 +1174,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         ])
 
         add_recipe_obj("DP Structure Iron", "DP_IRON", dp_count)
-        add_direct_obj(f"CG Bracket Iron ({cg_pole_count} poles)", cg_pole_count, [
-            {"description": "CG Cradle Guard Bracket (Angle)", "section": "ANG_65X65X6", "lpp": 1.9, "qpo": 1},
-            {"description": "CG Cradle Guard Bracket (Flat)", "section": "FLAT_65X6", "lpp": 0.5, "qpo": 1},
-        ])
+        add_recipe_obj(f"CG Cradle Guard Bracket ({cg_pole_brackets} sets)", "CG_BRACKET", cg_pole_brackets)
+        add_recipe_obj(f"CG Cradle Guard Bracket DP ({cg_dp_brackets} sets)", "CG_DP_BRACKET", cg_dp_brackets)
 
         add_recipe_obj("TP Structure Iron", "TP_IRON", tp_count)
         add_recipe_obj("4-Pole Structure Iron", "4P_IRON", p4_count)
@@ -2088,19 +1843,8 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     @staticmethod
     def _is_ht_node(node) -> bool:
-        """
-        Returns True if a node is effectively HT.
-        SmartStructure is always HT.
-        SmartPole: uses its voltage type (pole_type).
-        SmartConsumer: always LT.
-        """
-        if isinstance(node, SmartStructure):
-            return True
-        if isinstance(node, SmartPole):
-            if getattr(node, "is_existing", False):
-                return getattr(node, "existing_subtype", "LT") != "LT"
-            return node.pole_type == "HT"
-        return False  # SmartConsumer = LT
+        from canvas.canvas_ops import is_ht_node
+        return is_ht_node(node)
 
     @staticmethod
     def _is_node_item(item) -> bool:
@@ -2110,75 +1854,31 @@ class EstimateApp(QMainWindow, EditorMixin):
         return [i for i in self.scene.items() if self._is_node_item(i)]
 
     def _find_nearby_node(self, pos: QPointF, min_gap: float | None = None):
+        from canvas.canvas_ops import find_nearby_node
         gap = float(defaults.current.get("node_min_gap", self._MIN_NODE_GAP)) if min_gap is None else float(min_gap)
-        for node in self._iter_nodes():
-            if math.hypot(node.x() - pos.x(), node.y() - pos.y()) < gap:
-                return node
-        return None
+        return find_nearby_node(self._iter_nodes(), pos.x(), pos.y(), min_gap=gap)
 
     @staticmethod
     def _span_other_endpoint(span, node):
-        if span.p1 == node:
-            return span.p2
-        if span.p2 == node:
-            return span.p1
-        return None
+        from canvas.canvas_ops import span_other_endpoint
+        return span_other_endpoint(span, node)
 
     def _active_connected_spans(self, node):
-        return [s for s in getattr(node, "connected_spans", []) if s is not None and s.scene() is not None]
+        from canvas.canvas_ops import active_connected_spans
+        return active_connected_spans(node)
 
     def _span_exists_between(self, p1, p2) -> bool:
-        for s in self._active_connected_spans(p1):
-            if (s.p1 == p1 and s.p2 == p2) or (s.p1 == p2 and s.p2 == p1):
-                return True
-        return False
+        from canvas.canvas_ops import span_exists_between
+        return span_exists_between(p1, p2)
 
     def _has_path_between(self, start, target) -> bool:
-        if start == target:
-            return True
-        visited = {start}
-        queue = [start]
-        while queue:
-            node = queue.pop(0)
-            for span in self._active_connected_spans(node):
-                other = self._span_other_endpoint(span, node)
-                if other is None:
-                    continue
-                if other == target:
-                    return True
-                if other not in visited:
-                    visited.add(other)
-                    queue.append(other)
-        return False
+        from canvas.canvas_ops import has_path_between
+        return has_path_between(start, target)
 
     def _validate_span_creation(self, p1, p2):
-        if p1 == p2:
-            return False, "Start and end node must be different."
-        if self._span_exists_between(p1, p2):
-            return False, "A span already exists between these two nodes."
-        # Prevent closing loops; layout should stay tree-like.
-        if self._has_path_between(p1, p2):
-            return False, "This connection would create a loop."
+        from canvas.canvas_ops import validate_span_creation
+        return validate_span_creation(p1, p2)
 
-        def _get_node_volts(n):
-            if isinstance(n, SmartStructure):
-                return "BRIDGE"
-            if isinstance(n, SmartPole):
-                if getattr(n, "is_existing", False):
-                    sub = getattr(n, "existing_subtype", "LT")
-                    if sub == "33": return "33kV"
-                    if sub in ("HT", "DP", "TP", "4P", "DTR"): return "11kV"
-                    return "LT"
-                v = getattr(n, "voltage_level", None)
-                if v: return v
-                return "11kV" if n.pole_type == "HT" else "LT"
-            return "LT"
-
-        v1, v2 = _get_node_volts(p1), _get_node_volts(p2)
-        if (v1 == "33kV" and v2 in ("11kV", "LT")) or (v2 == "33kV" and v1 in ("11kV", "LT")):
-            return False, "33kV lines cannot connect directly to 11kV or LT nodes. Use a DTR Substation to step down voltage."
-
-        return True, ""
 
     def _auto_connect_span(self, new_node):
         """
@@ -2257,11 +1957,35 @@ class EstimateApp(QMainWindow, EditorMixin):
             return
         if len(sel) > 1:
             self.editor_group.setTitle(f"{len(sel)} items selected")
+            row = QWidget()
+            lay = QHBoxLayout(row)
+            lay.setContentsMargins(0, 0, 0, 2)
+            lay.addStretch(1)
+            del_btn = QPushButton("🗑")
+            del_btn.setToolTip(f"Delete {len(sel)} selected items from canvas (Del)")
+            del_btn.setFixedSize(24, 20)
+            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            del_btn.setStyleSheet(
+                "QPushButton {"
+                "  background: #fee2e2;"
+                "  color: #dc2626;"
+                "  border: 1px solid #fca5a5;"
+                "  border-radius: 3px;"
+                "  font-size: 11px;"
+                "  padding: 0;"
+                "}"
+                "QPushButton:hover { background: #fecaca; border-color: #ef4444; }"
+                "QPushButton:pressed { background: #f87171; color: white; }"
+            )
+            del_btn.clicked.connect(self.delete_selected_items)
+            lay.addWidget(del_btn)
+            self.editor_layout.addRow(row)
             return
 
         item = sel[0]
         if isinstance(item, DraggableLabel):
             self.editor_group.setTitle("Text label")
+            self._add_delete_btn(item)
             return
 
         if isinstance(item, SmartPole):
@@ -2462,152 +2186,15 @@ class EstimateApp(QMainWindow, EditorMixin):
         Propagation logic: spans between two effectively-existing endpoints
         become existing spans (no BOM contribution).
         """
-        all_poles = [
-            i for i in self.scene.items()
-            if isinstance(i, (SmartPole, SmartStructure))
-        ]
-        existing_set = {p for p in all_poles if getattr(p, "is_existing", False)}
-
-        while True:
-            promoted = set()
-            for pole in all_poles:
-                if pole in existing_set:
-                    continue
-                existing_connections = sum(
-                    1 for s in pole.connected_spans
-                    if (s.p1 in existing_set or s.p2 in existing_set)
-                    and (s.p1 != pole and s.p2 != pole
-                         or (s.p1 in existing_set and s.p2 in existing_set))
-                )
-                neighbours_existing = sum(
-                    1 for s in pole.connected_spans
-                    if (s.p1 if s.p2 == pole else s.p2) in existing_set
-                )
-                # Only relay SmartPoles can be promoted — SmartStructures
-                # (DP, TP, 4P, DTR) are always new infrastructure and must
-                # never be silently reclassified as existing.
-                if neighbours_existing >= 2 and isinstance(pole, SmartPole):
-                    promoted.add(pole)
-            if not promoted:
-                break
-            existing_set.update(promoted)
-
-        for span in self.scene.items():
-            if not isinstance(span, SmartSpan):
-                continue
-            override = getattr(span, "override_is_existing", "Auto")
-            if override == "New":
-                both_existing = False
-            elif override == "Existing":
-                both_existing = True
-            else:
-                both_existing = (
-                    span.p1 in existing_set and span.p2 in existing_set
-                )
-            new_val = both_existing and not span.is_service_drop
-            if span.is_existing_span != new_val:
-                span.is_existing_span = new_val
-                # When a HT ACSR span first becomes existing, default wire_count to 3
-                if new_val and not span.is_lt_span and span.conductor == "ACSR":
-                    span.wire_count = "3"
-                span.update_visuals()
+        from canvas.canvas_ops import recalculate_span_types
+        recalculate_span_types(self.scene.items())
 
     def _auto_stay_update(self):
         """Auto-update stay counts based on span angles."""
-        for pole in self.scene.items():
-            if not isinstance(pole, SmartPole):
-                continue
-            if pole.override_auto_stay:
-                continue
-            if pole.pole_type == "DTR":
-                continue
+        from canvas.canvas_ops import auto_update_stays
+        tol = float(defaults.current.get("existing_stay_angle_tolerance_deg", 20.0))
+        auto_update_stays(self.scene.items(), angle_tolerance_deg=tol)
 
-            # Existing pole policy:
-            # Only evaluate stay when at least one NEW non-service span exists.
-            # Then compare each existing-span angle with each new-span angle.
-            # If angle is outside (180 +/- tolerance), stay is required.
-            if pole.is_existing:
-                existing_spans = [
-                    s for s in pole.connected_spans
-                    if not s.is_service_drop and s.is_existing_span
-                ]
-                new_spans = [
-                    s for s in pole.connected_spans
-                    if not s.is_service_drop and not s.is_existing_span
-                ]
-
-                should_stay = False
-
-                if new_spans and existing_spans:
-                    tol = float(defaults.current.get("existing_stay_angle_tolerance_deg", 20.0))
-                    lo = 180.0 - tol
-                    hi = 180.0 + tol
-
-                    def _span_angle_deg(span: SmartSpan) -> float | None:
-                        other = span.p1 if span.p2 == pole else span.p2
-                        dx = other.x() - pole.x()
-                        dy = other.y() - pole.y()
-                        if math.hypot(dx, dy) <= 0:
-                            return None
-                        return math.degrees(math.atan2(dy, dx)) % 360.0
-
-                    ex_angles = [a for a in (_span_angle_deg(s) for s in existing_spans) if a is not None]
-                    new_angles = [a for a in (_span_angle_deg(s) for s in new_spans) if a is not None]
-
-                    for exa in ex_angles:
-                        for nwa in new_angles:
-                            pair_angle = (nwa - exa) % 360.0
-                            # Stay required when angle < 160 or > 200 for default tol=20.
-                            if pair_angle < lo or pair_angle > hi:
-                                should_stay = True
-                                break
-                        if should_stay:
-                            break
-
-                target = 1 if should_stay else 0
-                needs_visual_refresh = (pole.stay_count != target)
-                if needs_visual_refresh:
-                    pole.stay_count = target
-                # Keep existing poles aligned to auto strain direction unless
-                # stay count is explicitly locked in manual mode.
-                if pole.stay_angle_override is not None:
-                    pole.stay_angle_override = None
-                    needs_visual_refresh = True
-                if needs_visual_refresh:
-                    pole.update_visuals()
-                continue
-
-            active_spans = [
-                s for s in pole.connected_spans
-                if not s.is_service_drop and not s.is_existing_span
-            ]
-            n = len(active_spans)
-            should_stay = False
-
-            if n == 1:
-                should_stay = True
-            elif n == 2:
-                s1, s2 = active_spans
-                other1 = s1.p1 if s1.p2 == pole else s1.p2
-                other2 = s2.p1 if s2.p2 == pole else s2.p2
-                v1 = (other1.x() - pole.x(), other1.y() - pole.y())
-                v2 = (other2.x() - pole.x(), other2.y() - pole.y())
-                mag1 = math.hypot(*v1)
-                mag2 = math.hypot(*v2)
-                if mag1 > 0 and mag2 > 0:
-                    dot = v1[0] * v2[0] + v1[1] * v2[1]
-                    angle = math.degrees(
-                        math.acos(min(1.0, max(-1.0, dot / (mag1 * mag2))))
-                    )
-                    if (180 - angle) > 20:
-                        should_stay = True
-
-            target = 1 if should_stay else 0
-            needs_visual_refresh = (pole.stay_count != target)
-            if pole.stay_count != target:
-                pole.stay_count = target
-            if needs_visual_refresh:
-                pole.update_visuals()
 
     def refresh_live_estimate(self):
         """
@@ -2676,154 +2263,23 @@ class EstimateApp(QMainWindow, EditorMixin):
             sup_rate      = self.project_meta.get("supervision_rate", 0.10)
 
             # Load rules from database (falls back to empty list on failure)
-            from core import db_gateway as _dbg  # noqa: PLC0415
+            from core import db_gateway as _dbg
             rules = _dbg.get_rules()
 
             canvas_items = [
                 i for i in self.scene.items()
                 if isinstance(i, (SmartPole, SmartStructure, SmartSpan, SmartConsumer))
             ]
-            prov: dict = {}
-            raw_bom, raw_lab = self.rule_engine.process(
-                canvas_items, rules, use_uh, project_type, provenance_out=prov
-            )
-            self.live_bom_provenance = prov
 
-            # Build live_bom_data
-            self.live_bom_data = []
-            conn   = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-
-            # Pre-fetch every row from both lookup tables once.
-            # _db_lookup is called for each BOM item; without this it would
-            # issue a full-table SELECT on every fallback tier (Tiers 3-5),
-            # turning an O(n) refresh into O(n × m) DB queries.
-            cursor.execute("SELECT item_code, rate, unit, item_name FROM materials")
-            _all_mat = cursor.fetchall()
-            cursor.execute("SELECT labor_code, rate, unit, task_name FROM labor")
-            _all_lab = cursor.fetchall()
-            _prefetched = {"Material": _all_mat, "Labor": _all_lab}
-
-            # Apply 3% sag/wastage to conductor and wire materials.
-            # Guard: only items whose DB unit is a continuous measurement (MT, KM, M…)
-            # get the multiplier.  Items whose name happens to contain "ACSR" (e.g.
-            # "Composite Hardware Fittings for ACSR…", unit=SET) are excluded.
-            
-            # Build standard mapping from rules of item_name -> item_code
-            rule_code_map = {}
-            for r in rules:
-                for item in r.get("items", []):
-                    iname = item.get("item_name")
-                    icode = item.get("item_code")
-                    if iname and icode:
-                        rule_code_map[iname] = icode
-
-            _COUNT_UNITS = {
-                "nos", "no.", "no", "set", "sets", "pair", "pairs",
-                "pcs", "piece", "each", "ea", "day", "days", "job", "ls",
-            }
-            for name in list(raw_bom):
-                upper_name = name.upper()
-                if any(tag in upper_name for tag in SAG_ITEMS):
-                    db_row = self._db_lookup(cursor, "Material", name, rule_code_map.get(name), _prefetched=_prefetched)
-                    unit_str = (db_row[2] if db_row else "").lower().strip().rstrip(".")
-                    if unit_str not in _COUNT_UNITS:
-                        raw_bom[name] = raw_bom[name] * 1.03
-
-            processed = set()
-
-            combined = (
-                [("Material", n, q) for n, q in raw_bom.items()] +
-                [("Labor",    n, q) for n, q in raw_lab.items()]
+            from core.estimate_service import generate_live_bom
+            self.live_bom_data, self.live_bom_provenance = generate_live_bom(
+                canvas_items=canvas_items,
+                rules=rules,
+                rule_engine=self.rule_engine,
+                project_meta=self.project_meta,
+                bom_overrides=self.bom_overrides
             )
 
-            for item_type, name, qty in combined:
-                if name in self.bom_overrides and self.bom_overrides[name]["type"] == item_type:
-                    qty = self.bom_overrides[name]["qty"]
-
-                row = self._db_lookup(cursor, item_type, name, rule_code_map.get(name), _prefetched=_prefetched)
-                if row:
-                    code, rate, unit, db_name = row
-                    if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type:
-                        qty = self.bom_overrides[db_name]["qty"]
-
-                    # ── Dynamic NSC Service Connection Execution Cost ─────────
-                    if code in ("LAB-68", "LAB-67"):
-                        target_phase = "1 Phase" if code == "LAB-68" else "3 Phase"
-                        consumers = [
-                            i for i in canvas_items
-                            if isinstance(i, SmartConsumer) and (
-                                (target_phase == "1 Phase" and getattr(i, "phase", "") == "1 Phase") or
-                                (target_phase == "3 Phase" and getattr(i, "phase", "") != "1 Phase")
-                            )
-                        ]
-                        if consumers:
-                            from core.nsc_calculator import calculate_nsc_service_cost
-                            cost_groups = {}
-                            for c in consumers:
-                                sd = next((s for s in getattr(c, "connected_spans", []) if getattr(s, "is_service_drop", False) and getattr(s, "scene", lambda: None)() is not None), None)
-                                actual_len = float(sd.length) if sd else float(getattr(c, "service_length", 20.0))
-                                conn_t = getattr(c, "connection_type", getattr(sd, "connection_type", "I Type") if sd else "I Type")
-                                cable_sz = getattr(c, "cable_size", getattr(sd, "conductor_size", "4 SQMM" if target_phase == "1 Phase" else "16 SQMM") if sd else ("4 SQMM" if target_phase == "1 Phase" else "16 SQMM"))
-                                c_info = calculate_nsc_service_cost(c.phase, conn_t, cable_sz, actual_len)
-                                grp_key = (c_info["execution_cost"], c_info["type_code"], c_info["allowed_cable"], c_info["rate_m"], c_info["base_cost"], c_info["cable_code"])
-                                cost_groups.setdefault(grp_key, []).append((c, c_info))
-
-                            is_single_group = len(cost_groups) == 1
-                            for grp_key, grp_items in cost_groups.items():
-                                grp_cost, type_code, allowed_cable, rate_m, base_cost, cable_code = grp_key
-                                grp_qty = len(grp_items)
-                                if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type and is_single_group:
-                                    grp_qty = self.bom_overrides[db_name]["qty"]
-                                line_name = db_name if is_single_group else f"{db_name} ({type_code} - {int(allowed_cable)}m)"
-                                grp_prov = []
-                                for c, c_info in grp_items:
-                                    grp_prov.append({
-                                        "object_label": f"Consumer SC{getattr(c, 'seq_id', 1)}",
-                                        "object_type": "SmartConsumer",
-                                        "rule_id": 161 if target_phase == "1 Phase" else 160,
-                                        "condition": f"phase=='{c.phase}' & {c_info['conn_type']} & {c_info['cable_size']}",
-                                        "formula": f"{type_code} (Base ₹{base_cost:.2f} + {allowed_cable:.0f}m @ ₹{rate_m}/m)",
-                                        "qty": 1,
-                                    })
-                                self.live_bom_data.append({
-                                    "type": item_type, "code": code, "name": line_name,
-                                    "qty": round(grp_qty, 3), "unit": unit, "rate": grp_cost,
-                                    "amt": round(round(grp_qty, 3) * grp_cost, 2),
-                                    "provenance": grp_prov,
-                                })
-                            processed.add(name)
-                            processed.add(db_name)
-                            continue
-
-                    qty_rounded = round(qty, 3)
-                    self.live_bom_data.append({
-                        "type": item_type, "code": code, "name": db_name,
-                        "qty": qty_rounded, "unit": unit, "rate": rate,
-                        "amt": round(qty_rounded * rate, 2),
-                        "provenance": prov.get((item_type, name), []),
-                    })
-                    processed.add(name)
-                    processed.add(db_name)
-
-            # Custom overrides not in auto-BOM
-            for name, override in self.bom_overrides.items():
-                if name not in processed:
-                    row = self._db_lookup(cursor, override["type"], name, _prefetched=_prefetched)
-                    if row:
-                        code, rate, unit, db_name = row
-                        qty = override["qty"]
-                        qty_rounded = round(qty, 3)
-                        self.live_bom_data.append({
-                            "type": override["type"], "code": code, "name": db_name,
-                            "qty": qty_rounded, "unit": unit, "rate": rate,
-                            "amt": qty_rounded * rate,
-                            "provenance": [],  # manually added / override
-                        })
-                        processed.add(name)
-                        processed.add(db_name)
-
-            conn.close()
             self._refresh_table()
             self._recalculate_totals(sup_rate)
             if hasattr(self, "_panel_stack") and self._panel_stack.currentIndex() == 1:
@@ -2832,118 +2288,14 @@ class EstimateApp(QMainWindow, EditorMixin):
             self._refreshing_live = False
 
     def _db_lookup(self, cursor, item_type, name, rule_code=None, _prefetched=None):
-        def normalize(s):
-            s = s.lower()
-            s = s.replace("distribution transformer", "dtr")
-            s = s.replace("transformer", "dtr")
-            return "".join(c for c in s if c.isalnum())
+        from core.estimate_service import db_lookup
+        return db_lookup(cursor, item_type, name, rule_code=rule_code, _prefetched=_prefetched)
 
-        if item_type == "Material":
-            tbl = "materials"
-            name_col = "item_name"
-            code_col = "item_code"
-        else:
-            tbl = "labor"
-            name_col = "task_name"
-            code_col = "labor_code"
-
-        # Tier 1: Exact Match by Name
-        cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl} WHERE {name_col}=?", (name,))
-        row = cursor.fetchone()
-        if row:
-            return row[0], row[1], row[2], row[3]
-
-        # Tier 2: Code Match
-        if rule_code:
-            rule_code_str = str(rule_code).strip()
-            cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl} WHERE {code_col}=?", (rule_code_str,))
-            row = cursor.fetchone()
-            if row:
-                return row[0], row[1], row[2], row[3]
-
-        # Fetch all items to perform case-insensitive, normalized, and fuzzy matching.
-        # Use the pre-fetched list when available (avoids a full-table DB query per item).
-        if _prefetched is not None:
-            all_items = _prefetched.get(item_type, [])
-        else:
-            cursor.execute(f"SELECT {code_col}, rate, unit, {name_col} FROM {tbl}")
-            all_items = cursor.fetchall()
-
-        # Tier 2.5: Code Match with leading-zero safety (e.g. "05105252525" matches "5105252525")
-        if rule_code:
-            rule_code_stripped = str(rule_code).strip().lstrip('0')
-            if rule_code_stripped:
-                for row in all_items:
-                    db_code = str(row[0]).strip().lstrip('0')
-                    if db_code == rule_code_stripped:
-                        return row[0], row[1], row[2], row[3]
-
-        # Tier 3: Case-Insensitive Match
-        name_lower = name.lower()
-        for row in all_items:
-            db_name = row[3]
-            if db_name and db_name.lower() == name_lower:
-                return row[0], row[1], row[2], row[3]
-
-        # Tier 4: Normalized Match
-        name_norm = normalize(name)
-        for row in all_items:
-            db_name = row[3]
-            if db_name and normalize(db_name) == name_norm:
-                return row[0], row[1], row[2], row[3]
-
-        # Tier 4.5: Labor-specific normalization for common prefix variants.
-        if item_type == "Labor":
-            alt_names = []
-            low_name = name.lower().strip()
-            if low_name.startswith("aug. "):
-                alt_names.append(low_name[5:])
-            if low_name.startswith("dtr aug. "):
-                alt_names.append(low_name[9:])
-            if low_name.startswith("dtr s/stn "):
-                alt_names.append(low_name[10:])
-            if low_name.startswith("dtr "):
-                alt_names.append(low_name[4:])
-
-            for alt in alt_names:
-                alt_norm = normalize(alt)
-                if not alt_norm or alt_norm == name_norm:
-                    continue
-                for row in all_items:
-                    db_name = row[3]
-                    if not db_name:
-                        continue
-                    db_norm = normalize(db_name)
-                    if alt_norm == db_norm or alt_norm in db_norm or db_norm in alt_norm:
-                        return row[0], row[1], row[2], row[3]
-
-        # Tier 5: Normalized Substring Match with Number Safety
-        rule_nums = re.findall(r'\d+', name)
-        for row in all_items:
-            db_name = row[3]
-            if not db_name:
-                continue
-            db_norm = normalize(db_name)
-            if name_norm in db_norm or db_norm in name_norm:
-                # Extra guard: numbers must match!
-                db_nums = re.findall(r'\d+', db_name)
-                num_match = True
-                for num in rule_nums:
-                    if num in {"8", "9", "11", "16", "25", "63", "100", "160", "315"} and num not in db_nums:
-                        num_match = False
-                        break
-                if num_match:
-                    return row[0], row[1], row[2], row[3]
-
-        return None
 
     @staticmethod
     def _fmt_qty(qty: float, unit: str) -> str:
-        """Format qty as integer for count units (Nos/Set/etc), else 3 decimal places."""
-        _COUNT = {"nos", "no.", "no", "set", "sets", "pair", "pairs", "pcs", "piece", "each", "ea", "day", "days", "job", "ls"}
-        if unit.lower().strip().rstrip(".") in _COUNT:
-            return str(int(round(qty)))
-        return f"{qty:.3f}"
+        from ui.estimate_panel import format_quantity
+        return format_quantity(qty, unit)
 
     def _refresh_table(self):
         if getattr(self, "headless", False):
@@ -3036,283 +2388,27 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     @staticmethod
     def _humanize_condition(cond: str) -> str:
-        """Convert code conditions into readable plain English for users."""
-        if not cond or cond.strip().lower() in ("true", ""):
-            return "Applied automatically to all instances"
-
-        import re
-        clauses = re.split(r'\s+(?:and|&)\s+', cond, flags=re.IGNORECASE)
-        parts = []
-
-        PHRASE_MAP = {
-            ("is_existing", "False"): "New",
-            ("is_existing", "True"): "Existing",
-            ("is_new", "True"): "New",
-            ("is_new", "False"): "Existing",
-            ("is_existing_span", "False"): "New line",
-            ("is_existing_span", "True"): "Existing line",
-            ("is_new_span", "True"): "New line",
-            ("is_new_span", "False"): "Existing line",
-            ("is_distribution_span", "True"): "Distribution line",
-            ("is_distribution_span", "False"): "Service connection",
-            ("is_service_drop", "True"): "Service connection",
-            ("is_service_drop", "False"): "Distribution line",
-            ("is_lt_span", "True"): "LT (Low Tension)",
-            ("is_lt_span", "False"): "HT (High Tension)",
-            ("is_ht_span", "True"): "HT (High Tension)",
-            ("is_ht_span", "False"): "LT (Low Tension)",
-            ("has_cg", "True"): "with Cradle Guard",
-            ("has_cg", "False"): "without Cradle Guard",
-            ("has_extension", "True"): "with Extension",
-            ("has_extension", "False"): "Standard (no extension)",
-            ("use_uh", "True"): "Underground/UH Project",
-            ("use_uh", "False"): "Standard Material",
-            ("agency_supply", "True"): "Agency Supply",
-            ("agency_supply", "False"): "WBSEDCL / Dept Supply",
-            ("consider_cable", "True"): "Include Cable",
-            ("consider_cable", "False"): "Exclude Cable",
-            ("ab_needs_dead_end", "True"): "Dead-End Pole",
-            ("ab_needs_suspension", "True"): "Intermediate Suspension",
-        }
-
-        for cl in clauses:
-            cl = cl.strip().strip("()")
-            if not cl:
-                continue
-
-            # Check NOT
-            m_not = re.match(r'^not\s+(\w+)$', cl, re.IGNORECASE)
-            if m_not:
-                k = m_not.group(1)
-                parts.append(PHRASE_MAP.get((k, "False"), f"Not {k}"))
-                continue
-
-            # Check key == 'val' or key == val or >= or <=
-            m_op = re.match(r"^(\w+)\s*(==|!=|>=|<=|>|<)\s*['\"]?(.+?)['\"]?$", cl)
-            if m_op:
-                k, op, v = m_op.group(1), m_op.group(2), m_op.group(3).strip().strip("'\"")
-                if (k, v) in PHRASE_MAP and op == "==":
-                    parts.append(PHRASE_MAP[(k, v)])
-                elif k == "pole_type":
-                    parts.append(f"{v} Pole")
-                elif k == "pole_type2":
-                    parts.append(f"{v} Section")
-                elif k == "height":
-                    parts.append(f"{v}m Height" if op == "==" else f"Height {op} {v}m")
-                elif k == "structure_type":
-                    parts.append(f"{v} Structure")
-                elif k == "conductor":
-                    parts.append(f"{v} Conductor")
-                elif k == "conductor_size" or k == "wire_size" or k == "cable_size":
-                    parts.append(f"{v} Size")
-                elif k == "wire_count":
-                    parts.append(f"{v}-Wire" if op == "==" else f"{op} {v} Wires")
-                elif k == "phase":
-                    parts.append(f"{v}")
-                elif k == "ht_spans_count":
-                    if op in (">=", ">") and int(v) >= 2:
-                        parts.append("Through / Intermediate Position (2+ Spans)")
-                    elif (op == "==" and v == "1") or (op in ("<=", "<") and int(v) <= 1):
-                        parts.append("Terminal / End Pole (1 Span)")
-                    else:
-                        parts.append(f"{v} HT Spans")
-                elif k == "stay_count" or k == "stay_count_gt":
-                    parts.append(f"With Stay Wire ({v})" if v != "0" else "No Stay")
-                elif k == "earth_count" or k == "earth_count_gt":
-                    parts.append(f"With Earthing ({v})" if v != "0" else "No Earth")
-                elif k == "project_type":
-                    parts.append(f"Project: {v}")
-                else:
-                    parts.append(f"{k} {op} {v}")
-                continue
-
-            # Bare boolean flag
-            m_bare = re.match(r'^(\w+)$', cl)
-            if m_bare:
-                k = m_bare.group(1)
-                parts.append(PHRASE_MAP.get((k, "True"), k))
-                continue
-
-            parts.append(cl)
-
-        return " • ".join(parts) if parts else cond
+        from ui.estimate_panel import humanize_condition
+        return humanize_condition(cond)
 
     @staticmethod
     def _humanize_formula(formula: str) -> str:
-        """Convert formula / recipe expressions into clean English."""
-        if not formula:
-            return "1 unit"
-        s = str(formula).strip()
-        if s.startswith("recipe:"):
-            import re
-            m = re.match(r"^recipe:([A-Z0-9_]+)\s*→\s*(.+)$", s)
-            if m:
-                rkey, sec = m.group(1), m.group(2)
-                rname = rkey.replace("POLE_", "").replace("_IRON", "").replace("_", " ").title()
-                return f"{rname} Recipe ({sec})"
-            return s.replace("recipe:", "Recipe: ")
-        elif s == "1":
-            return "1 per object"
-        elif s.isdigit():
-            return f"{s} per object"
-        return s
+        from ui.estimate_panel import humanize_formula
+        return humanize_formula(formula)
+
 
     def _show_bom_provenance(self, row):
         if row < 0 or row >= len(self.live_bom_data):
             return
+        from ui.estimate_panel import show_bom_provenance_dialog
         item = self.live_bom_data[row]
-        contribs = item.get("provenance", []) or []
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Estimate Line Breakdown")
-        dlg.resize(840, 420)
-        lay = QVBoxLayout(dlg)
-        lay.setSpacing(10)
-        lay.setContentsMargins(16, 16, 16, 16)
-
-        hdr_frame = QFrame()
-        hdr_frame.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;")
-        hdr_lay = QVBoxLayout(hdr_frame)
-        hdr_lay.setContentsMargins(0, 0, 0, 0)
-        hdr_lay.setSpacing(4)
-
-        hdr = QLabel(
-            f"<span style='font-size:14px; font-weight:bold; color:#0f172a;'>{item['name']}</span> &nbsp; "
-            f"<span style='font-size:11px; color:#64748b;'>({item['type']}, Code: {item['code']})</span><br>"
-            f"Line Total: <b style='color:#0369a1;'>{self._fmt_qty(item['qty'], item.get('unit',''))} {item['unit']}</b>"
-            f" &nbsp;&nbsp;|&nbsp;&nbsp; Cost: <b style='color:#15803d;'>Rs. {item['amt']:,.2f}</b>"
+        show_bom_provenance_dialog(
+            parent_widget=self,
+            item=item,
+            on_refresh_callback=self.refresh_live_estimate,
+            canvas_items=self.scene.items() if hasattr(self, "scene") else []
         )
-        hdr.setWordWrap(True)
-        hdr_lay.addWidget(hdr)
-        lay.addWidget(hdr_frame)
 
-        if not contribs:
-            note = QLabel(
-                "This line was added manually or as an override — it is not "
-                "generated by a rule, so there is no automatic breakdown to show."
-            )
-            note.setWordWrap(True)
-            note.setStyleSheet("color:#64748b; padding:16px; font-style:italic;")
-            lay.addWidget(note)
-        else:
-            top_bar = QHBoxLayout()
-            lbl_title = QLabel(f"<b>Breakdown of Contributions ({len(contribs)}):</b>")
-            lbl_title.setStyleSheet("font-size:12px; color:#334155;")
-            top_bar.addWidget(lbl_title)
-            top_bar.addStretch()
-
-            toggle_raw_btn = QPushButton("Show Technical Conditions")
-            toggle_raw_btn.setCheckable(True)
-            toggle_raw_btn.setStyleSheet("""
-                QPushButton { font-size:11px; padding:3px 10px; border:1px solid #cbd5e1; border-radius:4px; background:#ffffff; color:#475569; }
-                QPushButton:checked { background:#e2e8f0; color:#0f172a; font-weight:bold; }
-            """)
-            top_bar.addWidget(toggle_raw_btn)
-            lay.addLayout(top_bar)
-
-            tbl = QTableWidget(len(contribs), 6)
-            tbl.setHorizontalHeaderLabels(
-                ["Applied To", "Rule #", "Why was this added? (Condition)", "Formula / Recipe", "Qty", "Action"]
-            )
-            tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-            tbl.setStyleSheet("""
-                QTableWidget { background:#ffffff; border:1px solid #cbd5e1; border-radius:4px; font-size:11px; }
-                QHeaderView::section { background:#f1f5f9; font-weight:bold; color:#334155; padding:5px; border:none; border-bottom:1px solid #cbd5e1; }
-            """)
-            hh = tbl.horizontalHeader()
-            if hh is not None:
-                hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-
-            def _refresh_table_conditions(show_raw: bool):
-                for r, c in enumerate(contribs):
-                    cond_str = c.get("condition", "")
-                    disp_cond = cond_str if show_raw else self._humanize_condition(cond_str)
-                    cond_item = QTableWidgetItem(disp_cond)
-                    cond_item.setToolTip(cond_str)
-                    tbl.setItem(r, 2, cond_item)
-
-            for r, c in enumerate(contribs):
-                obj = c.get("object_label") or c.get("object_type", "")
-                rule_id = str(c.get("rule_id", "") or "")
-                raw_formula = str(c.get("formula", "") or "")
-                disp_formula = self._humanize_formula(raw_formula)
-                qty_str = self._fmt_qty(round(float(c.get("qty", 0)), 3), item.get("unit", ""))
-
-                tbl.setItem(r, 0, QTableWidgetItem(obj))
-                tbl.setItem(r, 1, QTableWidgetItem(f"Rule #{rule_id}" if rule_id else "Dynamic"))
-                tbl.setItem(r, 3, QTableWidgetItem(disp_formula))
-                tbl.setItem(r, 4, QTableWidgetItem(qty_str))
-
-                # Col 5: Action Button to jump to Rule / Recipe Editor
-                action_btn = QPushButton("✏️ Edit")
-                action_btn.setToolTip("Open in Editor to customize or tweak")
-                action_btn.setStyleSheet("""
-                    QPushButton {
-                        background:#f0f9ff; color:#0284c7; border:1px solid #bae6fd;
-                        border-radius:3px; padding:2px 8px; font-weight:bold; font-size:10px;
-                    }
-                    QPushButton:hover { background:#e0f2fe; color:#0369a1; }
-                """)
-
-                # Determine if rule or recipe
-                is_recipe_action = raw_formula.startswith("recipe:") or "recipe" in raw_formula.lower()
-                recipe_key_match = None
-                if is_recipe_action:
-                    import re
-                    m = re.match(r"^recipe:([A-Z0-9_]+)", raw_formula)
-                    if m:
-                        recipe_key_match = m.group(1)
-
-                def make_handler(rid=rule_id, rkey=recipe_key_match, is_rec=is_recipe_action):
-                    def handler():
-                        dlg.accept()
-                        if is_rec and rkey:
-                            from ui.dialogs.recipe_manager import RecipeManagerDialog
-                            rm_dlg = RecipeManagerDialog(self, initial_recipe_key=rkey)
-                            if rm_dlg.exec() == QDialog.DialogCode.Accepted:
-                                self.refresh_live_estimate()
-                        elif rid and rid.isdigit():
-                            from ui.dialogs.ruleset_mgr import RulesetManagerDialog
-                            rule_dlg = RulesetManagerDialog(self, canvas_objects=self.scene.items(), initial_rule_id=rid)
-                            if rule_dlg.exec() == QDialog.DialogCode.Accepted:
-                                self.refresh_live_estimate()
-                        elif is_rec:
-                            from ui.dialogs.recipe_manager import RecipeManagerDialog
-                            rm_dlg = RecipeManagerDialog(self)
-                            if rm_dlg.exec() == QDialog.DialogCode.Accepted:
-                                self.refresh_live_estimate()
-                        elif rid:
-                            from ui.dialogs.ruleset_mgr import RulesetManagerDialog
-                            rule_dlg = RulesetManagerDialog(self, canvas_objects=self.scene.items(), initial_rule_id=rid)
-                            if rule_dlg.exec() == QDialog.DialogCode.Accepted:
-                                self.refresh_live_estimate()
-                    return handler
-
-                action_btn.clicked.connect(make_handler())
-                tbl.setCellWidget(r, 5, action_btn)
-
-            _refresh_table_conditions(False)
-            toggle_raw_btn.toggled.connect(_refresh_table_conditions)
-
-            tbl.setColumnWidth(0, 130)
-            tbl.setColumnWidth(1, 65)
-            tbl.setColumnWidth(3, 160)
-            tbl.setColumnWidth(4, 60)
-            tbl.setColumnWidth(5, 75)
-            lay.addWidget(tbl)
-
-            foot = QLabel(f"Sum of {len(contribs)} breakdown item(s) matches the line total above.")
-            foot.setStyleSheet("color:#64748b; font-size:11px; padding:2px;")
-            lay.addWidget(foot)
-
-        bot_lay = QHBoxLayout()
-        bot_lay.addStretch()
-        btn = QPushButton("Close")
-        btn.clicked.connect(dlg.accept)
-        btn.setStyleSheet("padding:6px 24px; font-weight:bold; background:#0284c7; color:white; border-radius:4px;")
-        bot_lay.addWidget(btn)
-        lay.addLayout(bot_lay)
-        dlg.exec()
 
     def change_rate_chart_year(self):
         curr_yr = int(defaults.current.get("rate_chart_base_year", 2026))
@@ -3345,11 +2441,7 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.refresh_live_estimate()
 
     def _recalculate_totals(self, sup_rate):
-        mat_base = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Material")
-        lab_sub  = sum(x["amt"] for x in self.live_bom_data if x["type"] == "Labor")
-
-        now = datetime.now()
-        fy_start = now.year if now.month >= 4 else now.year - 1
+        from ui.estimate_panel import calculate_estimate_totals
 
         base_yr_str = defaults.current.get("rate_chart_base_year", "2026")
         try:
@@ -3357,24 +2449,19 @@ class EstimateApp(QMainWindow, EditorMixin):
         except ValueError:
             base_yr = 2026
 
-        self.escalations = []
-        cur = mat_base
-        for yr in range(base_yr + 1, fy_start + 1):
-            esc = cur * 0.05
-            self.escalations.append((f"{str(yr)[-2:]}-{str(yr+1)[-2:]}", esc))
-            cur += esc
-
-        sun      = cur * 0.05
-        mat_sub  = cur + sun
-        sup      = (mat_sub + lab_sub) * sup_rate
-        gst      = lab_sub * 0.18
-        cess     = (mat_sub + lab_sub + sup) * 0.01
-        final    = mat_sub + lab_sub + sup + gst + cess
+        totals = calculate_estimate_totals(
+            self.live_bom_data,
+            sup_rate=sup_rate,
+            base_year=base_yr
+        )
+        self.escalations = totals["escalations"]
+        final = totals["final_total"]
 
         if not getattr(self, "headless", False):
             self.grand_total_label.setText(
                 f"<b>Estimated Cost (incl. taxes): Rs. {final:,.2f}</b>"
             )
+
 
     def on_table_edit(self, item):
         if item.column() != 3:
@@ -3481,10 +2568,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             )
 
     def _safe_subject_stem(self, fallback: str) -> str:
-        import re
-        sanitized = re.sub(r'[\\/*?:"<>|]', "_", (self.project_meta.get("subject") or "").strip())
-        stem = "_".join(sanitized.split()[:6])
-        return stem if stem else fallback
+        from core.project_io import sanitize_subject_stem
+        return sanitize_subject_stem(self.project_meta.get("subject", ""), fallback)
 
     def save_project_bundle(self):
         self._flush_refresh()
@@ -3593,38 +2678,13 @@ class EstimateApp(QMainWindow, EditorMixin):
 
 
     def compile_save_data(self):
-        state = {
-            "version":       5,
-            "project_meta":  self.project_meta,
-            "overrides":     self.bom_overrides,
-            "nodes":         [],
-            "spans":         [],
-            "annotations":   [],
-            "current_project_path": getattr(self, "current_project_path", None)
-        }
-        node_id_by_obj = {}
-        for i, item in enumerate(self.scene.items()):
-            if isinstance(item, (SmartPole, SmartStructure, SmartConsumer)):
-                node_id_by_obj[id(item)] = i
-                nd = item.to_dict()
-                nd["id"] = i
-                state["nodes"].append(nd)
-
-        for item in self.scene.items():
-            if isinstance(item, SmartSpan):
-                p1_id = node_id_by_obj.get(id(item.p1))
-                p2_id = node_id_by_obj.get(id(item.p2))
-                if p1_id is None or p2_id is None:
-                    continue
-                sd = item.to_dict()
-                sd.update({"p1_id": p1_id, "p2_id": p2_id})
-                state["spans"].append(sd)
-
-        for item in self.scene.items():
-            if isinstance(item, (CanvasSymbol, CanvasTextBox)):
-                state["annotations"].append(item.to_dict())
-
-        return state
+        from core.project_io import compile_project_state
+        return compile_project_state(
+            scene_items=self.scene.items(),
+            project_meta=self.project_meta,
+            bom_overrides=self.bom_overrides,
+            current_project_path=getattr(self, "current_project_path", None)
+        )
 
     def parse_load_data(self, state, fit_view=True):
         self.scene.clear()
@@ -3794,51 +2854,40 @@ class EstimateApp(QMainWindow, EditorMixin):
     #  UNDO / REDO
     # =========================================================================
 
+    @property
+    def _is_undoing(self) -> bool:
+        if hasattr(self, "history_mgr"):
+            return self.history_mgr.is_undoing
+        return False
+
+    @property
+    def can_undo(self) -> bool:
+        return getattr(self, "history_mgr", None) is not None and self.history_mgr.can_undo
+
+    @property
+    def can_redo(self) -> bool:
+        return getattr(self, "history_mgr", None) is not None and self.history_mgr.can_redo
+
     def push_history(self):
         """Capture state and push to undo stack."""
-        if self._is_undoing:
-            return
-        
-        state = self.compile_save_data()
-        
-        # Don't push if nothing structurally changed
-        if self.history and self.history_index >= 0:
-            if state == self.history[self.history_index]:
-                return
-
-        # If user did something after undoing, truncate the 'redo' future
-        self.history = self.history[:self.history_index + 1]
-        self.history.append(state)
-        self._drawing_dirty = True
-        
-        if len(self.history) > 50:
-            self.history.pop(0)
-        else:
-            self.history_index += 1
+        if hasattr(self, "history_mgr"):
+            if self.history_mgr.push():
+                self._drawing_dirty = True
 
     def undo(self):
-        if self.history_index > 0:
-            self.history_index -= 1
-            self._is_undoing = True
-            
-            self.parse_load_data(self.history[self.history_index], fit_view=False)
-            
-            self._is_undoing = False
+        if hasattr(self, "history_mgr"):
+            self.history_mgr.undo()
 
     def redo(self):
-        if self.history_index < len(self.history) - 1:
-            self.history_index += 1
-            self._is_undoing = True
-            
-            self.parse_load_data(self.history[self.history_index], fit_view=False)
-            
-            self._is_undoing = False
+        if hasattr(self, "history_mgr"):
+            self.history_mgr.redo()
 
     def _show_blank_start_page(self):
         """Show a clean blank A4 page on startup/new drawing with no auto-added objects."""
         self.last_placed_node = None
         self.span_start_pole  = None
         self.refresh_live_estimate()
+
 
         def _fit_blank_page():
             tiles = self.view.grid_tiles
@@ -4262,87 +3311,12 @@ class EstimateApp(QMainWindow, EditorMixin):
     # =========================================================================
 
     def maybe_check_for_updates_on_startup(self):
-        """Silent background update check, run shortly after launch.
-
-        Only runs in the packaged (frozen) build so the installer-based update
-        path is meaningful; dev runs are never interrupted.
-        """
-        if not getattr(sys, "frozen", False):
-            return
-        self._launch_update_check(silent=True)
+        from ui.auto_updater import AutoUpdaterController
+        AutoUpdaterController(self).maybe_check_for_updates_on_startup()
 
     def check_for_updates(self):
-        """Manual 'Check for Updates…' — gives feedback even when up to date."""
-        self._launch_update_check(silent=False)
-
-    def _launch_update_check(self, silent: bool):
-        # Keep a reference so the thread isn't garbage-collected mid-run.
-        self._update_check_thread = _UpdateCheckThread()
-        self._update_check_thread.done.connect(
-            lambda info: self._on_update_check_result(info, silent)
-        )
-        self._update_check_thread.start()
-
-    def _on_update_check_result(self, info, silent: bool):
-        if not info:
-            if not silent:
-                QMessageBox.information(
-                    self, "No Updates",
-                    f"You are running the latest version (v{APP_VERSION}).",
-                )
-            return
-
-        notes = info.get("notes", "")
-        if len(notes) > 600:
-            notes = notes[:600] + "…"
-        ans = QMessageBox.question(
-            self, "Update Available",
-            f"Version {info['version']} is available "
-            f"(you have v{APP_VERSION}).\n\n"
-            f"{notes}\n\nDownload and install now?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if ans == QMessageBox.StandardButton.Yes:
-            self._download_and_install_update(info)
-
-    def _download_and_install_update(self, info):
-        dlg = QProgressDialog("Downloading update…", "Cancel", 0, 100, self)
-        dlg.setWindowTitle("Updating")
-        dlg.setMinimumDuration(0)
-        dlg.setAutoClose(False)
-        dlg.setValue(0)
-
-        self._update_dl_thread = _UpdateDownloadThread(info["url"], self)
-
-        def _on_progress(done, total):
-            if total > 0:
-                dlg.setMaximum(total)
-                dlg.setValue(done)
-            else:
-                dlg.setMaximum(0)  # indeterminate
-
-        def _on_finished(path):
-            dlg.close()
-            try:
-                # Release the single-instance mutex and quit so the installer
-                # (CloseApplications=yes) can replace files, then relaunch us.
-                os.startfile(path)  # type: ignore[attr-defined]
-            except Exception as exc:
-                QMessageBox.critical(self, "Update Failed", f"Could not launch installer:\n{exc}")
-                return
-            app_inst = QApplication.instance()
-            if app_inst is not None:
-                app_inst.quit()
-
-        def _on_failed(msg):
-            dlg.close()
-            QMessageBox.critical(self, "Update Failed", f"Download failed:\n{msg}")
-
-        self._update_dl_thread.progress.connect(_on_progress)
-        self._update_dl_thread.finished_path.connect(_on_finished)
-        self._update_dl_thread.failed.connect(_on_failed)
-        dlg.canceled.connect(self._update_dl_thread.terminate)
-        self._update_dl_thread.start()
+        from ui.auto_updater import AutoUpdaterController
+        AutoUpdaterController(self).check_for_updates()
 
     def open_user_profiles_dialog(self):
         from ui.dialogs.user_profile import UserProfileDialog

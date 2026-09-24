@@ -257,20 +257,8 @@ class SmartSpan(QGraphicsPathItem):
                                key=lambda m: (m[0] - ox) ** 2 + (m[1] - oy) ** 2)
                     return item_pos + QPointF(best[0], best[1])
                 else:
-                    # For DP/DTR, use only core body bounds (exclude stay/earth symbols)
-                    if st == "DTR":
-                        cx = r + gap // 2 + 4
-                    else:  # DP
-                        cx = r + gap // 2
-                    core = QRectF(
-                        item_pos.x() - (cx + r),
-                        item_pos.y() - r,
-                        (cx + r) * 2,
-                        r * 2,
-                    )
-                    intersection = _get_line_rect_intersection(line, core)
-                    if intersection is not None:
-                        return intersection
+                    # For DP/DTR, connect to the structure centre
+                    return item_pos
             
             return item_pos
 
@@ -424,10 +412,7 @@ class SmartSpan(QGraphicsPathItem):
             else:
                 txt = f"Existing\n{self.conductor}" if show_len else "Existing"
         elif self.is_service_drop:
-            phase_s = "1φ" if self.phase == "1 Phase" else "3φ"
-            conn_t = getattr(self, "connection_type", "I Type")
-            conn_short = "-I" if "I" in conn_t else ("-L" if "L" in conn_t else "-D")
-            txt = f"Service {self.length}m\n{phase_s}{conn_short} ({self.conductor_size})"
+            txt = f"{self.length}m"
         else:
             if self.conductor == "ACSR":
                 txt = f"{self.length}m"

@@ -327,9 +327,14 @@ class ExcelExporter:
             "tp_count":         len([s for s in structs if s.structure_type == "TP"]),
             "4p_count":         len([s for s in structs if s.structure_type == "4P"]),
             "dtr_count":        len([s for s in structs if s.structure_type == "DTR"]),
-            "cg_pole_count":    len([p for p in new_lt_poles if any(
-                                    getattr(s, "has_cg", False)
-                                    for s in getattr(p, "connected_spans", []))]),
+            "cg_pole_brackets": sum(
+                sum(1 for s in getattr(p, "connected_spans", []) if getattr(s, "has_cg", False))
+                for p in poles if not p.is_existing
+            ),
+            "cg_dp_brackets":   sum(
+                sum(1 for s in getattr(st, "connected_spans", []) if getattr(s, "has_cg", False))
+                for st in structs if getattr(st, "structure_type", "") in ("DP", "DTR")
+            ),
             "pole_ext_count":   len([p for p in poles if getattr(p, "has_extension", False)]),
             "ht_ext_count":     len([p for p in new_ht_poles if getattr(p, "has_extension", False)]),
             "lt_acsr_count":    len([p for p in new_lt_poles if any(
@@ -486,12 +491,8 @@ class ExcelExporter:
 
         add_recipe_obj(f"DP Structure Iron", "DP_IRON", counts["dp_count"])
 
-        add_direct_obj(f"CG Bracket Iron ({counts['cg_pole_count']} poles)", counts["cg_pole_count"], [
-            {"description": "CG Cradle Guard Bracket (Angle)", "section": "ANG_65X65X6",
-             "lpp": 1.9, "qpo": 1, "lf": "=1.9"},
-            {"description": "CG Cradle Guard Bracket (Flat)", "section": "FLAT_65X6",
-             "lpp": 0.5, "qpo": 1, "lf": "=0.5"},
-        ])
+        add_recipe_obj(f"CG Cradle Guard Bracket ({counts.get('cg_pole_brackets', 0)} sets)", "CG_BRACKET", counts.get("cg_pole_brackets", 0))
+        add_recipe_obj(f"CG Cradle Guard Bracket DP ({counts.get('cg_dp_brackets', 0)} sets)", "CG_DP_BRACKET", counts.get("cg_dp_brackets", 0))
 
         add_recipe_obj(f"TP Structure Iron", "TP_IRON", counts["tp_count"])
         add_recipe_obj(f"4-Pole Structure Iron", "4P_IRON", counts["4p_count"])

@@ -58,7 +58,7 @@ TEMPLATES: list[dict] = [
     },
     {
         "name": "HT pole with CG bracket",
-        "description": "Cattle guard bracket iron for HT poles with has_cg enabled.",
+        "description": "Cradle guard bracket iron for HT poles with has_cg enabled.",
         "object": "SmartPole",
         "condition": "has_cg and pole_type == 'HT'",
         "formula": "1.9 * ANG_65X65X6 / 1000",

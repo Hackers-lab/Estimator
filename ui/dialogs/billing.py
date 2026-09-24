@@ -68,131 +68,7 @@ def parse_qdate(date_str, default_today=True):
 
 
 
-def amount_to_words(num):
-
-    # Converts a number into Indian Rupees words
-
-    # e.g., 12345.50 -> "Rupees Twelve Thousand Three Hundred Forty Five and Fifty Paise Only"
-
-    if num is None:
-
-        return ""
-
-    
-
-    import math
-
-    num = round(num, 2)
-
-    int_part = int(math.floor(num))
-
-    frac_part = int(round((num - int_part) * 100))
-
-    
-
-    def num_to_words_int(n):
-
-        units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
-
-                 "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
-
-        tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
-
-        
-
-        if n == 0:
-
-            return "Zero"
-
-            
-
-        def convert_chunk(val):
-
-            res = []
-
-            if val >= 100:
-
-                res.append(units[val // 100] + " Hundred")
-
-                val %= 100
-
-            if val >= 20:
-
-                res.append(tens[val // 10])
-
-                val %= 10
-
-            if val > 0:
-
-                res.append(units[val])
-
-            return " ".join(res)
-
-            
-
-        words = []
-
-        
-
-        # Crores (1,00,00,000)
-
-        if n >= 10000000:
-
-            words.append(num_to_words_int(n // 10000000) + " Crore")
-
-            n %= 10000000
-
-            
-
-        # Lakhs (1,00,000)
-
-        if n >= 100000:
-
-            words.append(convert_chunk(n // 100000) + " Lakh")
-
-            n %= 100000
-
-            
-
-        # Thousands (1,000)
-
-        if n >= 1000:
-
-            words.append(convert_chunk(n // 1000) + " Thousand")
-
-            n %= 1000
-
-            
-
-        # Hundreds and tens
-
-        if n > 0:
-
-            words.append(convert_chunk(n))
-
-            
-
-        return " ".join(words)
-
-        
-
-    int_words = num_to_words_int(int_part)
-
-    words_str = f"Rupees {int_words}" if int_part > 0 else "Rupees Zero"
-
-    
-
-    if frac_part > 0:
-
-        frac_words = num_to_words_int(frac_part)
-
-        words_str += f" and {frac_words} Paise"
-
-        
-
-    words_str += " Only"
-
-    return words_str
+from core.billing_service import amount_to_indian_rupees_words as amount_to_words, calculate_taxes
 
 
 
@@ -476,13 +352,15 @@ class PreviewGeneratePage(QWizardPage):
 
         lab_base = sum(item["act_amt"] for item in wiz.bom_items if item["type"] == "Labor")
 
-        cgst_amt = lab_base * 0.09
+        tax_summary = calculate_taxes(lab_base)
 
-        sgst_amt = lab_base * 0.09
+        cgst_amt = tax_summary["cgst_amount"]
 
-        gst_amt = cgst_amt + sgst_amt
+        sgst_amt = tax_summary["sgst_amount"]
 
-        grand_total = lab_base + gst_amt
+        gst_amt = tax_summary["gst_total"]
+
+        grand_total = tax_summary["grand_total"]
 
         
 

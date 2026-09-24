@@ -140,7 +140,8 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             self.seq_id    = SmartStructure._next_seq(self.structure_type)
             self._seq_type = self.structure_type
 
-        path = QPainterPath()
+        body_path = QPainterPath()
+        detail_path = QPainterPath()
         r    = self._RADIUS
         gap  = self._GAP
 
@@ -171,11 +172,11 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         if st == "DP":
             # Two circles side by side
             cx = r + gap // 2
-            path.addEllipse(-cx - r, -r, r * 2, r * 2)
-            path.addEllipse( cx - r, -r, r * 2, r * 2)
+            body_path.addEllipse(-cx - r, -r, r * 2, r * 2)
+            body_path.addEllipse( cx - r, -r, r * 2, r * 2)
             # Connecting bar
-            path.moveTo(-cx + r, 0)
-            path.lineTo( cx - r, 0)
+            body_path.moveTo(-cx + r, 0)
+            body_path.lineTo( cx - r, 0)
 
         elif st == "TP":
             # Triangle: top + bottom-left + bottom-right
@@ -185,51 +186,81 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
                 ( (r + gap),   (r + gap // 2)),           # bottom-right
             ]
             for ox, oy in offsets:
-                path.addEllipse(ox - r, oy - r, r * 2, r * 2)
+                body_path.addEllipse(ox - r, oy - r, r * 2, r * 2)
             # Connecting lines
-            _draw_connecting_lines(path, offsets, r)
+            _draw_connecting_lines(body_path, offsets, r)
 
         elif st == "4P":
             # 2×2 square grid
             d = r + gap // 2
             offsets = [(-d, -d), (d, -d), (d, d), (-d, d)]
             for ox, oy in offsets:
-                path.addEllipse(ox - r, oy - r, r * 2, r * 2)
+                body_path.addEllipse(ox - r, oy - r, r * 2, r * 2)
             # Connecting lines
-            _draw_connecting_lines(path, offsets, r)
+            _draw_connecting_lines(body_path, offsets, r)
 
         elif st == "DTR":
             # Two circles with transformer body between
             cx = r + gap // 2 + 4
-            path.addEllipse(-cx - r, -r, r * 2, r * 2)
-            path.addEllipse( cx - r, -r, r * 2, r * 2)
+            body_path.addEllipse(-cx - r, -r, r * 2, r * 2)
+            body_path.addEllipse( cx - r, -r, r * 2, r * 2)
             # Transformer body — rectangle
-            path.addRect(-gap // 2 - 2, -r // 2, gap + 4, r)
+            body_path.addRect(-gap // 2 - 2, -r // 2, gap + 4, r)
             # HV/LV winding hint lines
-            path.moveTo(-gap // 2 - 2, 0)
-            path.lineTo( gap // 2 + 2, 0)
+            body_path.moveTo(-gap // 2 - 2, 0)
+            body_path.lineTo( gap // 2 + 2, 0)
 
         # Extension indicator
         if self.has_extension:
-            path.addRect(-4, -(r * 2 + 14), 8, 8)
+            body_path.addRect(-4, -(r * 2 + 14), 8, 8)
 
-        # Earth symbols below structure
+        # Earth symbols
         if self.detail_view and self.earth_count > 0:
-            bottom_y = r + 2 if st in ("DP", "DTR") else r + gap // 2 + r + 2
-            for i in range(min(self.earth_count, 5)):
-                x_off = (i - (min(self.earth_count, 5) - 1) / 2) * 14
-                path.addPath(_earth_path(x_off, bottom_y))
+            if st in ("DP", "DTR"):
+                # Show exactly 2 earth symbols along the centerline, one on each outer side
+                cx = (r + gap // 2) if st == "DP" else (r + gap // 2 + 4)
+                left_x  = -cx - r - 2   # just outside left pole
+                right_x =  cx + r + 2   # just outside right pole
+                detail_path.addPath(_earth_path(left_x, 0, 180))   # pointing left
+                detail_path.addPath(_earth_path(right_x, 0, 0))    # pointing right
+            else:
+                bottom_y = r + gap // 2 + r + 2
+                for i in range(min(self.earth_count, 5)):
+                    x_off = (i - (min(self.earth_count, 5) - 1) / 2) * 14
+                    detail_path.addPath(_earth_path(x_off, bottom_y))
 
         # Stay wire symbols
         if self.detail_view and self.stay_count > 0:
-            stay_angles = [225, 315, 180, 0, 270, 90]
-            for i in range(min(self.stay_count, 6)):
-                path.addPath(_stay_path(stay_angles[i % 6]))
+            if st in ("DP", "DTR"):
+                cx = (r + gap // 2) if st == "DP" else (r + gap // 2 + 4)
+                # Stays perpendicular to centerline: up (270°) and down (90°)
+                # Originate from pole circle centers
+                dp_stay_configs = [
+                    (-cx, 0.0, 270),  # Left pole, up
+                    ( cx, 0.0, 270),  # Right pole, up
+                    (-cx, 0.0,  90),  # Left pole, down
+                    ( cx, 0.0,  90),  # Right pole, down
+                    (-cx, 0.0, 250),  # Left pole, up-left spread
+                    ( cx, 0.0, 290),  # Right pole, up-right spread
+                ]
+                for i in range(min(self.stay_count, 6)):
+                    ox, oy, ang = dp_stay_configs[i % len(dp_stay_configs)]
+                    detail_path.addPath(_stay_path(ang, ox, oy))
+            else:
+                stay_angles = [225, 315, 180, 0, 270, 90]
+                for i in range(min(self.stay_count, 6)):
+                    detail_path.addPath(_stay_path(stay_angles[i % 6]))
 
         if str(getattr(self, "orientation", "Horizontal")).lower().startswith("v"):
-            path = QTransform().rotate(90).map(path)
+            body_path = QTransform().rotate(90).map(body_path)
+            detail_path = QTransform().rotate(90).map(detail_path)
 
-        self.setPath(path)
+        total_path = QPainterPath()
+        total_path.addPath(body_path)
+        total_path.addPath(detail_path)
+        self.setPath(total_path)
+        self._body_path = body_path
+        self._detail_path = detail_path
 
         # Colour
         _struct_color_keys = {
@@ -278,9 +309,33 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
-        super().paint(painter, option, widget)
         if painter is None:
             return
+
+        # ── 1. Draw stays and earthing BEHIND main structure body ─────
+        if self.detail_view and hasattr(self, "_detail_path") and not self._detail_path.isEmpty():
+            painter.save()
+            painter.setPen(QPen(QColor("#222222"), 1.2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(self._detail_path)
+            painter.restore()
+
+        # ── 2. Draw main structure body (circles, cross-arm) ON TOP of stays ─────
+        painter.save()
+        painter.setPen(self.pen())
+        painter.setBrush(self.brush())
+        body = getattr(self, "_body_path", self.path())
+        painter.drawPath(body)
+        painter.restore()
+
+        # Selection dashed outline if selected
+        if self.isSelected():
+            painter.save()
+            sel_pen = QPen(QColor("#0078d7"), 1.5, Qt.PenStyle.DashLine)
+            painter.setPen(sel_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(self.path())
+            painter.restore()
         if self.has_extension:
             r = self._RADIUS
             badge = QRectF(-5, -(r * 2 + 22), 10, 10)

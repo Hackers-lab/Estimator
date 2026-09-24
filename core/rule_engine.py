@@ -189,11 +189,10 @@ class DynamicRuleEngine:
             "iron_recipe":                  getattr(item, "iron_recipe", "None"),
         }
 
-        # has_cg — True if any connected span has cattle guard
-        ctx["has_cg"] = any(
-            getattr(s, "has_cg", False)
-            for s in item.connected_spans
-        )
+        # cg_spans_count — number of connected spans that have cradle guard
+        cg_spans = [s for s in getattr(item, "connected_spans", []) if getattr(s, "has_cg", False)]
+        ctx["cg_spans_count"] = len(cg_spans)
+        ctx["has_cg"] = len(cg_spans) > 0
 
         # ht_spans_count — number of NEW (non-existing) ACSR spans connected.
         # Used to classify end pole (==1 → disc) vs through pole (>=2 → pin).
@@ -336,11 +335,10 @@ class DynamicRuleEngine:
             "iron_recipe":      getattr(item, "iron_recipe", "None"),
         }
 
-        # has_cg — True if any connected span has cattle guard
-        ctx["has_cg"] = any(
-            getattr(s, "has_cg", False)
-            for s in getattr(item, "connected_spans", [])
-        )
+        # cg_spans_count — number of connected spans that have cradle guard
+        cg_spans = [s for s in getattr(item, "connected_spans", []) if getattr(s, "has_cg", False)]
+        ctx["cg_spans_count"] = len(cg_spans)
+        ctx["has_cg"] = len(cg_spans) > 0
 
         ctx.update(dyn)
         return ctx
@@ -519,7 +517,10 @@ class DynamicRuleEngine:
                     formula = item_dict.get("formula", "1")
                     
                     is_recipe = False
-                    recipe_key = str(formula).strip()
+                    formula_str = str(formula).strip()
+                    recipe_key = formula_str
+                    recipe_mult = 1.0
+
                     if recipe_key.lower() == "recipe":
                         recipe_key = ctx.get("iron_recipe", "None")
                         is_recipe = True
@@ -529,11 +530,19 @@ class DynamicRuleEngine:
                                 recipe_key = "POLE_HT_IRON" if ctx.get("pole_type") == "HT" else "POLE_LT_IRON"
                             else:
                                 recipe_key = "None"
-                    elif _RECIPE_KEY_RE.match(recipe_key):
-                        is_recipe = True
+                    else:
+                        m_rec = re.match(r"^([A-Z][A-Z0-9_]+)(?:\s*\*\s*(.+))?$", formula_str)
+                        if m_rec:
+                            recipe_key = m_rec.group(1)
+                            if m_rec.group(2):
+                                try:
+                                    recipe_mult = float(evaluate_formula(m_rec.group(2).strip(), ctx))
+                                except Exception:
+                                    recipe_mult = 1.0
+                            is_recipe = True
 
                     if is_recipe:
-                        if not recipe_key or recipe_key == "None":
+                        if not recipe_key or recipe_key == "None" or recipe_mult <= 0:
                             continue
                         try:
                             recipe = _recipes_by_key.get(recipe_key)
@@ -555,7 +564,7 @@ class DynamicRuleEngine:
                                     lpp = float(rec_item.get("length_per_piece", rec_item.get("length", 0.0)))
 
                                 qpo = int(rec_item.get("qty_per_object", rec_item.get("qty", 1)))
-                                qty_mt = round((lpp * qpo * sec.get("kg_per_metre", 0.0)) / 1000.0, 6)
+                                qty_mt = round((lpp * qpo * recipe_mult * sec.get("kg_per_metre", 0.0)) / 1000.0, 6)
                                 if qty_mt <= 0:
                                     continue
 
@@ -570,14 +579,17 @@ class DynamicRuleEngine:
                                 elif item_type == "Labor":
                                     raw_lab[agg_key] = raw_lab.get(agg_key, 0) + qty_mt
                                 if provenance_out is not None:
+                                    mult_str = f"*{int(recipe_mult) if recipe_mult.is_integer() else recipe_mult}" if recipe_mult != 1.0 else ""
                                     provenance_out.setdefault((prov_type, agg_key), []).append({
-                                        "object_label": obj_label,
-                                        "object_type":  ctx.get("object_type", ""),
-                                        "rule_id":      rule.get("id"),
-                                        "condition":    condition,
-                                        "formula":      f"recipe:{recipe_key} → {sec_code}",
-                                        "qty":          qty_mt,
-                                        "item_type":    prov_type,
+                                        "object_label":     obj_label,
+                                        "object_type":      ctx.get("object_type", ""),
+                                        "rule_id":          rule.get("id"),
+                                        "condition":        condition,
+                                        "formula":          f"recipe:{recipe_key}{mult_str} → {sec_code}",
+                                        "qty":              qty_mt,
+                                        "item_type":        prov_type,
+                                        "recipe_key":       recipe_key,
+                                        "recipe_item_desc": rec_item.get("description", ""),
                                     })
                         except Exception as e:
                             print(f"[RuleEngine] Error expanding recipe '{recipe_key}': {e}")

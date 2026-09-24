@@ -293,7 +293,7 @@
   },
   "CG_BRACKET": {
     "name": "CG Bracket Iron",
-    "description": "M.S. Iron for cattle guard bracket",
+    "description": "M.S. Iron for cradle guard bracket",
     "object_type": "SmartPole",
     "items": [
       {
@@ -309,6 +309,27 @@
         "length_per_piece": 0.5,
         "qty_per_object": 1,
         "length_formula": "=0.5"
+      }
+    ]
+  },
+  "CG_DP_BRACKET": {
+    "name": "CG Bracket Iron (Double Pole)",
+    "description": "M.S. Iron for cradle guard bracket (DP Structure)",
+    "object_type": "SmartStructure",
+    "items": [
+      {
+        "description": "CG Bracket (Angle) DP",
+        "section": "ANG_65X65X6",
+        "length_per_piece": 1.9,
+        "qty_per_object": 2,
+        "length_formula": "=2*1.9"
+      },
+      {
+        "description": "CG Bracket (Flat) DP",
+        "section": "FLAT_65X6",
+        "length_per_piece": 0.5,
+        "qty_per_object": 2,
+        "length_formula": "=2*0.5"
       }
     ]
   },
