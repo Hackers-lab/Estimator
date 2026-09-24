@@ -1,11 +1,12 @@
 {
-    "version": "9.4",
+    "version": "10.1",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-12-31",
-    "release_date": "2026-09-01",
+    "release_date": "2026-09-25",
     "changelog": {
+        "10.1": "IEC 60617-inspired DTR symbol with compact side squares and intersecting coils, DP symbol updated to compact red squares matching HT poles with balanced spacing, orientation support (Horizontal/Vertical) for both new & existing DP/DTR with non-overlapping label clearance, dynamic Cradle Guard bracket calculation per connected span, and stay line rendering behind pole bodies.",
         "9.4": "Extended application validity until 31.12.2026.",
         "9.3": "Compact canvas footer checkbox labels (Show Symbols→Symbol, Existing Length→Ex Length, Pole Names→Mark, PDF Legend→Legend) to prevent horizontal overflow and maximize live estimate pane width. Disabled UPX compression in build spec to prevent false-positive antivirus triggers.",
         "9.2": "DTR Augmentation labour rates (dismantling & installation by target capacity), Return DTR codes with Defective (DAM1) / Use & Healthy (UH01) condition selector, DTR Code Painting rate corrected to Rs.60, AB Cable Clamp iron recipe updated to 2 NOS flat per span.",

@@ -1,6 +1,6 @@
-# ERP Estimate Generator v9.4
+# ERP Estimate Generator v10.1
 
-![Version](https://img.shields.io/badge/version-9.4-blue.svg)
+![Version](https://img.shields.io/badge/version-10.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 ![Framework](https://img.shields.io/badge/framework-PyQt6-brightgreen.svg)
 
@@ -8,7 +8,15 @@
 
 ---
 
-## 🚀 What's New in Version 9.4
+## 🚀 What's New in Version 10.1
+
+* **⚡ Modern IEC 60617 DTR Symbol:** Standardized dual-coil transformer symbol with compact side squares for both new and existing DTRs.
+* **🟥 Compact Red Square DP Structure:** High-visibility $11 \times 11\text{ px}$ square poles matching HT pole styling with balanced $28\text{ px}$ center distance.
+* **🔄 Full Orientation Support:** Seamless Horizontal / Vertical alignment for new & existing DP/DTR with auto-rotating stays and center connections.
+* **🏷️ Smart Label Clearance:** Dynamic positioning prevents labels from overlapping vertical structures, earthing, or stays.
+* **🛡️ Dynamic Cradle Guard Iron & Stay Rendering:** Per-span bracket calculations and clean stay rendering behind pole bodies.
+
+## 🔄 Previous Highlights (v9.4)
 
 * **📅 Extended Validity:** App validity extended until 31.12.2026.
 

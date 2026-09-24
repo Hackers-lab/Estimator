@@ -2,6 +2,35 @@
 
 ---
 
+## v10.1 — September 25, 2026
+
+### What's New
+
+#### ⚡ Modern IEC 60617 DTR Symbol
+- Implemented an industry-standard transformer symbol for both **new DTR structures** (`SmartStructure`) and **existing DTR poles** (`SmartPole`).
+- Features compact side pole squares ($7 \times 7\text{ px}$) connected via clean platform tie bars to two intersecting central coils (primary HV on top, secondary LV on bottom).
+
+#### 🟥 Compact Square DP Structure Symbol
+- Updated Double Pole (DP) symbols from circular shapes to **compact red squares** ($11 \times 11\text{ px}$) matching HT pole styling.
+- Center-to-center distance optimized to $28\text{ px}$ ($c_x = 14\text{ px}$) with a clean $17\text{ px}$ gap between poles.
+- DP canvas fill color now aligns with the standard HT pole red (`#c0392b`).
+
+#### 🔄 Orientation & Rotation for DP & DTR
+- Added full **Horizontal / Vertical** orientation support for both new structures and existing DP / DTR poles.
+- Select orientation directly from the **Property Panel** or right-click **Context Menu**.
+- Stays automatically orient perpendicular to the centerline in both horizontal (top/bottom) and vertical (left/right) alignments.
+- Spans connect directly to the structural center of existing DP, DTR, TP, and 4P structures.
+
+#### 🏷️ Dynamic Label Clearance
+- Eliminated label overlap when DP or DTR structures are rotated vertically.
+- Automatically computes vertical bounds including body, earthing, and stays, guaranteeing a clean $8\text{ px}$ margin below the lowest symbol component.
+
+#### 🛡️ Cradle Guard & Iron Breakup Enhancements
+- Dynamic Cradle Guard iron calculation: accurately counts brackets based on connected span conditions (single-sided for line ends/DTR, double-sided when between HT spans).
+- Stays are now rendered behind pole bodies so solid square and circle shapes paint cleanly over stay lines.
+
+---
+
 ## v9.4 — September 01, 2026
 
 ### What's New
