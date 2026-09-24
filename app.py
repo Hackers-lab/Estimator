@@ -1189,10 +1189,8 @@ class EstimateApp(QMainWindow, EditorMixin):
                 gridline-color: #e2e8f0;
                 border: 1px solid #cbd5e1;
                 border-radius: 4px;
-            }
-            QTableWidget::item {
-                padding: 1px 4px;
-                border: none;
+                selection-background-color: #bfdbfe;
+                selection-color: #1e3a8a;
             }
             QHeaderView::section {
                 font-family: 'Segoe UI', Arial, sans-serif;
@@ -1210,10 +1208,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         brk_hdr = self.breakup_table.horizontalHeader()
         assert brk_hdr is not None
         brk_hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.breakup_table.setColumnWidth(1, 32)
+        self.breakup_table.setColumnWidth(1, 40)
         self.breakup_table.setColumnWidth(2, 60)
-        self.breakup_table.setColumnWidth(3, 56)
-        self.breakup_table.setColumnWidth(4, 58)
+        self.breakup_table.setColumnWidth(3, 65)
+        self.breakup_table.setColumnWidth(4, 70)
         brk_v_hdr = self.breakup_table.verticalHeader()
         if brk_v_hdr is not None:
             brk_v_hdr.setDefaultSectionSize(19)
@@ -1261,80 +1259,18 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def _refresh_breakup_view(self):
         """
-        Populate the Iron Breakup table from self.live_bom_data (same source as estimate).
-        Only items that matched a rule condition appear here — no independent canvas scan.
+        Populate the Iron Breakup table from canvas items and recipes matching the Excel export.
+        Shows detailed structural piece breakup (No, Length, Total m, Iron MT) per section.
         """
         from collections import defaultdict
-
-        SECTION_LABELS = {
-            "CH_75X40":    "M.S. Channel (75X40mm)",
-            "CH_100X50":   "M.S. Channel (100X50mm)",
-            "ANG_65X65X6": "M.S. Angle (65X65X6mm)",
-            "ANG_50X50X6": "M.S. Angle (50X50X6mm)",
-            "FLAT_65X6":   "M.S. Flat (65X6mm)",
-            "FLAT_50X6":   "M.S. Flat (50X6mm)",
-        }
-        SECTION_ORDER = [
-            "CH_100X50", "CH_75X40",
-            "ANG_65X65X6", "ANG_50X50X6",
-            "FLAT_65X6", "FLAT_50X6",
-        ]
-        IRON_SECTIONS = set(SECTION_ORDER)
-
-        # Load section kg/m info from DB (for the section header labels)
-        try:
-            from core import db_gateway as _dbg
-            sections_dict = _dbg.get_sections()
-        except Exception:
-            sections_dict = {}
-
-        # Map DB material names (as they appear in live_bom_data) → section codes.
-        # Covers both capitalisation variants that appear in the materials table.
-        DB_NAME_TO_SECTION: dict[str, str] = {
-            "M.S Channel 75X40 mm":   "CH_75X40",
-            "M.S Channel 100X50 mm":  "CH_100X50",
-            "M.S Angle 65X65X6mm":    "ANG_65X65X6",
-            "M.S Angle 50X50X6mm":    "ANG_50X50X6",
-            "M.S Flat 65X6 mm":       "FLAT_65X6",
-            "M.S Flat 50X6 mm":       "FLAT_50X6",
-            "M.S Channel 75x40 mm":   "CH_75X40",
-            "M.S Channel 100x50 mm":  "CH_100X50",
-            "M.S Angle 65x65x6 mm":   "ANG_65X65X6",
-            "M.S Angle 50x50x6 mm":   "ANG_50X50X6",
-            "M.S Flat 65x6 mm":       "FLAT_65X6",
-            "M.S Flat 50x6 mm":       "FLAT_50X6",
-        }
-
-        # Alphanumeric normalisation map to support user's custom database names robustly
-        def normalize_name(s):
-            return "".join(c.lower() for c in s if c.isalnum())
-
-        NORM_NAME_TO_SECTION = {normalize_name(k): v for k, v in DB_NAME_TO_SECTION.items()}
-
-        # ── Filter live_bom_data: only MT items that are structural iron sections ─
-        # This is the single source of truth — exactly what the estimate shows.
-        section_items: dict[str, list[tuple[str, float]]] = defaultdict(list)
-        extra_secs: list[str] = []
-
-        for item in self.live_bom_data:
-            if item.get("unit", "").upper() != "MT":
-                continue
-            sec = NORM_NAME_TO_SECTION.get(normalize_name(item["name"]), "")
-            if not sec:
-                continue  # G.I. Wire, Stay Wire, etc. — not structural iron
-            if sec not in IRON_SECTIONS:
-                if sec not in extra_secs:
-                    extra_secs.append(sec)
-            section_items[sec].append((item["name"], item["qty"]))
-
-        # ── Populate QTableWidget ──────────────────────────────────────────────
         from PyQt6.QtGui import QColor, QFont as QFontQt
         from PyQt6.QtCore import Qt as Qt_
+        from canvas import SmartPole, SmartStructure
 
         tbl = self.breakup_table
         tbl.setRowCount(0)
 
-        def _row(texts, bg="#FFFFFF", bold=False, fg="#000000", italic=False):
+        def _row(texts, bg="#FFFFFF", bold=False, fg="#000000", italic=False, center_cols=(1, 2, 3)):
             r = tbl.rowCount()
             tbl.insertRow(r)
             for c, txt in enumerate(texts):
@@ -1345,6 +1281,12 @@ class EstimateApp(QMainWindow, EditorMixin):
                 f.setItalic(italic)
                 cell.setFont(f)
                 cell.setForeground(QColor(fg))
+                if c in center_cols:
+                    cell.setTextAlignment(Qt_.AlignmentFlag.AlignCenter)
+                elif c == 4:
+                    cell.setTextAlignment(Qt_.AlignmentFlag.AlignRight | Qt_.AlignmentFlag.AlignVCenter)
+                else:
+                    cell.setTextAlignment(Qt_.AlignmentFlag.AlignLeft | Qt_.AlignmentFlag.AlignVCenter)
                 cell.setFlags(cell.flags() & ~Qt_.ItemFlag.ItemIsEditable)
                 tbl.setItem(r, c, cell)
             tbl.setRowHeight(r, 20)
@@ -1354,7 +1296,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             tbl.insertRow(r)
             cell = QTableWidgetItem(text)
             cell.setBackground(QColor(bg))
-            f = QFontQt("Segoe UI", 10); f.setBold(bold)
+            f = QFontQt("Segoe UI", 9)
+            f.setBold(bold)
             cell.setFont(f)
             cell.setForeground(QColor(fg))
             cell.setFlags(cell.flags() & ~Qt_.ItemFlag.ItemIsEditable)
@@ -1362,49 +1305,238 @@ class EstimateApp(QMainWindow, EditorMixin):
             tbl.setSpan(r, 0, 1, 5)
             tbl.setRowHeight(r, 22)
 
-        if not any(section_items.get(s) for s in SECTION_ORDER + extra_secs):
+        KG_PER_METRE = {
+            "CH_75X40":    6.8,
+            "CH_100X50":   9.8,
+            "ANG_65X65X6": 5.8,
+            "ANG_50X50X6": 4.5,
+            "FLAT_65X6":   3.1,
+            "FLAT_50X6":   2.5,
+        }
+        SECTION_LABELS = {
+            "CH_75X40":    "M.S. Channel (75X40mm)",
+            "CH_100X50":   "M.S. Channel (100X50mm)",
+            "ANG_65X65X6": "M.S. Angle (65X65X6mm)",
+            "ANG_50X50X6": "M.S. Angle (50X50X6mm)",
+            "FLAT_65X6":   "M.S. Flat (65X6mm)",
+            "FLAT_50X6":   "M.S. Flat (50X6mm)",
+        }
+        SECTION_ORDER = ["CH_100X50", "CH_75X40", "ANG_65X65X6", "ANG_50X50X6", "FLAT_65X6", "FLAT_50X6"]
+
+        # Load dynamic sections and recipes
+        try:
+            from core import db_gateway as _dbg
+            recipes_list = _dbg.get_recipes()
+            sections_dict = _dbg.get_sections()
+        except Exception:
+            recipes_list = []
+            sections_dict = {}
+
+        def find_recipe(rkey):
+            return next((r for r in recipes_list if r["recipe_key"] == rkey), None)
+
+        # ── Canvas Items & Counts ──────────────────────────────────────────────
+        scene_items = self.scene.items() if hasattr(self, "scene") and self.scene else []
+        poles = [i for i in scene_items if isinstance(i, SmartPole)]
+        structs = [i for i in scene_items if isinstance(i, SmartStructure)]
+        new_lt_poles = [p for p in poles if not p.is_existing and p.pole_type == "LT"]
+        new_ht_poles = [p for p in poles if not p.is_existing and p.pole_type == "HT"]
+
+        lt_recipe_counts = defaultdict(int)
+        for p in new_lt_poles:
+            rkey = getattr(p, "iron_recipe", "None") or "None"
+            if rkey == "None":
+                rkey = "POLE_LT_IRON"
+            lt_recipe_counts[rkey] += 1
+
+        ht_recipe_counts = defaultdict(int)
+        for p in new_ht_poles:
+            rkey = getattr(p, "iron_recipe", "None") or "None"
+            if rkey == "None":
+                rkey = "POLE_HT_IRON"
+            ht_recipe_counts[rkey] += 1
+
+        ext_lt = [p for p in poles if not p.is_existing and p.pole_type == "LT" and getattr(p, "has_extension", False)]
+        lt_ext_count = len(ext_lt)
+        avg_ext_lt = round(sum(float(getattr(p, "extension_height", 1.5) or 1.5) for p in ext_lt) / lt_ext_count if lt_ext_count else 1.5, 2)
+
+        ext_ht = [p for p in poles if not p.is_existing and p.pole_type == "HT" and getattr(p, "has_extension", False)]
+        ht_ext_count = len(ext_ht)
+        avg_ext_ht = round(sum(float(getattr(p, "extension_height", 3.0) or 3.0) for p in ext_ht) / ht_ext_count if ht_ext_count else 3.0, 2)
+
+        dp_count = len([s for s in structs if s.structure_type == "DP"])
+        tp_count = len([s for s in structs if s.structure_type == "TP"])
+        p4_count = len([s for s in structs if s.structure_type == "4P"])
+        dtr_count = len([s for s in structs if s.structure_type == "DTR"])
+
+        from canvas.span import SmartSpan
+        spans = [i for i in scene_items if isinstance(i, SmartSpan)]
+        cg_pole_count = len([p for p in new_lt_poles if any(getattr(s, "has_cg", False) for s in getattr(p, "connected_spans", []))])
+        lt_acsr_count = (
+            len([p for p in new_lt_poles if any(getattr(s, "conductor", "") == "ACSR" for s in getattr(p, "connected_spans", []))]) +
+            len([p for p in poles if getattr(p, "is_existing", False) and getattr(p, "pole_type", "") == "LT" and bool(getattr(p, "lt_extension_continuous", lambda: False)())])
+        )
+        ab_cable_count = len([sp for sp in spans if getattr(sp, "conductor", "") == "AB Cable" and not getattr(sp, "is_existing_span", False)])
+
+        objects = []
+
+        def add_recipe_obj(title, recipe_key, canvas_count):
+            rec = find_recipe(recipe_key)
+            if not rec or canvas_count <= 0:
+                return
+            items = []
+            for ri in rec.get("items", []):
+                lpp = float(ri.get("length_per_piece", ri.get("length", 0.0)))
+                qpo = int(ri.get("qty_per_object", ri.get("qty", 1)))
+                if lpp <= 0:
+                    continue
+                items.append({
+                    "description": ri.get("description", ""),
+                    "section": ri.get("section", ""),
+                    "lpp": lpp, "qpo": qpo,
+                })
+            if items:
+                objects.append({"title": title, "canvas_count": canvas_count, "items": items})
+
+        def add_direct_obj(title, canvas_count, direct_items):
+            if canvas_count <= 0:
+                return
+            items = [dict(it) for it in direct_items if it.get("lpp", 0) > 0]
+            if items:
+                objects.append({"title": title, "canvas_count": canvas_count, "items": items})
+
+        # Build objects matching the estimate
+        for rkey, cnt in lt_recipe_counts.items():
+            rec = find_recipe(rkey)
+            label = rec["name"] if rec else rkey
+            add_recipe_obj(f"LT Pole Iron — {label}", rkey, cnt)
+
+        add_direct_obj(f"LT Pole Extension ({lt_ext_count} nos)", lt_ext_count, [
+            {"description": "Single Pole Extension (Angle)", "section": "ANG_65X65X6",
+             "lpp": avg_ext_lt, "qpo": 1},
+        ])
+
+        add_recipe_obj("DP Structure Iron", "DP_IRON", dp_count)
+        add_direct_obj(f"CG Bracket Iron ({cg_pole_count} poles)", cg_pole_count, [
+            {"description": "CG Cradle Guard Bracket (Angle)", "section": "ANG_65X65X6", "lpp": 1.9, "qpo": 1},
+            {"description": "CG Cradle Guard Bracket (Flat)", "section": "FLAT_65X6", "lpp": 0.5, "qpo": 1},
+        ])
+
+        add_recipe_obj("TP Structure Iron", "TP_IRON", tp_count)
+        add_recipe_obj("4-Pole Structure Iron", "4P_IRON", p4_count)
+        add_recipe_obj("DTR Substation Iron", "DTR_IRON", dtr_count)
+
+        # Structure extensions
+        for _slabel, _stypes, _ppc in (("DP/DTR", ("DP", "DTR"), 2), ("TP", ("TP",), 3), ("4P", ("4P",), 4)):
+            _grp = [s for s in structs if getattr(s, "structure_type", "") in _stypes and getattr(s, "has_extension", False)]
+            if not _grp:
+                continue
+            _cnt = len(_grp)
+            _avg = round(sum(float(getattr(s, "extension_height", 3.0) or 3.0) for s in _grp) / _cnt, 2)
+            add_direct_obj(f"{_slabel} Structure Extension ({_cnt} nos)", _cnt, [
+                {"description": "Structure Extension (Channel)", "section": "CH_75X40",
+                 "lpp": round(_avg * 2, 2), "qpo": _ppc},
+                {"description": "Structure Extension (Flat)", "section": "FLAT_65X6",
+                 "lpp": 3.0, "qpo": _ppc},
+            ])
+
+        for rkey, cnt in ht_recipe_counts.items():
+            rec = find_recipe(rkey)
+            label = rec["name"] if rec else rkey
+            add_recipe_obj(f"HT Pole Iron — {label}", rkey, cnt)
+
+        add_direct_obj(f"HT Pole Extension ({ht_ext_count} nos)", ht_ext_count, [
+            {"description": "HT Pole Extension (Channel)", "section": "CH_75X40",
+             "lpp": round(avg_ext_ht * 2, 2), "qpo": 1},
+            {"description": "HT Pole Extension (Flat)", "section": "FLAT_65X6",
+             "lpp": 3.0, "qpo": 1},
+        ])
+
+        add_recipe_obj(f"LT ACSR Bracket ({lt_acsr_count} poles)", "LT_ACSR_BRACKET", lt_acsr_count)
+        add_recipe_obj(f"AB Cable Clamp ({ab_cable_count} spans)", "AB_CABLE_CLAMP", ab_cable_count)
+
+        # ── Group by Section ───────────────────────────────────────────────────
+        extra_sections = []
+        for obj in objects:
+            for it in obj["items"]:
+                sec = it["section"]
+                if sec not in SECTION_ORDER and sec not in extra_sections:
+                    extra_sections.append(sec)
+
+        write_order = SECTION_ORDER + extra_sections
+        section_map = defaultdict(list)
+        for obj in objects:
+            for sec_code in write_order:
+                sec_items = [it for it in obj["items"] if it["section"] == sec_code]
+                if sec_items:
+                    section_map[sec_code].append({
+                        "title": obj["title"],
+                        "canvas_count": obj["canvas_count"],
+                        "sec_items": sec_items,
+                    })
+
+        if not any(section_map.get(s) for s in write_order):
             _span_row("  No structural iron items in current estimate.", "#F8F8F8")
             return
 
-        # Track section totals for the summary block
-        section_totals: list[tuple[str, float]] = []
+        section_totals = []
 
-        for sec_code in SECTION_ORDER + extra_secs:
-            items = section_items.get(sec_code, [])
-            if not items:
+        for sec_code in write_order:
+            sec_objects = section_map.get(sec_code, [])
+            if not sec_objects:
                 continue
 
-            sec_info = sections_dict.get(sec_code, {})
-            kg_m = sec_info.get("kg_per_metre", 0.0)
+            kg_m = KG_PER_METRE.get(sec_code)
+            if not kg_m and sec_code in sections_dict:
+                kg_m = sections_dict[sec_code].get("kg_per_metre", 0.0)
+            kg_m = kg_m or 0.0
             sec_label = SECTION_LABELS.get(sec_code, sec_code)
-            kg_label  = f"{kg_m} kg/m" if kg_m else ""
+            kg_label = f"{kg_m} kg/m" if kg_m else ""
 
-            # Section header
+            # Section Header
             _span_row(f"  {sec_label}  {'— ' + kg_label if kg_label else ''}",
-                      "#1F4E79", bold=True, fg="#FFFFFF")
+                      "#2A4365", bold=True, fg="#FFFFFF")
 
-            # Column sub-header
-            _row(["  Description", "", "", "", "Iron (MT)"],
-                 bg="#BDD7EE", bold=True)
+            # Column Sub-header
+            _row(["  Description", "No", "Length", "Total (m)", "Iron (MT)"],
+                 bg="#E2E8F0", bold=True, center_cols=(1, 2, 3, 4))
 
-            sec_total = 0.0
-            for idx, (desc, qty_mt) in enumerate(items):
-                bg = "#FFFFFF" if idx % 2 == 0 else "#EBF3FB"
-                _row([f"  {desc}", "", "", "", f"{qty_mt:.3f}"], bg=bg)
-                sec_total += qty_mt
+            sec_total_mt = 0.0
 
-            sec_total = round(sec_total, 3)
-            section_totals.append((sec_label, sec_total))
-            _row(["  Section Total", "", "", "", f"{sec_total:.3f} MT"],
+            for obj in sec_objects:
+                # Object Sub-header
+                _span_row(f"    ↳  {obj['title']}  ({obj['canvas_count']} nos on canvas)",
+                          "#EDF2F7", bold=True, fg="#1A365D")
+
+                obj_total_mt = 0.0
+                for row_idx, it in enumerate(obj["sec_items"]):
+                    canvas_cnt = obj["canvas_count"]
+                    lpp = it["lpp"]
+                    qpo = it["qpo"]
+                    total_nos = canvas_cnt * qpo
+                    total_len = round(total_nos * lpp, 2)
+                    item_mt = round((total_len * kg_m) / 1000.0, 3)
+                    obj_total_mt += item_mt
+
+                    desc_text = f"      {it['description']}"
+                    bg = "#FFFFFF" if row_idx % 2 == 0 else "#F7FAFC"
+                    _row([desc_text, str(total_nos), f"{lpp:.2f}m", f"{total_len:.2f}", f"{item_mt:.3f}"],
+                         bg=bg, center_cols=(1, 2, 3))
+
+                sec_total_mt += obj_total_mt
+
+            sec_total_mt = round(sec_total_mt, 3)
+            section_totals.append((sec_label, sec_total_mt))
+            _row(["  Section Total", "", "", "", f"{sec_total_mt:.3f} MT"],
                  bg="#D9E1F2", bold=True)
             _row(["", "", "", "", ""], bg="#F8F8F8")  # spacer
 
-        # ── Iron Summary (per section only — no combined grand total) ──────────
+        # ── Iron Summary ───────────────────────────────────────────────────────
         if section_totals:
-            _span_row("  IRON SUMMARY", "#1F4E79", bold=True, fg="#FFFFFF")
+            _span_row("  IRON SUMMARY", "#2A4365", bold=True, fg="#FFFFFF")
             for sec_lbl, total_mt in section_totals:
                 _row([f"  {sec_lbl}", "", "", "", f"{total_mt:.3f} MT"],
-                     bg="#FFF2CC", bold=False)
+                     bg="#FEF3C7", bold=False)
 
     # =========================================================================
     #  PROJECT WIZARD
@@ -2694,6 +2826,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             conn.close()
             self._refresh_table()
             self._recalculate_totals(sup_rate)
+            if hasattr(self, "_panel_stack") and self._panel_stack.currentIndex() == 1:
+                self._refresh_breakup_view()
         finally:
             self._refreshing_live = False
 
@@ -2900,6 +3034,129 @@ class EstimateApp(QMainWindow, EditorMixin):
         vp = self.live_table.viewport()
         menu.exec(vp.mapToGlobal(pos) if vp is not None else self.cursor().pos())
 
+    @staticmethod
+    def _humanize_condition(cond: str) -> str:
+        """Convert code conditions into readable plain English for users."""
+        if not cond or cond.strip().lower() in ("true", ""):
+            return "Applied automatically to all instances"
+
+        import re
+        clauses = re.split(r'\s+(?:and|&)\s+', cond, flags=re.IGNORECASE)
+        parts = []
+
+        PHRASE_MAP = {
+            ("is_existing", "False"): "New",
+            ("is_existing", "True"): "Existing",
+            ("is_new", "True"): "New",
+            ("is_new", "False"): "Existing",
+            ("is_existing_span", "False"): "New line",
+            ("is_existing_span", "True"): "Existing line",
+            ("is_new_span", "True"): "New line",
+            ("is_new_span", "False"): "Existing line",
+            ("is_distribution_span", "True"): "Distribution line",
+            ("is_distribution_span", "False"): "Service connection",
+            ("is_service_drop", "True"): "Service connection",
+            ("is_service_drop", "False"): "Distribution line",
+            ("is_lt_span", "True"): "LT (Low Tension)",
+            ("is_lt_span", "False"): "HT (High Tension)",
+            ("is_ht_span", "True"): "HT (High Tension)",
+            ("is_ht_span", "False"): "LT (Low Tension)",
+            ("has_cg", "True"): "with Cradle Guard",
+            ("has_cg", "False"): "without Cradle Guard",
+            ("has_extension", "True"): "with Extension",
+            ("has_extension", "False"): "Standard (no extension)",
+            ("use_uh", "True"): "Underground/UH Project",
+            ("use_uh", "False"): "Standard Material",
+            ("agency_supply", "True"): "Agency Supply",
+            ("agency_supply", "False"): "WBSEDCL / Dept Supply",
+            ("consider_cable", "True"): "Include Cable",
+            ("consider_cable", "False"): "Exclude Cable",
+            ("ab_needs_dead_end", "True"): "Dead-End Pole",
+            ("ab_needs_suspension", "True"): "Intermediate Suspension",
+        }
+
+        for cl in clauses:
+            cl = cl.strip().strip("()")
+            if not cl:
+                continue
+
+            # Check NOT
+            m_not = re.match(r'^not\s+(\w+)$', cl, re.IGNORECASE)
+            if m_not:
+                k = m_not.group(1)
+                parts.append(PHRASE_MAP.get((k, "False"), f"Not {k}"))
+                continue
+
+            # Check key == 'val' or key == val or >= or <=
+            m_op = re.match(r"^(\w+)\s*(==|!=|>=|<=|>|<)\s*['\"]?(.+?)['\"]?$", cl)
+            if m_op:
+                k, op, v = m_op.group(1), m_op.group(2), m_op.group(3).strip().strip("'\"")
+                if (k, v) in PHRASE_MAP and op == "==":
+                    parts.append(PHRASE_MAP[(k, v)])
+                elif k == "pole_type":
+                    parts.append(f"{v} Pole")
+                elif k == "pole_type2":
+                    parts.append(f"{v} Section")
+                elif k == "height":
+                    parts.append(f"{v}m Height" if op == "==" else f"Height {op} {v}m")
+                elif k == "structure_type":
+                    parts.append(f"{v} Structure")
+                elif k == "conductor":
+                    parts.append(f"{v} Conductor")
+                elif k == "conductor_size" or k == "wire_size" or k == "cable_size":
+                    parts.append(f"{v} Size")
+                elif k == "wire_count":
+                    parts.append(f"{v}-Wire" if op == "==" else f"{op} {v} Wires")
+                elif k == "phase":
+                    parts.append(f"{v}")
+                elif k == "ht_spans_count":
+                    if op in (">=", ">") and int(v) >= 2:
+                        parts.append("Through / Intermediate Position (2+ Spans)")
+                    elif (op == "==" and v == "1") or (op in ("<=", "<") and int(v) <= 1):
+                        parts.append("Terminal / End Pole (1 Span)")
+                    else:
+                        parts.append(f"{v} HT Spans")
+                elif k == "stay_count" or k == "stay_count_gt":
+                    parts.append(f"With Stay Wire ({v})" if v != "0" else "No Stay")
+                elif k == "earth_count" or k == "earth_count_gt":
+                    parts.append(f"With Earthing ({v})" if v != "0" else "No Earth")
+                elif k == "project_type":
+                    parts.append(f"Project: {v}")
+                else:
+                    parts.append(f"{k} {op} {v}")
+                continue
+
+            # Bare boolean flag
+            m_bare = re.match(r'^(\w+)$', cl)
+            if m_bare:
+                k = m_bare.group(1)
+                parts.append(PHRASE_MAP.get((k, "True"), k))
+                continue
+
+            parts.append(cl)
+
+        return " • ".join(parts) if parts else cond
+
+    @staticmethod
+    def _humanize_formula(formula: str) -> str:
+        """Convert formula / recipe expressions into clean English."""
+        if not formula:
+            return "1 unit"
+        s = str(formula).strip()
+        if s.startswith("recipe:"):
+            import re
+            m = re.match(r"^recipe:([A-Z0-9_]+)\s*→\s*(.+)$", s)
+            if m:
+                rkey, sec = m.group(1), m.group(2)
+                rname = rkey.replace("POLE_", "").replace("_IRON", "").replace("_", " ").title()
+                return f"{rname} Recipe ({sec})"
+            return s.replace("recipe:", "Recipe: ")
+        elif s == "1":
+            return "1 per object"
+        elif s.isdigit():
+            return f"{s} per object"
+        return s
+
     def _show_bom_provenance(self, row):
         if row < 0 or row >= len(self.live_bom_data):
             return
@@ -2908,62 +3165,153 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Estimate Line Breakdown")
-        dlg.resize(720, 380)
+        dlg.resize(840, 420)
         lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+        lay.setContentsMargins(16, 16, 16, 16)
+
+        hdr_frame = QFrame()
+        hdr_frame.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;")
+        hdr_lay = QVBoxLayout(hdr_frame)
+        hdr_lay.setContentsMargins(0, 0, 0, 0)
+        hdr_lay.setSpacing(4)
 
         hdr = QLabel(
-            f"<b>{item['name']}</b>  ({item['type']}, code {item['code']})<br>"
-            f"Total: <b>{self._fmt_qty(item['qty'], item.get('unit',''))} {item['unit']}</b>"
-            f"  &nbsp;|&nbsp;  Rs. {item['amt']:.2f}"
+            f"<span style='font-size:14px; font-weight:bold; color:#0f172a;'>{item['name']}</span> &nbsp; "
+            f"<span style='font-size:11px; color:#64748b;'>({item['type']}, Code: {item['code']})</span><br>"
+            f"Line Total: <b style='color:#0369a1;'>{self._fmt_qty(item['qty'], item.get('unit',''))} {item['unit']}</b>"
+            f" &nbsp;&nbsp;|&nbsp;&nbsp; Cost: <b style='color:#15803d;'>Rs. {item['amt']:,.2f}</b>"
         )
         hdr.setWordWrap(True)
-        hdr.setStyleSheet("font-size:12px; padding:4px;")
-        lay.addWidget(hdr)
+        hdr_lay.addWidget(hdr)
+        lay.addWidget(hdr_frame)
 
         if not contribs:
             note = QLabel(
                 "This line was added manually or as an override — it is not "
-                "generated by a rule, so there is no breakdown to show."
+                "generated by a rule, so there is no automatic breakdown to show."
             )
             note.setWordWrap(True)
-            note.setStyleSheet("color:#666; padding:8px;")
+            note.setStyleSheet("color:#64748b; padding:16px; font-style:italic;")
             lay.addWidget(note)
         else:
-            tbl = QTableWidget(len(contribs), 5)
+            top_bar = QHBoxLayout()
+            lbl_title = QLabel(f"<b>Breakdown of Contributions ({len(contribs)}):</b>")
+            lbl_title.setStyleSheet("font-size:12px; color:#334155;")
+            top_bar.addWidget(lbl_title)
+            top_bar.addStretch()
+
+            toggle_raw_btn = QPushButton("Show Technical Conditions")
+            toggle_raw_btn.setCheckable(True)
+            toggle_raw_btn.setStyleSheet("""
+                QPushButton { font-size:11px; padding:3px 10px; border:1px solid #cbd5e1; border-radius:4px; background:#ffffff; color:#475569; }
+                QPushButton:checked { background:#e2e8f0; color:#0f172a; font-weight:bold; }
+            """)
+            top_bar.addWidget(toggle_raw_btn)
+            lay.addLayout(top_bar)
+
+            tbl = QTableWidget(len(contribs), 6)
             tbl.setHorizontalHeaderLabels(
-                ["Object", "Rule #", "Condition", "Formula / Recipe", "Qty"]
+                ["Applied To", "Rule #", "Why was this added? (Condition)", "Formula / Recipe", "Qty", "Action"]
             )
             tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            tbl.setStyleSheet("""
+                QTableWidget { background:#ffffff; border:1px solid #cbd5e1; border-radius:4px; font-size:11px; }
+                QHeaderView::section { background:#f1f5f9; font-weight:bold; color:#334155; padding:5px; border:none; border-bottom:1px solid #cbd5e1; }
+            """)
             hh = tbl.horizontalHeader()
             if hh is not None:
                 hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+
+            def _refresh_table_conditions(show_raw: bool):
+                for r, c in enumerate(contribs):
+                    cond_str = c.get("condition", "")
+                    disp_cond = cond_str if show_raw else self._humanize_condition(cond_str)
+                    cond_item = QTableWidgetItem(disp_cond)
+                    cond_item.setToolTip(cond_str)
+                    tbl.setItem(r, 2, cond_item)
+
             for r, c in enumerate(contribs):
                 obj = c.get("object_label") or c.get("object_type", "")
-                vals = [
-                    obj,
-                    str(c.get("rule_id", "")),
-                    c.get("condition", ""),
-                    str(c.get("formula", "")),
-                    self._fmt_qty(round(float(c.get("qty", 0)), 3), item.get("unit", "")),
-                ]
-                for cc, v in enumerate(vals):
-                    tbl.setItem(r, cc, QTableWidgetItem(v))
+                rule_id = str(c.get("rule_id", "") or "")
+                raw_formula = str(c.get("formula", "") or "")
+                disp_formula = self._humanize_formula(raw_formula)
+                qty_str = self._fmt_qty(round(float(c.get("qty", 0)), 3), item.get("unit", ""))
+
+                tbl.setItem(r, 0, QTableWidgetItem(obj))
+                tbl.setItem(r, 1, QTableWidgetItem(f"Rule #{rule_id}" if rule_id else "Dynamic"))
+                tbl.setItem(r, 3, QTableWidgetItem(disp_formula))
+                tbl.setItem(r, 4, QTableWidgetItem(qty_str))
+
+                # Col 5: Action Button to jump to Rule / Recipe Editor
+                action_btn = QPushButton("✏️ Edit")
+                action_btn.setToolTip("Open in Editor to customize or tweak")
+                action_btn.setStyleSheet("""
+                    QPushButton {
+                        background:#f0f9ff; color:#0284c7; border:1px solid #bae6fd;
+                        border-radius:3px; padding:2px 8px; font-weight:bold; font-size:10px;
+                    }
+                    QPushButton:hover { background:#e0f2fe; color:#0369a1; }
+                """)
+
+                # Determine if rule or recipe
+                is_recipe_action = raw_formula.startswith("recipe:") or "recipe" in raw_formula.lower()
+                recipe_key_match = None
+                if is_recipe_action:
+                    import re
+                    m = re.match(r"^recipe:([A-Z0-9_]+)", raw_formula)
+                    if m:
+                        recipe_key_match = m.group(1)
+
+                def make_handler(rid=rule_id, rkey=recipe_key_match, is_rec=is_recipe_action):
+                    def handler():
+                        dlg.accept()
+                        if is_rec and rkey:
+                            from ui.dialogs.recipe_manager import RecipeManagerDialog
+                            rm_dlg = RecipeManagerDialog(self, initial_recipe_key=rkey)
+                            if rm_dlg.exec() == QDialog.DialogCode.Accepted:
+                                self.refresh_live_estimate()
+                        elif rid and rid.isdigit():
+                            from ui.dialogs.ruleset_mgr import RulesetManagerDialog
+                            rule_dlg = RulesetManagerDialog(self, canvas_objects=self.scene.items(), initial_rule_id=rid)
+                            if rule_dlg.exec() == QDialog.DialogCode.Accepted:
+                                self.refresh_live_estimate()
+                        elif is_rec:
+                            from ui.dialogs.recipe_manager import RecipeManagerDialog
+                            rm_dlg = RecipeManagerDialog(self)
+                            if rm_dlg.exec() == QDialog.DialogCode.Accepted:
+                                self.refresh_live_estimate()
+                        elif rid:
+                            from ui.dialogs.ruleset_mgr import RulesetManagerDialog
+                            rule_dlg = RulesetManagerDialog(self, canvas_objects=self.scene.items(), initial_rule_id=rid)
+                            if rule_dlg.exec() == QDialog.DialogCode.Accepted:
+                                self.refresh_live_estimate()
+                    return handler
+
+                action_btn.clicked.connect(make_handler())
+                tbl.setCellWidget(r, 5, action_btn)
+
+            _refresh_table_conditions(False)
+            toggle_raw_btn.toggled.connect(_refresh_table_conditions)
+
             tbl.setColumnWidth(0, 130)
-            tbl.setColumnWidth(1, 55)
+            tbl.setColumnWidth(1, 65)
             tbl.setColumnWidth(3, 160)
-            tbl.setColumnWidth(4, 70)
+            tbl.setColumnWidth(4, 60)
+            tbl.setColumnWidth(5, 75)
             lay.addWidget(tbl)
 
-            foot = QLabel(
-                f"{len(contribs)} contribution(s) summing to the line total above."
-            )
-            foot.setStyleSheet("color:#666; font-size:11px; padding:2px;")
+            foot = QLabel(f"Sum of {len(contribs)} breakdown item(s) matches the line total above.")
+            foot.setStyleSheet("color:#64748b; font-size:11px; padding:2px;")
             lay.addWidget(foot)
 
+        bot_lay = QHBoxLayout()
+        bot_lay.addStretch()
         btn = QPushButton("Close")
         btn.clicked.connect(dlg.accept)
-        btn.setStyleSheet("padding:6px 20px; font-weight:bold; background:#3498db; color:white;")
-        lay.addWidget(btn)
+        btn.setStyleSheet("padding:6px 24px; font-weight:bold; background:#0284c7; color:white; border-radius:4px;")
+        bot_lay.addWidget(btn)
+        lay.addLayout(bot_lay)
         dlg.exec()
 
     def change_rate_chart_year(self):

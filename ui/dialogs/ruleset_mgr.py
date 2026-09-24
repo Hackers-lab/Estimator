@@ -149,7 +149,7 @@ class RulesetManagerDialog(QDialog):
     hardcoded class-level dicts here.
     """
 
-    def __init__(self, parent=None, canvas_objects=None):
+    def __init__(self, parent=None, canvas_objects=None, initial_rule_id: int | str | None = None):
         super().__init__(parent)
         self.setWindowTitle("Ruleset Manager")
         self.setGeometry(60, 60, 1440, 880)
@@ -173,7 +173,30 @@ class RulesetManagerDialog(QDialog):
 
         self._build_ui()
         self.load_rules()
-        self._select_tree_root("SmartPole")
+        if initial_rule_id is not None:
+            self.select_rule_by_id(initial_rule_id)
+        else:
+            self._select_tree_root("SmartPole")
+
+    def select_rule_by_id(self, rule_id: int | str):
+        """Locate a rule by its ID and select it in the manager."""
+        target_str = str(rule_id).strip()
+        target_idx = -1
+        target_rule = None
+        for idx, r in enumerate(self.rules):
+            if str(r.get("id", "")).strip() == target_str:
+                target_idx = idx
+                target_rule = r
+                break
+        if target_idx != -1 and target_rule:
+            obj_type = target_rule.get("object", "SmartPole")
+            self.active_obj_type = obj_type
+            self.active_tree_filter = {}
+            self.active_chips.clear()
+            self._select_tree_root(obj_type)
+            self._on_card(target_idx)
+            return True
+        return False
 
     # ═════════════════════════════════════════════════════════════════════════
     #  UI CONSTRUCTION

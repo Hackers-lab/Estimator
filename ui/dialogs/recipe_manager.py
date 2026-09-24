@@ -43,7 +43,7 @@ class RecipeManagerDialog(QDialog):
     Premium PyQt6 dialog to manage and edit Iron Recipes and Section Profiles. [ignoring loop detection]
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_recipe_key: str | None = None):
         super().__init__(parent)
         self.setWindowTitle("Iron Recipes & Steel Profiles Manager")
         self.resize(850, 520)
@@ -56,6 +56,16 @@ class RecipeManagerDialog(QDialog):
 
         self._init_ui()
         self._load_recipes_into_list()
+        if initial_recipe_key:
+            self.select_recipe(initial_recipe_key)
+
+    def select_recipe(self, recipe_key: str):
+        """Programmatically select a recipe by its key."""
+        for idx, r in enumerate(self.recipes_list):
+            if r.get("recipe_key") == recipe_key:
+                self.recipe_list_widget.setCurrentRow(idx)
+                return True
+        return False
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
