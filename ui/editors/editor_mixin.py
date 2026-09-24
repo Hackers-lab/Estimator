@@ -149,6 +149,13 @@ class EditorMixin:
             else:
                 self._add_field_pair("Ex Type:", type_cb)
 
+            if subtype in ("DP", "DTR"):
+                orient_cb = QComboBox()
+                orient_cb.addItems(["Horizontal", "Vertical"])
+                orient_cb.setCurrentText(getattr(item, "orientation", "Horizontal"))
+                self._bind_property_widget(item, "orientation", orient_cb)
+                self._add_field_pair("Orient:", orient_cb)
+
             sin_input = QLineEdit(str(getattr(item, "dynamic_props", {}).get("sin", "")))
             sin_input.setPlaceholderText("Optional System ID")
             sin_input.editingFinished.connect(
@@ -895,6 +902,11 @@ class EditorMixin:
             return act
 
         if isinstance(item, SmartPole):
+            if item.is_existing and getattr(item, "existing_subtype", "") in ("DP", "DTR"):
+                _choice_submenu(
+                    "Orientation", ["Horizontal", "Vertical"], getattr(item, "orientation", "Horizontal"),
+                    lambda v, i=item: self._update_pole(i, "orientation", v)
+                )
             _choice_submenu(
                 "Material", ["PCC", "STP", "H-BEAM"], item.pole_type2,
                 lambda v, i=item: self._update_pole_type2(i, v)
@@ -926,6 +938,10 @@ class EditorMixin:
             _choice_submenu(
                 "Structure Type", ["DP", "TP", "4P", "DTR"], item.structure_type,
                 lambda v, i=item: self._update_structure_type(i, v)
+            )
+            _choice_submenu(
+                "Orientation", ["Horizontal", "Vertical"], getattr(item, "orientation", "Horizontal"),
+                lambda v, i=item: self._update_structure(i, "orientation", v)
             )
             _choice_submenu(
                 "Pole Material", ["PCC", "STP", "H-BEAM"], item.pole_type2,

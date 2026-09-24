@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QGraphicsPathItem, QWidget, QStyleOptionGraphicsItem,
 )
 from PyQt6.QtGui import (
-    QPainterPath, QBrush, QColor, QPen, QFont, QPainter, QPolygonF,
+    QPainterPath, QBrush, QColor, QPen, QFont, QPainter, QPolygonF, QTransform,
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from core import defaults
@@ -129,11 +129,12 @@ def _existing_struct_path(st: str) -> QPainterPath:
             path.lineTo(p2[0] - nx * radius, p2[1] - ny * radius)
 
     if st == "DP":
-        cx = r + gap // 2
-        p.addEllipse(-cx - r, -r, r * 2, r * 2)
-        p.addEllipse( cx - r, -r, r * 2, r * 2)
-        p.moveTo(-cx + r, 0)
-        p.lineTo( cx - r, 0)
+        cx_dp = 14.0
+        r_dp = 5.5
+        p.addRoundedRect(-cx_dp - r_dp, -r_dp, r_dp * 2, r_dp * 2, 1.0, 1.0)
+        p.addRoundedRect( cx_dp - r_dp, -r_dp, r_dp * 2, r_dp * 2, 1.0, 1.0)
+        p.moveTo(-cx_dp + r_dp, 0.0)
+        p.lineTo( cx_dp - r_dp, 0.0)
     elif st == "TP":
         offs = [(0, -(r + gap // 2)), (-(r + gap), r + gap // 2), (r + gap, r + gap // 2)]
         for ox, oy in offs:
@@ -146,12 +147,16 @@ def _existing_struct_path(st: str) -> QPainterPath:
             p.addEllipse(ox - r, oy - r, r * 2, r * 2)
         _cl(p, offs, r)
     elif st == "DTR":
-        cx = r + gap // 2 + 4
-        p.addEllipse(-cx - r, -r, r * 2, r * 2)
-        p.addEllipse( cx - r, -r, r * 2, r * 2)
-        p.addRect(-gap // 2 - 2, -r // 2, gap + 4, r)
-        p.moveTo(-gap // 2 - 2, 0)
-        p.lineTo( gap // 2 + 2, 0)
+        cx = 18.0
+        p.setFillRule(Qt.FillRule.WindingFill)
+        p.addRoundedRect(-cx - 3.5, -3.5, 7.0, 7.0, 1.0, 1.0)
+        p.addRoundedRect( cx - 3.5, -3.5, 7.0, 7.0, 1.0, 1.0)
+        p.moveTo(-cx, 0.0)
+        p.lineTo(-10.5, 0.0)
+        p.moveTo(10.5, 0.0)
+        p.lineTo( cx, 0.0)
+        p.addEllipse(-10.5, -16.0, 21.0, 21.0)
+        p.addEllipse(-7.0, -2.0, 14.0, 14.0)
     return p
 
 
@@ -339,6 +344,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.is_existing        = is_existing
         self.existing_subtype   = existing_subtype if is_existing else pole_type   # LT | HT | DP | TP | 4P | DTR
         self.existing_dtr_size  = "None"
+        self.orientation        = "Horizontal"
         self.height             = _d[_pfx + "height"] if not is_existing else ("8MTR" if pole_type == "LT" else "9MTR")
         self.has_extension      = False
         self.extension_height   = _d["extension_height"]
@@ -382,6 +388,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             "is_existing": self.is_existing,
             "existing_subtype": self.existing_subtype,
             "existing_dtr_size": getattr(self, "existing_dtr_size", "None"),
+            "orientation": getattr(self, "orientation", "Horizontal"),
             "height": self.height,
             "has_extension": self.has_extension,
             "extension_height": self.extension_height,
@@ -404,6 +411,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
         self.existing_subtype = state.get("existing_subtype", self.pole_type)
         self.voltage_level = state.get("voltage_level", "33kV" if self.existing_subtype == "33" else ("11kV" if self.pole_type == "HT" else "LT"))
         self.existing_dtr_size = state.get("existing_dtr_size", "None")
+        self.orientation = state.get("orientation", "Horizontal")
         self.height = state.get("height", "8MTR")
         self.has_extension = state.get("has_extension", False)
         self.extension_height = state.get("extension_height", 3.0)
@@ -641,7 +649,10 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             # Main pole symbol shape according to type/condition
             r = self._RADIUS
             if self.is_existing and ex_sub in ("DP", "TP", "4P", "DTR"):
-                path.addPath(_existing_struct_path(ex_sub))
+                struct_p = _existing_struct_path(ex_sub)
+                if str(getattr(self, "orientation", "Horizontal")).lower().startswith("v"):
+                    struct_p = QTransform().rotate(90).map(struct_p)
+                path.addPath(struct_p)
             elif v_level == "33kV" or (self.is_existing and ex_sub == "33"):
                 path.addPath(_diamond_path(r))
             elif self.pole_type == "LT" and not (self.is_existing and ex_sub == "HT"):
@@ -817,15 +828,24 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 painter.setPen(QPen(QColor("#222222"), 1.2))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 if self.is_existing and self.existing_subtype in ("DP", "DTR"):
-                    r_ex = self._RADIUS
-                    cx = (r_ex + 3) if self.existing_subtype == "DP" else (r_ex + 7)
-                    # Stays perpendicular to centerline: up (270°) and down (90°)
-                    dp_stay_configs = [
-                        (-cx, 0.0, 270),  # Left pole, up
-                        ( cx, 0.0, 270),  # Right pole, up
-                        (-cx, 0.0,  90),  # Left pole, down
-                        ( cx, 0.0,  90),  # Right pole, down
-                    ]
+                    cx = 14.0 if self.existing_subtype == "DP" else 18.0
+                    is_vert = str(getattr(self, "orientation", "Horizontal")).lower().startswith("v")
+                    if is_vert:
+                        # Stays perpendicular to vertical centerline: left (180°) and right (0°)
+                        dp_stay_configs = [
+                            (0.0, -cx, 180),  # Top pole, left
+                            (0.0,  cx, 180),  # Bottom pole, left
+                            (0.0, -cx,   0),  # Top pole, right
+                            (0.0,  cx,   0),  # Bottom pole, right
+                        ]
+                    else:
+                        # Stays perpendicular to horizontal centerline: up (270°) and down (90°)
+                        dp_stay_configs = [
+                            (-cx, 0.0, 270),  # Left pole, up
+                            ( cx, 0.0, 270),  # Right pole, up
+                            (-cx, 0.0,  90),  # Left pole, down
+                            ( cx, 0.0,  90),  # Right pole, down
+                        ]
                     for i in range(min(self.stay_count, 4)):
                         ox, oy, ang = dp_stay_configs[i % len(dp_stay_configs)]
                         painter.drawPath(_stay_path(ang, ox, oy))

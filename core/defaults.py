@@ -96,7 +96,7 @@ _FACTORY: dict = {
     "canvas_ht_pole_13mtr":   "#c0392b",
     "canvas_ex_pole":         "#cccccc",   # Existing pole fill
     "canvas_ex_aug_dtr":      "#f7b267",   # Existing augmented-DTR fill
-    "canvas_dp":              "#27ae60",   # DP structure fill
+    "canvas_dp":              "#c0392b",   # DP structure fill (same as HT pole)
     "canvas_tp":              "#1abc9c",   # TP structure fill
     "canvas_4p":              "#16a085",   # 4P structure fill
     "canvas_dtr":             "#e67e22",   # DTR structure fill

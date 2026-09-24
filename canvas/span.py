@@ -217,7 +217,9 @@ class SmartSpan(QGraphicsPathItem):
             line = QLineF(other_item_pos, item_pos)
             
             if isinstance(item, SmartPole):
-                # For SmartPole, connect to the edge of the circle
+                if item.is_existing and getattr(item, "existing_subtype", "") in ("DP", "DTR", "TP", "4P"):
+                    return item_pos
+                # For single SmartPole, connect to the edge of the circle/square
                 direction = line.unitVector()
                 return item_pos - QPointF(direction.dx() * 9, direction.dy() * 9)
             

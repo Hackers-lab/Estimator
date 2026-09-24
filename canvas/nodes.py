@@ -34,7 +34,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
     """
 
     _COLORS = {
-        "DP":  QColor("#27ae60"),   # green
+        "DP":  QColor("#c0392b"),   # red (same as HT pole)
         "TP":  QColor("#1abc9c"),   # teal
         "4P":  QColor("#16a085"),   # dark teal
         "DTR": QColor("#e67e22"),   # orange
@@ -170,13 +170,14 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
                 path.lineTo(end_x, end_y)
 
         if st == "DP":
-            # Two circles side by side
-            cx = r + gap // 2
-            body_path.addEllipse(-cx - r, -r, r * 2, r * 2)
-            body_path.addEllipse( cx - r, -r, r * 2, r * 2)
+            # Two compact squares side by side (11x11 px, r=5.5, cx=14)
+            cx_dp = 14.0
+            r_dp = 5.5
+            body_path.addRoundedRect(-cx_dp - r_dp, -r_dp, r_dp * 2, r_dp * 2, 1.0, 1.0)
+            body_path.addRoundedRect( cx_dp - r_dp, -r_dp, r_dp * 2, r_dp * 2, 1.0, 1.0)
             # Connecting bar
-            body_path.moveTo(-cx + r, 0)
-            body_path.lineTo( cx - r, 0)
+            body_path.moveTo(-cx_dp + r_dp, 0.0)
+            body_path.lineTo( cx_dp - r_dp, 0.0)
 
         elif st == "TP":
             # Triangle: top + bottom-left + bottom-right
@@ -200,15 +201,20 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             _draw_connecting_lines(body_path, offsets, r)
 
         elif st == "DTR":
-            # Two circles with transformer body between
-            cx = r + gap // 2 + 4
-            body_path.addEllipse(-cx - r, -r, r * 2, r * 2)
-            body_path.addEllipse( cx - r, -r, r * 2, r * 2)
-            # Transformer body — rectangle
-            body_path.addRect(-gap // 2 - 2, -r // 2, gap + 4, r)
-            # HV/LV winding hint lines
-            body_path.moveTo(-gap // 2 - 2, 0)
-            body_path.lineTo( gap // 2 + 2, 0)
+            # IEC 60617 inspired DTR: Two solid small squares on sides + two intersecting circles in center
+            cx = 18.0
+            body_path.setFillRule(Qt.FillRule.WindingFill)
+            # Two small solid square poles on sides (7x7, r=1)
+            body_path.addRoundedRect(-cx - 3.5, -3.5, 7.0, 7.0, 1.0, 1.0)
+            body_path.addRoundedRect( cx - 3.5, -3.5, 7.0, 7.0, 1.0, 1.0)
+            # Platform tie bars stopping at transformer coil perimeter (-10.5 and +10.5)
+            body_path.moveTo(-cx, 0.0)
+            body_path.lineTo(-10.5, 0.0)
+            body_path.moveTo(10.5, 0.0)
+            body_path.lineTo( cx, 0.0)
+            # Intersecting circles: Top/HV Primary (r=10.5, cy=-5.5), Bottom/LV Secondary (r=7.0, cy=5.0)
+            body_path.addEllipse(-10.5, -16.0, 21.0, 21.0)
+            body_path.addEllipse(-7.0, -2.0, 14.0, 14.0)
 
         # Extension indicator
         if self.has_extension:
@@ -218,9 +224,14 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         if self.detail_view and self.earth_count > 0:
             if st in ("DP", "DTR"):
                 # Show exactly 2 earth symbols along the centerline, one on each outer side
-                cx = (r + gap // 2) if st == "DP" else (r + gap // 2 + 4)
-                left_x  = -cx - r - 2   # just outside left pole
-                right_x =  cx + r + 2   # just outside right pole
+                if st == "DP":
+                    cx = 14.0
+                    left_x  = -cx - 5.5 - 2 # just outside left square
+                    right_x =  cx + 5.5 + 2 # just outside right square
+                else:
+                    cx = 18.0
+                    left_x  = -cx - 3.5 - 2 # just outside left square
+                    right_x =  cx + 3.5 + 2 # just outside right square
                 detail_path.addPath(_earth_path(left_x, 0, 180))   # pointing left
                 detail_path.addPath(_earth_path(right_x, 0, 0))    # pointing right
             else:
@@ -232,9 +243,9 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         # Stay wire symbols
         if self.detail_view and self.stay_count > 0:
             if st in ("DP", "DTR"):
-                cx = (r + gap // 2) if st == "DP" else (r + gap // 2 + 4)
+                cx = 14.0 if st == "DP" else 18.0
                 # Stays perpendicular to centerline: up (270°) and down (90°)
-                # Originate from pole circle centers
+                # Originate from pole centers
                 dp_stay_configs = [
                     (-cx, 0.0, 270),  # Left pole, up
                     ( cx, 0.0, 270),  # Right pole, up
@@ -269,7 +280,7 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             "4P":  "canvas_4p",
             "DTR": "canvas_dtr",
         }
-        _default_col = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#27ae60")
+        _default_col = defaults.current.get(_struct_color_keys.get(st, "canvas_dp"), "#c0392b")
         _user_col = option_colors.resolve_user_only("SmartStructure", "structure_type", str(st))
         _color_hex = _user_col if _user_col else _default_col
         
