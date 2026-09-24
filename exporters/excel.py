@@ -101,211 +101,342 @@ class ExcelExporter:
     def _write_estimate_sheet(self, wb: Any, m: dict) -> None:
         openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
         app = self._app
-        escalation_count = len(getattr(app, 'escalations', [])) if hasattr(app, 'escalations') else 0
-
-        # Find the actual cell for TOTAL MATERIAL COST (A)
-        # This is always the last material summary row, which is after all escalations and sundries
-        # Shifted +1 for User Profile metadata row at index 4
-        mat_total_row = 6 + len([x for x in app.live_bom_data if x["type"] == "Material"]) + 1 + escalation_count + 1  # +1 for 'Material Base Total', +escalation_count, +1 for sundries
-        mat_total_cell = f'G{mat_total_row}'
-
-        # Find the actual cell for TOTAL LABOR COST (B)
-        lab_start_row = mat_total_row + 4  # 3 rows for blank, section header, then labor starts
-        lab_total_row = lab_start_row + len([x for x in app.live_bom_data if x["type"] == "Labor"])  # after all labor rows
-        lab_total_cell = f'G{lab_total_row}'
-        ws  = wb.active
+        ws = wb.active
         assert ws is not None
         ws.title = "Estimate"
+
+        # ── Page Setup (Print on single page with clean margins) ───────────
+        ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 1
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_margins.left = 0.25
+        ws.page_margins.right = 0.25
+        ws.page_margins.top = 0.35
+        ws.page_margins.bottom = 0.35
+        ws.print_options.horizontalCentered = True
+        ws.views.sheetView[0].showGridLines = True
 
         sup_rate = m.get("supervision_rate", 0.10)
         sup_pct  = int(sup_rate * 100)
 
-        # Header
+        # ── Color Palette & Styles ──────────────────────────────────────────
+        FONT_FAMILY = "Segoe UI"
+        NAVY_HEADER = "1F4E79"
+        TBL_HEADER  = "2E75B6"
+        SEC_BG      = "D9E1F2"
+        SEC_TXT     = "1F4E79"
+        SUBTOTAL_BG = "F1F5F9"
+        TOTAL_BG    = "E2EFDA"
+        ZEBRA_EVEN  = "FFFFFF"
+        ZEBRA_ODD   = "F9FBFD"
+        META_BG     = "F2F4F7"
+
+        thin_side = Side(border_style="thin", color="D9D9D9")
+        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        dark_side = Side(border_style="thin", color="808080")
+        subtotal_border = Border(
+            left=thin_side, right=thin_side,
+            top=Side(border_style="thin", color="B0C4DE"),
+            bottom=Side(border_style="thin", color="B0C4DE")
+        )
+        grand_total_border = Border(
+            left=thin_side, right=thin_side,
+            top=Side(border_style="thin", color="2E75B6"),
+            bottom=Side(border_style="double", color="1F4E79")
+        )
+
+        def style_cells(row_idx: int, bg_color: str | None = None, font: Any = None,
+                        align: Any = None, border: Any = thin_border, cols: range = range(1, 8)):
+            for col_idx in cols:
+                cell = ws.cell(row=row_idx, column=col_idx)
+                if border:
+                    cell.border = border
+                if bg_color:
+                    cell.fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type="solid")
+                if font:
+                    cell.font = font
+                if align:
+                    cell.alignment = align
+
+        # ── Title & Meta Header Block ───────────────────────────────────────
+        ws.row_dimensions[1].height = 28
         ws.merge_cells("A1:G1")
-        ws["A1"] = "AUTOMATED ERP ESTIMATE"
-        ws["A1"].font      = Font(bold=True, size=14, color="FFFFFF")
-        ws["A1"].fill      = PatternFill("solid", fgColor="4F81BD")
-        ws["A1"].alignment = Alignment(horizontal="center")
+        title_cell = ws["A1"]
+        title_cell.value = "AUTOMATED ERP ESTIMATE"
+        title_cell.font = Font(name=FONT_FAMILY, size=14, bold=True, color="FFFFFF")
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        title_cell.fill = PatternFill(start_color=NAVY_HEADER, end_color=NAVY_HEADER, fill_type="solid")
+        for col in range(1, 8):
+            ws.cell(row=1, column=col).border = Border(bottom=dark_side)
 
+        ws.row_dimensions[2].height = 18
         ws.merge_cells("A2:G2")
-        ws["A2"] = (
-            f"Subject: {m.get('subject','')}  |  "
-            f"Type: {m.get('project_type','')}  |  "
-            f"Date: {datetime.now().strftime('%d-%m-%Y')}"
-        )
-        ws.merge_cells("A3:G3")
-        ws["A3"] = (
-            f"Lat: {m.get('lat','')}   Long: {m.get('long','')}   |   "
-            f"Materials: {'UH (Readymade)' if m.get('use_uh') else 'Raw Steel'}"
-        )
+        meta1 = ws["A2"]
+        meta1.value = f"Project: {m.get('subject','')}    |    Type: {m.get('project_type','')}    |    Date: {datetime.now().strftime('%d-%m-%Y')}"
+        meta1.font = Font(name=FONT_FAMILY, size=9.5, bold=True, color="333333")
+        meta1.alignment = Alignment(horizontal="center", vertical="center")
+        meta1.fill = PatternFill(start_color=META_BG, end_color=META_BG, fill_type="solid")
+        for col in range(1, 8):
+            ws.cell(row=2, column=col).border = Border(left=thin_side, right=thin_side)
 
+        ws.row_dimensions[3].height = 17
+        ws.merge_cells("A3:G3")
+        meta2 = ws["A3"]
+        meta2.value = f"Coordinates: {m.get('lat','')} , {m.get('long','')}    |    Materials: {'UH (Readymade)' if m.get('use_uh') else 'Raw Steel'}"
+        meta2.font = Font(name=FONT_FAMILY, size=9, color="555555")
+        meta2.alignment = Alignment(horizontal="center", vertical="center")
+        meta2.fill = PatternFill(start_color=META_BG, end_color=META_BG, fill_type="solid")
+        for col in range(1, 8):
+            ws.cell(row=3, column=col).border = Border(left=thin_side, right=thin_side)
+
+        ws.row_dimensions[4].height = 18
         ws.merge_cells("A4:G4")
-        # Check active profile
+        meta3 = ws["A4"]
         from core import db_gateway as _dbg
         profile = _dbg.get_active_profile()
         if profile:
-            ws["A4"] = f"Firm: {profile['firm_name']}  |  Address: {profile['address']}  |  GSTIN: {profile['gstin']}"
+            meta3.value = f"Firm: {profile['firm_name']}   |   Address: {profile['address']}   |   GSTIN: {profile['gstin']}"
         else:
-            ws["A4"] = "Firm Details: Not Configured"
-        ws["A4"].font = Font(italic=True, size=10)
-        ws["A4"].alignment = Alignment(horizontal="center")
+            meta3.value = "Firm Details: Not Configured"
+        meta3.font = Font(name=FONT_FAMILY, size=9, italic=True, color="444444")
+        meta3.alignment = Alignment(horizontal="center", vertical="center")
+        meta3.fill = PatternFill(start_color=META_BG, end_color=META_BG, fill_type="solid")
+        for col in range(1, 8):
+            ws.cell(row=4, column=col).border = Border(left=thin_side, right=thin_side, bottom=dark_side)
 
-        header_row = ["Sl No.", "Code", "Description", "Qty", "Unit", "Rate", "Amount"]
-        ws.append(header_row)
-        for cell in ws[5]:
-            cell.font = Font(bold=True)
-        ws.column_dimensions["C"].width = 45
-        ws.column_dimensions["B"].width = 15
+        # ── Table Column Headers ────────────────────────────────────────────
+        ws.row_dimensions[5].height = 22
+        headers = ["Sl No.", "Code", "Description of Item", "Qty", "Unit", "Rate (₹)", "Amount (₹)"]
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col_idx, value=h)
+            cell.font = Font(name=FONT_FAMILY, size=10, bold=True, color="FFFFFF")
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.fill = PatternFill(start_color=TBL_HEADER, end_color=TBL_HEADER, fill_type="solid")
+            cell.border = Border(left=thin_side, right=thin_side, top=dark_side, bottom=dark_side)
 
-        row = 6
+        ws.column_dimensions["A"].width = 7.5
+        ws.column_dimensions["B"].width = 13.5
+        ws.column_dimensions["C"].width = 46.0
+        ws.column_dimensions["D"].width = 10.0
+        ws.column_dimensions["E"].width = 8.5
+        ws.column_dimensions["F"].width = 13.0
+        ws.column_dimensions["G"].width = 15.0
+
         mat_items = [x for x in app.live_bom_data if x["type"] == "Material"]
         lab_items = [x for x in app.live_bom_data if x["type"] == "Labor"]
 
-        # ── Materials ──
-        ws.cell(row, 3, "A. MATERIALS").font = Font(bold=True)
+        row = 6
+
+        # ── Section A: Materials ────────────────────────────────────────────
+        ws.row_dimensions[row].height = 20
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+        sec_a = ws.cell(row=row, column=1, value="A. MATERIALS")
+        sec_a.font = Font(name=FONT_FAMILY, size=10.5, bold=True, color=SEC_TXT)
+        sec_a.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        style_cells(row, bg_color=SEC_BG, border=Border(left=thin_side, right=thin_side, top=dark_side, bottom=thin_side))
         row += 1
 
         mat_start_row = row
-        mat_end_row = mat_start_row + len(mat_items) - 1
         for i, item in enumerate(mat_items, 1):
             qty_val = round(item["qty"], 3)
             qty_is_int = (qty_val == int(qty_val))
-            ws.append([
-                i, item["code"], item["name"],
-                int(qty_val) if qty_is_int else qty_val, item["unit"],
-                round(item["rate"], 2), f'=ROUND(D{row}*F{row}, 2)'
-            ])
-            ws.cell(row, 4).number_format = '0' if qty_is_int else '0.000'
-            ws.cell(row, 6).number_format = '0.00'
-            ws.cell(row, 7).number_format = '0.00'
+            ws.row_dimensions[row].height = 18
+            bg = ZEBRA_EVEN if (i % 2 != 0) else ZEBRA_ODD
+
+            c_sl   = ws.cell(row=row, column=1, value=i)
+            c_code = ws.cell(row=row, column=2, value=item["code"])
+            c_desc = ws.cell(row=row, column=3, value=item["name"])
+            c_qty  = ws.cell(row=row, column=4, value=int(qty_val) if qty_is_int else qty_val)
+            c_unit = ws.cell(row=row, column=5, value=item["unit"])
+            c_rate = ws.cell(row=row, column=6, value=round(item["rate"], 2))
+            c_amt  = ws.cell(row=row, column=7, value=f'=ROUND(D{row}*F{row}, 2)')
+
+            c_sl.alignment   = Alignment(horizontal="center", vertical="center")
+            c_code.alignment = Alignment(horizontal="center", vertical="center")
+            c_desc.alignment = Alignment(horizontal="left", vertical="center")
+            c_qty.alignment  = Alignment(horizontal="right", vertical="center")
+            c_unit.alignment = Alignment(horizontal="center", vertical="center")
+            c_rate.alignment = Alignment(horizontal="right", vertical="center")
+            c_amt.alignment  = Alignment(horizontal="right", vertical="center")
+
+            c_qty.number_format  = '#,##0' if qty_is_int else '#,##0.000'
+            c_rate.number_format = '#,##0.00'
+            c_amt.number_format  = '#,##0.00'
+
+            for c_idx in range(1, 8):
+                cell = ws.cell(row=row, column=c_idx)
+                cell.font = Font(name=FONT_FAMILY, size=9.5)
+                cell.fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
+                cell.border = thin_border
             row += 1
 
-        # Calculate mat_base for further calculations, but write formula to Excel
-        mat_base = sum(x["amt"] for x in mat_items)
-        ws.append(["", "", "Material Base Total", "", "", "", f'=ROUND(SUM(G{mat_start_row}:G{mat_end_row}), 2)'])
-        ws.cell(row, 7).number_format = '0.00'
+        mat_end_row = row - 1
+
+        # Material Base Total
+        ws.row_dimensions[row].height = 19
+        ws.cell(row=row, column=3, value="Material Base Total").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=f'=ROUND(SUM(G{mat_start_row}:G{mat_end_row}), 2)').alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, bg_color=SUBTOTAL_BG, font=Font(name=FONT_FAMILY, size=9.5, bold=True, color="333333"), border=subtotal_border)
+        mat_base_cell = f'G{row}'
         row += 1
 
-
-        # Escalation rows (formulas)
-        esc_rows = []
-        mat_base_cell = f'G{row-1}'
-        subtotal_formula = mat_base_cell
-        for i, (fy, esc) in enumerate(app.escalations):
-            # Each escalation is 5% of (mat_base + all previous escalations)
+        # Escalation rows
+        esc_rows: list[str] = []
+        for i, (fy, esc) in enumerate(getattr(app, 'escalations', [])):
+            ws.row_dimensions[row].height = 18
             if i == 0:
                 esc_formula = f'=ROUND(({mat_base_cell})*0.05, 2)'
             else:
                 prev_esc_cells = '+'.join(esc_rows)
                 esc_formula = f'=ROUND(({mat_base_cell}+{prev_esc_cells})*0.05, 2)'
-            ws.append([
-                "", "", f"Add: Escalation @ 5% for FY {fy}", "", "", "", esc_formula
-            ])
-            ws.cell(row, 7).number_format = '0.00'
+            ws.cell(row=row, column=3, value=f"Add: Escalation @ 5% for FY {fy}").alignment = Alignment(horizontal="right", vertical="center")
+            ws.cell(row=row, column=7, value=esc_formula).alignment = Alignment(horizontal="right", vertical="center")
+            ws.cell(row=row, column=7).number_format = '#,##0.00'
+            style_cells(row, font=Font(name=FONT_FAMILY, size=9, italic=True), border=thin_border)
+            esc_rows.append(f'G{row}')
             row += 1
-            esc_cell = f'G{row-1}'
-            esc_rows.append(esc_cell)
 
-        # Sundries (formula) - 5% of (mat_base + all escalations)
+        # Sundries row
+        ws.row_dimensions[row].height = 18
         if esc_rows:
             subtotal_formula = f'{mat_base_cell}+' + '+'.join(esc_rows)
         else:
             subtotal_formula = mat_base_cell
         sun_formula = f'=ROUND(({subtotal_formula})*0.05, 2)'
-        ws.append(["", "", "Add: Sundries @ 5%", "", "", "", sun_formula])
-        ws.cell(row, 7).number_format = '0.00'
+        ws.cell(row=row, column=3, value="Add: Sundries @ 5%").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=sun_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, font=Font(name=FONT_FAMILY, size=9, italic=True), border=thin_border)
+        sun_cell = f'G{row}'
         row += 1
-        sun_row = row-1
 
-        # TOTAL MATERIAL COST (A) (formula)
-        # Grand total = mat_base + all escalations + sundries
+        # TOTAL MATERIAL COST (A)
+        ws.row_dimensions[row].height = 20
         if esc_rows:
-            grand_total_formula = f'=ROUND({mat_base_cell}+' + '+'.join(esc_rows) + f'+G{sun_row}, 2)'
+            grand_mat_formula = f'=ROUND({mat_base_cell}+' + '+'.join(esc_rows) + f'+{sun_cell}, 2)'
         else:
-            grand_total_formula = f'=ROUND({mat_base_cell}+G{sun_row}, 2)'
-        ws.append(["", "", "TOTAL MATERIAL COST (A)", "", "", "", grand_total_formula])
-        ws.cell(row, 3).font = Font(bold=True)
-        ws.cell(row, 7).font = Font(bold=True)
-        ws.cell(row, 7).number_format = '0.00'
-        mat_total_row = row  # Track the row where TOTAL MATERIAL COST (A) is written
-        row += 2
+            grand_mat_formula = f'=ROUND({mat_base_cell}+{sun_cell}, 2)'
+        ws.cell(row=row, column=3, value="TOTAL MATERIAL COST (A)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=grand_mat_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, bg_color=SUBTOTAL_BG, font=Font(name=FONT_FAMILY, size=10, bold=True, color="1F4E79"), border=subtotal_border)
+        mat_total_cell = f'G{row}'
+        row += 1
 
-        # ── Labor ──
-        ws.cell(row, 3, "B. ERECTION / LABOR").font = Font(bold=True)
+        # ── Section B: Labor ────────────────────────────────────────────────
+        ws.row_dimensions[row].height = 20
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+        sec_b = ws.cell(row=row, column=1, value="B. ERECTION / LABOR")
+        sec_b.font = Font(name=FONT_FAMILY, size=10.5, bold=True, color=SEC_TXT)
+        sec_b.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        style_cells(row, bg_color=SEC_BG, border=Border(left=thin_side, right=thin_side, top=dark_side, bottom=thin_side))
         row += 1
 
         lab_start_row = row
-        lab_end_row = lab_start_row + len(lab_items) - 1
         for i, item in enumerate(lab_items, 1):
             qty_val = round(item["qty"], 3)
             qty_is_int = (qty_val == int(qty_val))
-            ws.append([
-                i, "", item["name"],
-                int(qty_val) if qty_is_int else qty_val, item["unit"],
-                round(item["rate"], 2), f'=ROUND(D{row}*F{row}, 2)'
-            ])
-            ws.cell(row, 4).number_format = '0' if qty_is_int else '0.000'
-            ws.cell(row, 6).number_format = '0.00'
-            ws.cell(row, 7).number_format = '0.00'
+            ws.row_dimensions[row].height = 18
+            bg = ZEBRA_EVEN if (i % 2 != 0) else ZEBRA_ODD
+
+            c_sl   = ws.cell(row=row, column=1, value=i)
+            c_code = ws.cell(row=row, column=2, value="")
+            c_desc = ws.cell(row=row, column=3, value=item["name"])
+            c_qty  = ws.cell(row=row, column=4, value=int(qty_val) if qty_is_int else qty_val)
+            c_unit = ws.cell(row=row, column=5, value=item["unit"])
+            c_rate = ws.cell(row=row, column=6, value=round(item["rate"], 2))
+            c_amt  = ws.cell(row=row, column=7, value=f'=ROUND(D{row}*F{row}, 2)')
+
+            c_sl.alignment   = Alignment(horizontal="center", vertical="center")
+            c_code.alignment = Alignment(horizontal="center", vertical="center")
+            c_desc.alignment = Alignment(horizontal="left", vertical="center")
+            c_qty.alignment  = Alignment(horizontal="right", vertical="center")
+            c_unit.alignment = Alignment(horizontal="center", vertical="center")
+            c_rate.alignment = Alignment(horizontal="right", vertical="center")
+            c_amt.alignment  = Alignment(horizontal="right", vertical="center")
+
+            c_qty.number_format  = '#,##0' if qty_is_int else '#,##0.000'
+            c_rate.number_format = '#,##0.00'
+            c_amt.number_format  = '#,##0.00'
+
+            for c_idx in range(1, 8):
+                cell = ws.cell(row=row, column=c_idx)
+                cell.font = Font(name=FONT_FAMILY, size=9.5)
+                cell.fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
+                cell.border = thin_border
             row += 1
 
+        lab_end_row = row - 1
 
-        # Formula for labor total
-        ws.append(["", "", "TOTAL LABOR COST (B)", "", "", "", f'=ROUND(SUM(G{lab_start_row}:G{lab_end_row}), 2)'])
-        ws.cell(row, 3).font = Font(bold=True)
-        ws.cell(row, 7).font = Font(bold=True)
-        ws.cell(row, 7).number_format = '0.00'
-        lab_total_row = row  # Track the row where TOTAL LABOR COST (B) is written
-        row += 2
+        # TOTAL LABOR COST (B)
+        ws.row_dimensions[row].height = 20
+        ws.cell(row=row, column=3, value="TOTAL LABOR COST (B)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=f'=ROUND(SUM(G{lab_start_row}:G{lab_end_row}), 2)').alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, bg_color=SUBTOTAL_BG, font=Font(name=FONT_FAMILY, size=10, bold=True, color="1F4E79"), border=subtotal_border)
+        lab_total_cell = f'G{row}'
+        row += 1
 
-        # ── Taxes ──
-
-        # Use the exact rows where totals were written
-        mat_total_cell = f'G{mat_total_row}'
-        lab_total_cell = f'G{lab_total_row}'
-
-        # Supervision on (A+B)
-        ws.cell(row, 3, "C. OVERHEADS & TAXES").font = Font(bold=True)
+        # ── Section C: Overheads & Taxes ────────────────────────────────────
+        ws.row_dimensions[row].height = 20
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+        sec_c = ws.cell(row=row, column=1, value="C. OVERHEADS & TAXES")
+        sec_c.font = Font(name=FONT_FAMILY, size=10.5, bold=True, color=SEC_TXT)
+        sec_c.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        style_cells(row, bg_color=SEC_BG, border=Border(left=thin_side, right=thin_side, top=dark_side, bottom=thin_side))
         row += 1
 
         # Supervision
-        sup_formula = f'=ROUND(({mat_total_cell}+G{lab_total_row})*{sup_rate}, 2)'
-        ws.append(["", "", f"Supervision @ {sup_pct}% on (A+B)", "", "", "", sup_formula])
-        ws.cell(row, 7).number_format = '0.00'
-        sup_row = row
-        sup_cell = f'G{sup_row}'
+        ws.row_dimensions[row].height = 18
+        sup_formula = f'=ROUND(({mat_total_cell}+{lab_total_cell})*{sup_rate}, 2)'
+        ws.cell(row=row, column=3, value=f"Supervision @ {sup_pct}% on (A+B)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=sup_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, font=Font(name=FONT_FAMILY, size=9.5), border=thin_border)
+        sup_cell = f'G{row}'
         row += 1
 
-        # GST on labor only
-        gst_formula = f'=ROUND(G{lab_total_row}*0.18, 2)'
-        ws.append(["", "", "GST @ 18% on Labour only", "", "", "", gst_formula])
-        ws.cell(row, 7).number_format = '0.00'
-        gst_row = row
-        gst_cell = f'G{gst_row}'
+        # GST on Labor
+        ws.row_dimensions[row].height = 18
+        gst_formula = f'=ROUND({lab_total_cell}*0.18, 2)'
+        ws.cell(row=row, column=3, value="GST @ 18% on Labour only").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=gst_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, font=Font(name=FONT_FAMILY, size=9.5), border=thin_border)
+        gst_cell = f'G{row}'
         row += 1
 
-        # Sub-Total (A+B+Supervision+GST)
-        sub_total_formula = f'=ROUND({mat_total_cell}+G{lab_total_row}+{sup_cell}+{gst_cell}, 2)'
-        ws.append(["", "", "Sub-Total", "", "", "", sub_total_formula])
-        ws.cell(row, 7).number_format = '0.00'
-        sub_total_row = row
-        sub_total_cell = f'G{sub_total_row}'
+        # Sub-Total
+        ws.row_dimensions[row].height = 19
+        sub_total_formula = f'=ROUND({mat_total_cell}+{lab_total_cell}+{sup_cell}+{gst_cell}, 2)'
+        ws.cell(row=row, column=3, value="Sub-Total").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=sub_total_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, bg_color=SUBTOTAL_BG, font=Font(name=FONT_FAMILY, size=9.5, bold=True, color="333333"), border=subtotal_border)
+        sub_total_cell = f'G{row}'
         row += 1
 
-        # Cess on (A+B+Supervision)
-        cess_formula = f'=ROUND(({mat_total_cell}+G{lab_total_row}+{sup_cell})*0.01, 2)'
-        ws.append(["", "", "Add: Cess @ 1% on (Mat+Lab+Sup)", "", "", "", cess_formula])
-        ws.cell(row, 7).number_format = '0.00'
-        cess_row = row
-        cess_cell = f'G{cess_row}'
+        # Cess
+        ws.row_dimensions[row].height = 18
+        cess_formula = f'=ROUND(({mat_total_cell}+{lab_total_cell}+{sup_cell})*0.01, 2)'
+        ws.cell(row=row, column=3, value="Add: Cess @ 1% on (Mat+Lab+Sup)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=cess_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, font=Font(name=FONT_FAMILY, size=9.5), border=thin_border)
+        cess_cell = f'G{row}'
         row += 1
 
-        # GRAND TOTAL (Sub-Total + Cess)
+        # GRAND TOTAL
+        ws.row_dimensions[row].height = 24
         grand_total_formula = f'=ROUND({sub_total_cell}+{cess_cell}, 2)'
-        ws.append(["", "", "GRAND TOTAL", "", "", "", grand_total_formula])
-        ws.cell(row, 3).font = Font(bold=True, size=12)
-        ws.cell(row, 7).font = Font(bold=True, size=12, color="FF0000")
-        ws.cell(row, 7).number_format = '0.00'
+        ws.cell(row=row, column=3, value="GRAND TOTAL (₹)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7, value=grand_total_formula).alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(row=row, column=7).number_format = '#,##0.00'
+        style_cells(row, bg_color=TOTAL_BG, font=Font(name=FONT_FAMILY, size=11, bold=True, color="1F4E79"), border=grand_total_border)
 
     # ── Iron breakup sheet ───────────────────────────────────────────────────
 
@@ -357,12 +488,26 @@ class ExcelExporter:
         _, Font, Alignment, PatternFill, Border, Side = _xl()
         ws = wb.create_sheet("Iron Breakup")
 
-        ws.column_dimensions["A"].width = 5
-        ws.column_dimensions["B"].width = 36
-        ws.column_dimensions["C"].width = 7
-        ws.column_dimensions["D"].width = 15
-        ws.column_dimensions["E"].width = 11
-        ws.column_dimensions["F"].width = 13
+        # ── Page Setup (Print on single page with clean margins) ───────────
+        ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 1
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_margins.left = 0.25
+        ws.page_margins.right = 0.25
+        ws.page_margins.top = 0.35
+        ws.page_margins.bottom = 0.35
+        ws.print_options.horizontalCentered = True
+        ws.views.sheetView[0].showGridLines = True
+
+        ws.column_dimensions["A"].width = 6
+        ws.column_dimensions["B"].width = 38
+        ws.column_dimensions["C"].width = 8
+        ws.column_dimensions["D"].width = 16
+        ws.column_dimensions["E"].width = 12
+        ws.column_dimensions["F"].width = 15
 
         KG_PER_METRE = {
             "CH_75X40":    6.8,
