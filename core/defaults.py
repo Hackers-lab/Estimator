@@ -33,7 +33,7 @@ _FACTORY: dict = {
     "lt_height":          "8MTR",
     "lt_earth_count":     1,
     "lt_stay_count":      0,
-    "lt_dist_box_required": True,
+    "lt_dist_box_required": False,
 
     # HT Pole
     "ht_pole_type2":      "PCC",
@@ -62,7 +62,7 @@ _FACTORY: dict = {
 
     # LT Span
     "lt_conductor":       "AB Cable",
-    "lt_conductor_size":  "3CX50+1CX16+1CX35",
+    "lt_conductor_size":  "3CX70+1CX16+1CX50",
     "lt_span_length":     40,
     "lt_wire_count":      "4",
 
