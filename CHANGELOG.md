@@ -2,6 +2,33 @@
 
 ---
 
+## v10.2 — September 25, 2026
+
+### What's New
+
+#### ✏️ Interactive Drag-to-Size for Annotation Symbols & Text
+- Click-and-drag to dynamically size shapes (**circle**, **square**, **arrow**, **line**, **dashed line**) and text annotations live on the canvas, identical to modern drawing and CAD software.
+- Holding <kbd>Shift</kbd> while dragging symbols constrains 2D shapes to a 1:1 aspect ratio and snaps lines to $15^\circ$ angle increments.
+- Single-clicking without dragging retains the quick-drop convenience with standard default sizes ($60\times 60\text{ px}$ for symbols, $10\text{ pt}$ for text).
+
+#### 🔤 Fluid In-Place Text Editing
+- Eliminated modal dialogs when placing text: releasing the mouse now immediately enters in-place text editing mode with `"Text"` highlighted, ready to overwrite instantly by typing.
+- **Fixed `'f'` / `'F'` key typing**: prevented canvas global shortcuts (`Key_F` view fit, `Space` panning, `Shift` tool switch) from intercepting keystrokes while editing text.
+- **Text Selector Cursor**: hovering and selecting text inside a text annotation now displays a clean vertical blinking text selector (`IBeamCursor`) instead of the box-selector (`DragMoveCursor`).
+
+#### 🎛️ Sidebar Property Inspectors for Annotations
+- Selecting any symbol or text box now populates the right-side properties panel with dedicated inspectors:
+  - **Symbol Editor**: change shape (`circle`, `square`, `arrow`, `line`, `dashed_line`), pick custom colors with palette dialog, adjust width/height, fine-tune rotation angle, and reorder Z-layers.
+  - **Text Editor**: live text field, font size spinbox ($6$ to $144\text{ pt}$), color picker, rotation angle, and layer controls.
+- Context menus now include **Delete**, **Duplicate**, **Edit Text**, and **Reset Rotation**.
+
+#### 📐 Geometry & Architecture Improvements
+- **Endpoint Grips for Lines**: selecting lines now renders endpoint grip handles instead of an empty 2D bounding box, eliminating phantom hit-test bands.
+- **Center-Pinned Transformations**: editing or resizing rotated text boxes automatically compensates position, preventing origin drift or jumping.
+- **Z-Order Persistence**: layer ordering (`z_value`) is now fully serialized in project files and restored on load.
+
+---
+
 ## v10.1 — September 25, 2026
 
 ### What's New

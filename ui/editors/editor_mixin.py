@@ -11,13 +11,14 @@ from __future__ import annotations
 from PyQt6.QtWidgets import (
     QComboBox, QSpinBox, QDoubleSpinBox, QLabel, QCheckBox,
     QLineEdit, QPushButton, QHBoxLayout, QWidget, QFrame, QMenu,
-    QInputDialog, QMessageBox
+    QInputDialog, QMessageBox, QColorDialog
 )
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QColor
 
 from core import defaults
 from core import property_catalog
-from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer
+from canvas import SmartPole, SmartStructure, SmartSpan, SmartConsumer, CanvasSymbol, CanvasTextBox
 from ui.editors import editor_helpers as _eh
 
 class EditorMixin:
@@ -1461,7 +1462,185 @@ class EditorMixin:
                 chk.stateChanged.connect(_on_check_change)
                 self.editor_layout.addRow(chk)
 
-    # =========================================================================
-    #  DELETION
-    # =========================================================================
+    # ── Annotation editors ────────────────────────────────────────────────────
+
+    def _build_symbol_editor(self, item: CanvasSymbol):
+        self.editor_group.setTitle(f"Symbol — {item.shape.capitalize()}")
+        self._add_delete_btn(item)
+
+        # Shape picker
+        shape_cb = QComboBox()
+        shape_cb.addItems(["circle", "square", "arrow", "line", "dashed_line"])
+        shape_cb.setCurrentText(item.shape)
+
+        def _on_shape_change(s):
+            item.shape = s
+            item.prepareGeometryChange()
+            item.update()
+            self.editor_group.setTitle(f"Symbol — {s.capitalize()}")
+            self.refresh_live_estimate()
+
+        shape_cb.currentTextChanged.connect(_on_shape_change)
+
+        # Color picker button
+        color_btn = QPushButton()
+        color_btn.setFixedHeight(22)
+        color_btn.setStyleSheet(f"background-color: {item._color}; border: 1px solid #94a3b8; border-radius: 3px;")
+
+        def _on_pick_color():
+            col = QColorDialog.getColor(QColor(item._color), self, "Choose Symbol Color")
+            if col.isValid():
+                item._color = col.name()
+                color_btn.setStyleSheet(f"background-color: {item._color}; border: 1px solid #94a3b8; border-radius: 3px;")
+                item.update()
+                self.refresh_live_estimate()
+
+        color_btn.clicked.connect(_on_pick_color)
+        self._add_field_pair("Shape:", shape_cb, "Color:", color_btn)
+
+        # Width & Height spinboxes
+        w_spin = QDoubleSpinBox()
+        w_spin.setRange(10.0, 2000.0)
+        w_spin.setSingleStep(5.0)
+        w_spin.setValue(item._width)
+
+        h_spin = QDoubleSpinBox()
+        h_spin.setRange(10.0, 2000.0)
+        h_spin.setSingleStep(5.0)
+        h_spin.setValue(item._height)
+        if item.shape in ("line", "dashed_line"):
+            h_spin.setEnabled(False)
+
+        def _on_w_change(v):
+            item.prepareGeometryChange()
+            item._width = v
+            item.update()
+            self.refresh_live_estimate()
+
+        def _on_h_change(v):
+            item.prepareGeometryChange()
+            item._height = v
+            item.update()
+            self.refresh_live_estimate()
+
+        w_spin.valueChanged.connect(_on_w_change)
+        h_spin.valueChanged.connect(_on_h_change)
+        self._add_field_pair("Width:", w_spin, "Height:", h_spin)
+
+        # Rotation spinbox
+        rot_spin = QDoubleSpinBox()
+        rot_spin.setRange(-180.0, 180.0)
+        rot_spin.setSingleStep(5.0)
+        rot_spin.setSuffix("°")
+        rot_spin.setValue(round(item.rotation(), 1))
+
+        def _on_rot_change(r):
+            item.setRotation(r)
+            item.update()
+            self.refresh_live_estimate()
+
+        rot_spin.valueChanged.connect(_on_rot_change)
+
+        # Layer order buttons
+        layer_box = QWidget()
+        lay_l = QHBoxLayout(layer_box)
+        lay_l.setContentsMargins(0, 0, 0, 0)
+        lay_l.setSpacing(4)
+        up_btn = QPushButton("⬆ Front")
+        dn_btn = QPushButton("⬇ Back")
+        up_btn.setFixedHeight(22)
+        dn_btn.setFixedHeight(22)
+        up_btn.clicked.connect(lambda: (item.setZValue(item.zValue() + 1), self.refresh_live_estimate()))
+        dn_btn.clicked.connect(lambda: (item.setZValue(item.zValue() - 1), self.refresh_live_estimate()))
+        lay_l.addWidget(up_btn)
+        lay_l.addWidget(dn_btn)
+
+        self._add_field_pair("Rotate:", rot_spin, "Layer:", layer_box)
+
+    def _build_textbox_editor(self, item: CanvasTextBox):
+        self.editor_group.setTitle("Text Annotation")
+        self._add_delete_btn(item)
+
+        # Text input
+        txt_input = QLineEdit(item.toPlainText())
+        txt_input.setPlaceholderText("Enter annotation text...")
+
+        def _on_text_change(t):
+            old_center = item.mapToScene(item._text_br().center())
+            item.prepareGeometryChange()
+            item.setPlainText(t if t.strip() else "Text")
+            item.setTransformOriginPoint(item._text_br().center())
+            new_center = item.mapToScene(item._text_br().center())
+            item.setPos(item.pos() + (old_center - new_center))
+            item.update()
+            self.refresh_live_estimate()
+
+        txt_input.textChanged.connect(_on_text_change)
+        self.editor_layout.addRow("Text:", txt_input)
+
+        # Font size spinbox
+        font_spin = QDoubleSpinBox()
+        font_spin.setRange(CanvasTextBox.MIN_FONT, CanvasTextBox.MAX_FONT)
+        font_spin.setSingleStep(1.0)
+        font_spin.setSuffix(" pt")
+        font_spin.setValue(item._font_size)
+
+        def _on_font_change(fs):
+            item._font_size = fs
+            item._apply_font()
+            item.update()
+            self.refresh_live_estimate()
+
+        font_spin.valueChanged.connect(_on_font_change)
+
+        # Color picker button
+        color_btn = QPushButton()
+        color_btn.setFixedHeight(22)
+        color_btn.setStyleSheet(f"background-color: {item._color}; border: 1px solid #94a3b8; border-radius: 3px;")
+
+        def _on_pick_color():
+            col = QColorDialog.getColor(QColor(item._color), self, "Choose Text Color")
+            if col.isValid():
+                item._color = col.name()
+                color_btn.setStyleSheet(f"background-color: {item._color}; border: 1px solid #94a3b8; border-radius: 3px;")
+                item._apply_font()
+                item.update()
+                self.refresh_live_estimate()
+
+        color_btn.clicked.connect(_on_pick_color)
+        self._add_field_pair("Font Size:", font_spin, "Color:", color_btn)
+
+        # Rotation spinbox
+        rot_spin = QDoubleSpinBox()
+        rot_spin.setRange(-180.0, 180.0)
+        rot_spin.setSingleStep(5.0)
+        rot_spin.setSuffix("°")
+        rot_spin.setValue(round(item.rotation(), 1))
+
+        def _on_rot_change(r):
+            old_center = item.mapToScene(item._text_br().center())
+            item.prepareGeometryChange()
+            item.setRotation(r)
+            new_center = item.mapToScene(item._text_br().center())
+            item.setPos(item.pos() + (old_center - new_center))
+            item.update()
+            self.refresh_live_estimate()
+
+        rot_spin.valueChanged.connect(_on_rot_change)
+
+        # Layer order buttons
+        layer_box = QWidget()
+        lay_l = QHBoxLayout(layer_box)
+        lay_l.setContentsMargins(0, 0, 0, 0)
+        lay_l.setSpacing(4)
+        up_btn = QPushButton("⬆ Front")
+        dn_btn = QPushButton("⬇ Back")
+        up_btn.setFixedHeight(22)
+        dn_btn.setFixedHeight(22)
+        up_btn.clicked.connect(lambda: (item.setZValue(item.zValue() + 1), self.refresh_live_estimate()))
+        dn_btn.clicked.connect(lambda: (item.setZValue(item.zValue() - 1), self.refresh_live_estimate()))
+        lay_l.addWidget(up_btn)
+        lay_l.addWidget(dn_btn)
+
+        self._add_field_pair("Rotate:", rot_spin, "Layer:", layer_box)
 

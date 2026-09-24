@@ -1418,6 +1418,19 @@ class EstimateApp(QMainWindow, EditorMixin):
         if self.span_start_pole:
             self.span_start_pole.setPen(QPen(Qt.GlobalColor.black, 1))
         self.span_start_pole = None
+
+        if hasattr(self, "_active_drawing_symbol") and self._active_drawing_symbol is not None:
+            if self._active_drawing_symbol.scene():
+                self.scene.removeItem(self._active_drawing_symbol)
+            self._active_drawing_symbol = None
+            self._symbol_drag_start = None
+
+        if hasattr(self, "_active_drawing_textbox") and self._active_drawing_textbox is not None:
+            if self._active_drawing_textbox.scene():
+                self.scene.removeItem(self._active_drawing_textbox)
+            self._active_drawing_textbox = None
+            self._textbox_drag_start = None
+
         # Clear auto-connect chain ONLY when leaving drawing mode
         # (i.e. switching to SELECT or ADD_SPAN — not between placement tools)
         leaving_drawing = tool_name not in self._DRAWING_TOOLS
@@ -1480,6 +1493,12 @@ class EstimateApp(QMainWindow, EditorMixin):
         """
         if self.current_tool == "SELECT":
             self.view.refresh_interaction_state()
+        elif self.current_tool == "ADD_SYMBOL":
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.view.setCursor(Qt.CursorShape.CrossCursor)
+        elif self.current_tool == "ADD_TEXTBOX":
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.view.setCursor(Qt.CursorShape.IBeamCursor)
         else:
             self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.view.setCursor(Qt.CursorShape.ArrowCursor)
@@ -1711,8 +1730,192 @@ class EstimateApp(QMainWindow, EditorMixin):
 
 
     # =========================================================================
-    #  CANVAS CLICK HANDLER
+    #  INTERACTIVE DRAG-TO-SIZE & CANVAS CLICK HANDLERS
     # =========================================================================
+
+    def handle_canvas_mouse_press(self, event, view) -> bool:
+        if getattr(self, "project_locked", False):
+            return False
+
+        if self.current_tool in ("ADD_SYMBOL", "ADD_TEXTBOX"):
+            if event.button() == Qt.MouseButton.RightButton:
+                self.set_tool("SELECT")
+                return True
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = view.mapToScene(event.pos())
+                if self.current_tool == "ADD_SYMBOL":
+                    shape = getattr(self, "_pending_symbol_shape", "circle")
+                    self._symbol_drag_start = pos
+                    item = CanvasSymbol(
+                        shape=shape,
+                        x=pos.x(),
+                        y=pos.y(),
+                        width=CanvasSymbol.MIN_DIM,
+                        height=CanvasSymbol.MIN_DIM,
+                    )
+                    self.scene.addItem(item)
+                    self._active_drawing_symbol = item
+                    return True
+                else:  # ADD_TEXTBOX
+                    self._textbox_drag_start = pos
+                    item = CanvasTextBox(
+                        text="Text",
+                        x=pos.x(),
+                        y=pos.y(),
+                        font_size=CanvasTextBox.DEFAULT_FONT_SIZE,
+                    )
+                    self.scene.addItem(item)
+                    self._active_drawing_textbox = item
+                    return True
+
+        return False
+
+    def handle_canvas_mouse_move(self, event, view) -> bool:
+        # ── Symbol interactive drag-to-size ────────────────────────────────
+        item_sym = getattr(self, "_active_drawing_symbol", None)
+        if item_sym is not None and self.current_tool == "ADD_SYMBOL":
+            start_pos = getattr(self, "_symbol_drag_start", None)
+            if start_pos is None:
+                return False
+
+            curr_pos = view.mapToScene(event.pos())
+
+            if item_sym._is_line():
+                dx = curr_pos.x() - start_pos.x()
+                dy = curr_pos.y() - start_pos.y()
+                length = max(CanvasSymbol.MIN_DIM, math.hypot(dx, dy))
+                angle = math.degrees(math.atan2(dy, dx))
+
+                # Shift: snap angle to 15-degree increments
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    angle = round(angle / 15.0) * 15.0
+                    rad = math.radians(angle)
+                    curr_pos = QPointF(start_pos.x() + length * math.cos(rad),
+                                       start_pos.y() + length * math.sin(rad))
+
+                center = QPointF((start_pos.x() + curr_pos.x()) / 2.0,
+                                 (start_pos.y() + curr_pos.y()) / 2.0)
+                item_sym.prepareGeometryChange()
+                item_sym._width = length
+                item_sym._height = CanvasSymbol.MIN_DIM
+                item_sym.setRotation(angle)
+                item_sym.setPos(center)
+            else:
+                # 2D Shapes (circle, square, arrow)
+                min_x = min(start_pos.x(), curr_pos.x())
+                max_x = max(start_pos.x(), curr_pos.x())
+                min_y = min(start_pos.y(), curr_pos.y())
+                max_y = max(start_pos.y(), curr_pos.y())
+                w = max_x - min_x
+                h = max_y - min_y
+
+                # Shift: constrain 1:1 aspect ratio
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    side = max(w, h)
+                    w = side
+                    h = side
+                    if curr_pos.x() < start_pos.x():
+                        min_x = start_pos.x() - side
+                        max_x = start_pos.x()
+                    else:
+                        min_x = start_pos.x()
+                        max_x = start_pos.x() + side
+                    if curr_pos.y() < start_pos.y():
+                        min_y = start_pos.y() - side
+                        max_y = start_pos.y()
+                    else:
+                        min_y = start_pos.y()
+                        max_y = start_pos.y() + side
+
+                item_sym.prepareGeometryChange()
+                item_sym._width = max(CanvasSymbol.MIN_DIM, w)
+                item_sym._height = max(CanvasSymbol.MIN_DIM, h)
+                item_sym.setPos((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+
+            item_sym.update()
+            return True
+
+        # ── Text interactive drag-to-size ──────────────────────────────────
+        item_tb = getattr(self, "_active_drawing_textbox", None)
+        if item_tb is not None and self.current_tool == "ADD_TEXTBOX":
+            start_pos = getattr(self, "_textbox_drag_start", None)
+            if start_pos is None:
+                return False
+
+            curr_pos = view.mapToScene(event.pos())
+            dx = curr_pos.x() - start_pos.x()
+            dy = curr_pos.y() - start_pos.y()
+            drag_dist = math.hypot(dx, dy)
+
+            # Proportional font size from drag distance
+            new_fs = max(CanvasTextBox.MIN_FONT, min(CanvasTextBox.MAX_FONT, round(max(CanvasTextBox.DEFAULT_FONT_SIZE, drag_dist / 2.5))))
+            if new_fs != item_tb._font_size:
+                item_tb._font_size = new_fs
+                item_tb._apply_font()
+                item_tb.update()
+            return True
+
+        return False
+
+    def handle_canvas_mouse_release(self, event, view) -> bool:
+        # ── Release Symbol ─────────────────────────────────────────────────
+        item_sym = getattr(self, "_active_drawing_symbol", None)
+        if item_sym is not None and self.current_tool == "ADD_SYMBOL":
+            if event.button() != Qt.MouseButton.LeftButton:
+                return False
+
+            start_pos = getattr(self, "_symbol_drag_start", None)
+            end_pos = view.mapToScene(event.pos())
+            drag_dist = math.hypot(end_pos.x() - start_pos.x(), end_pos.y() - start_pos.y()) if start_pos else 0.0
+
+            # If user just clicked without dragging (or moved < 6px), place standard default 60x60 size
+            if drag_dist < 6.0 and start_pos:
+                item_sym.prepareGeometryChange()
+                item_sym._width = 60.0
+                item_sym._height = 60.0
+                item_sym.setRotation(0.0)
+                item_sym.setPos(start_pos)
+                item_sym.update()
+
+            self._active_drawing_symbol = None
+            self._symbol_drag_start = None
+
+            self.scene.clearSelection()
+            item_sym.setSelected(True)
+            self.on_selection_changed()
+            self.set_tool("SELECT")
+            self.refresh_live_estimate()
+            return True
+
+        # ── Release Textbox ────────────────────────────────────────────────
+        item_tb = getattr(self, "_active_drawing_textbox", None)
+        if item_tb is not None and self.current_tool == "ADD_TEXTBOX":
+            if event.button() != Qt.MouseButton.LeftButton:
+                return False
+
+            start_pos = getattr(self, "_textbox_drag_start", None)
+            end_pos = view.mapToScene(event.pos())
+            drag_dist = math.hypot(end_pos.x() - start_pos.x(), end_pos.y() - start_pos.y()) if start_pos else 0.0
+
+            if drag_dist < 6.0 and start_pos:
+                item_tb._font_size = CanvasTextBox.DEFAULT_FONT_SIZE
+                item_tb._apply_font()
+                item_tb.update()
+
+            self._active_drawing_textbox = None
+            self._textbox_drag_start = None
+
+            self.scene.clearSelection()
+            item_tb.setSelected(True)
+            self.on_selection_changed()
+            self.set_tool("SELECT")
+            self.refresh_live_estimate()
+
+            # Immediate inline editing with "Text" selected so user can start typing directly
+            QTimer.singleShot(50, lambda: item_tb.start_edit(select_all=True))
+            return True
+
+        return False
 
     def handle_canvas_click(self, event, view):
         if getattr(self, "project_locked", False):
@@ -1810,22 +2013,16 @@ class EstimateApp(QMainWindow, EditorMixin):
                 self.on_selection_changed()
                 self.refresh_live_estimate()
 
-        # ── Symbol/Text placement ──────────────────────────────────────────
-        elif self.current_tool in ("ADD_SYMBOL", "ADD_TEXTBOX"):
-            if self.current_tool == "ADD_SYMBOL":
-                shape = getattr(self, "_pending_symbol_shape", "circle")
-                item = CanvasSymbol(shape, pos.x() - 20, pos.y() - 20)
-            else: # ADD_TEXTBOX
-                text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
-                if not (ok and text.strip()): return
-                item = CanvasTextBox(text.strip(), pos.x(), pos.y())
-            
+        # ── Text placement ─────────────────────────────────────────────────
+        elif self.current_tool == "ADD_TEXTBOX":
+            text, ok = QInputDialog.getText(self, "Add Text", "Enter text:")
+            if not (ok and text.strip()): return
+            item = CanvasTextBox(text.strip(), pos.x(), pos.y())
             self.scene.addItem(item)
             self.scene.clearSelection()
             item.setSelected(True)
             self.on_selection_changed()
-            if self.current_tool == "ADD_SYMBOL" or (self.current_tool == "ADD_TEXTBOX"):
-                self.set_tool("SELECT")
+            self.set_tool("SELECT")
             self.refresh_live_estimate()
 
     def _check_placement_blocked(self, pos: QPointF) -> bool:
@@ -1996,6 +2193,10 @@ class EstimateApp(QMainWindow, EditorMixin):
             self._build_span_editor(item)
         elif isinstance(item, SmartConsumer):
             self._build_consumer_editor(item)
+        elif isinstance(item, CanvasSymbol):
+            self._build_symbol_editor(item)
+        elif isinstance(item, CanvasTextBox):
+            self._build_textbox_editor(item)
 
         self._normalize_editor_field_sizes()
         self._pack_editor_rows_two_columns()
@@ -2109,6 +2310,17 @@ class EstimateApp(QMainWindow, EditorMixin):
             form.addRow(row_w)
 
     def keyPressEvent(self, event):
+        sc = getattr(self, "scene", None)
+        focus_item = sc.focusItem() if sc is not None else None
+        is_editing_text = bool(
+            focus_item is not None and
+            hasattr(focus_item, "textInteractionFlags") and
+            (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction)
+        )
+        if is_editing_text:
+            super().keyPressEvent(event)
+            return
+
         if event.key() == Qt.Key.Key_Shift:
             if self.current_tool != "SELECT":
                 self.set_tool("SELECT")
@@ -2127,7 +2339,14 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Shift:
-            if self.current_tool != "SELECT":
+            sc = getattr(self, "scene", None)
+            focus_item = sc.focusItem() if sc is not None else None
+            is_editing_text = bool(
+                focus_item is not None and
+                hasattr(focus_item, "textInteractionFlags") and
+                (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction)
+            )
+            if not is_editing_text and self.current_tool != "SELECT":
                 self.set_tool("SELECT")
         return super().eventFilter(obj, event)
 

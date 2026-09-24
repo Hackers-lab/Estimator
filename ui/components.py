@@ -296,11 +296,33 @@ class InteractiveView(QGraphicsView):
             return
 
         scene_obj = self.scene()
-        selected_items = scene_obj.selectedItems() if scene_obj is not None else []
+        focus_item = scene_obj.focusItem() if scene_obj is not None else None
+        is_editing_text = bool(
+            focus_item is not None and
+            hasattr(focus_item, "textInteractionFlags") and
+            (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction)
+        )
 
         hover_item = None
         if self._last_mouse_pos is not None:
             hover_item = self.itemAt(self._last_mouse_pos.toPoint())
+
+        # If user is in text-editing mode, prevent drag-modes and set text cursor over text
+        if is_editing_text:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            if hover_item == focus_item or (hover_item is not None and hover_item.parentItem() == focus_item):
+                self.setCursor(Qt.CursorShape.IBeamCursor)
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+            return
+
+        # If hovering directly over a text annotation in SELECT mode, show IBeamCursor
+        if hover_item is not None and hasattr(hover_item, "toPlainText"):
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setCursor(Qt.CursorShape.IBeamCursor)
+            return
+
+        selected_items = scene_obj.selectedItems() if scene_obj is not None else []
 
         if selected_items:
             self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
@@ -489,6 +511,13 @@ class InteractiveView(QGraphicsView):
 
         self.refresh_interaction_state(event.position())
 
+        # Check if parent_app handles the press (e.g. interactive drag-to-size drawing)
+        if hasattr(self.parent_app, "handle_canvas_mouse_press"):
+            handled = self.parent_app.handle_canvas_mouse_press(event, self)
+            if handled:
+                event.accept()
+                return
+
         # Forward left / right clicks to the application tool handler
         self.parent_app.handle_canvas_click(event, self)
         # Only invoke Qt's base handler in SELECT mode (needed for rubber-band drag).
@@ -526,6 +555,13 @@ class InteractiveView(QGraphicsView):
             vs.setValue(vs.value() - int(delta.y()))
             event.accept()
             return
+
+        if hasattr(self.parent_app, "handle_canvas_mouse_move"):
+            handled = self.parent_app.handle_canvas_mouse_move(event, self)
+            if handled:
+                event.accept()
+                return
+
         self.refresh_interaction_state(event.position())
         vp = self.viewport()
         assert vp is not None
@@ -554,6 +590,13 @@ class InteractiveView(QGraphicsView):
             self.refresh_interaction_state(event.position())
             event.accept()
             return
+
+        if hasattr(self.parent_app, "handle_canvas_mouse_release"):
+            handled = self.parent_app.handle_canvas_mouse_release(event, self)
+            if handled:
+                event.accept()
+                return
+
         super().mouseReleaseEvent(event)
         self.refresh_interaction_state(event.position())
         vp = self.viewport()
@@ -573,6 +616,23 @@ class InteractiveView(QGraphicsView):
     # ── Keyboard shortcuts ────────────────────────────────────────────────────
 
     def keyPressEvent(self, event: QKeyEvent):
+        sc = self.scene()
+        focus_item = sc.focusItem() if sc is not None else None
+        is_editing_text = bool(
+            focus_item is not None and
+            hasattr(focus_item, "textInteractionFlags") and
+            (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction)
+        )
+
+        if is_editing_text:
+            if event.key() == Qt.Key.Key_Escape:
+                if hasattr(focus_item, "clearFocus"):
+                    focus_item.clearFocus()
+                event.accept()
+                return
+            super().keyPressEvent(event)
+            return
+
         if event.key() == Qt.Key.Key_Shift:
             self.parent_app.set_tool("SELECT")
             event.accept()
@@ -619,6 +679,17 @@ class InteractiveView(QGraphicsView):
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QKeyEvent):
+        sc = self.scene()
+        focus_item = sc.focusItem() if sc is not None else None
+        is_editing_text = bool(
+            focus_item is not None and
+            hasattr(focus_item, "textInteractionFlags") and
+            (focus_item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction)
+        )
+        if is_editing_text:
+            super().keyReleaseEvent(event)
+            return
+
         if event.key() == Qt.Key.Key_Space:
             self._space_held = False
             self.parent_app.update_view_drag_mode()
