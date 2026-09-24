@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
 # pyrefly: ignore [missing-import]
 from PyQt6.QtGui import (
     QPen, QColor, QAction, QKeySequence, QIcon,
-    QPixmap, QFont
+    QPixmap, QFont, QPainter, QFontMetrics
 )
 # pyrefly: ignore [missing-import]
 from PyQt6.QtCore import Qt, QTimer, QPointF, QEvent, QSize, pyqtSignal, QThread, QObject
@@ -145,6 +145,28 @@ class _WheelBlockFilter(QObject):
         return super().eventFilter(obj, event)
 
 
+class _ElidedLabel(QLabel):
+    """A QLabel that cleanly elides text to fit whatever width its parent gives it,
+    never pushing or expanding its container horizontally."""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self._full_text = text
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def setText(self, text):
+        self._full_text = text
+        super().setText(text)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        metrics = QFontMetrics(self.font())
+        elided = metrics.elidedText(self._full_text, Qt.TextElideMode.ElideRight, max(10, self.width() - 8))
+        opt_rect = self.rect().adjusted(4, 0, -4, 0)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        painter.drawText(opt_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  MAIN APPLICATION CLASS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -215,7 +237,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
             # ── Build UI ───────────────────────────────────────────────────────
             self.setWindowTitle(f"{APP_DISPLAY_NAME} — v{APP_VERSION}")
-            self.setGeometry(50, 50, 1650, 930)
+            self.setGeometry(30, 30, 1380, 840)
             logo_path = resource_path("assets/logo.svg")
             if os.path.exists(logo_path):
                 self.setWindowIcon(QIcon(logo_path))
@@ -503,29 +525,29 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         # ── Bottom canvas control bar ──────────────────────────────────────
         bottom_bar = QHBoxLayout()
-        bottom_bar.setSpacing(8)
+        bottom_bar.setSpacing(5)
         bottom_bar.setContentsMargins(2, 0, 2, 0)
 
         # Show Symbols checkbox
         self.detail_chk = QCheckBox("Symbol")
         self.detail_chk.setChecked(True)
         self.detail_chk.setStyleSheet(
-            "font-size:11px; font-weight:bold; color:#555; spacing:4px;"
+            "font-size:10px; font-weight:bold; color:#555; spacing:3px;"
         )
         self.detail_chk.toggled.connect(self._toggle_detail_view)
         bottom_bar.addWidget(self.detail_chk)
 
         # Separator
-        sep1 = QLabel("|");
-        sep1.setStyleSheet("color:#ccc; font-size:14px;")
+        sep1 = QLabel("|")
+        sep1.setStyleSheet("color:#ccc; font-size:12px;")
         bottom_bar.addWidget(sep1)
 
         # Hide existing-span length labels (declutter busy drawings)
-        self.ex_len_chk = QCheckBox("Ex Length")
+        self.ex_len_chk = QCheckBox("Ex Len")
         self.ex_len_chk.setChecked(True)
         self.ex_len_chk.setToolTip("Show the length label on existing spans")
         self.ex_len_chk.setStyleSheet(
-            "font-size:11px; color:#555; spacing:4px;"
+            "font-size:10px; color:#555; spacing:3px;"
         )
         self.ex_len_chk.toggled.connect(self._toggle_existing_span_length)
         bottom_bar.addWidget(self.ex_len_chk)
@@ -534,30 +556,32 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.pole_label_chk = QCheckBox("Mark")
         self.pole_label_chk.setChecked(True)
         self.pole_label_chk.setToolTip("Show or hide pole name labels (PLT1, PHT1, P331, etc.) on drawing")
-        self.pole_label_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")
+        self.pole_label_chk.setStyleSheet("font-size:10px; color:#555; spacing:3px;")
         self.pole_label_chk.toggled.connect(self._toggle_pole_labels)
         bottom_bar.addWidget(self.pole_label_chk)
 
         # Separator
         sep1_2 = QLabel("|")
-        sep1_2.setStyleSheet("color:#ccc; font-size:14px;")
+        sep1_2.setStyleSheet("color:#ccc; font-size:12px;")
         bottom_bar.addWidget(sep1_2)
 
         # Hide/Show PDF Legend Table
         self.legend_chk = QCheckBox("Legend")
         self.legend_chk.setChecked(True)
         self.legend_chk.setToolTip("Include the legend table and object counts in PDF export")
-        self.legend_chk.setStyleSheet("font-size:11px; color:#555; spacing:4px;")
+        self.legend_chk.setStyleSheet("font-size:10px; color:#555; spacing:3px;")
         self.legend_chk.toggled.connect(self._toggle_pdf_legend)
         bottom_bar.addWidget(self.legend_chk)
 
         # Separator
-        sep2 = QLabel("|");
-        sep2.setStyleSheet("color:#ccc; font-size:14px;")
+        sep2 = QLabel("|")
+        sep2.setStyleSheet("color:#ccc; font-size:12px;")
         bottom_bar.addWidget(sep2)
 
         # Scale label + dropdown
-        bottom_bar.addWidget(QLabel("Print Scale:"))
+        lbl_scale = QLabel("Scale:")
+        lbl_scale.setStyleSheet("font-size:10px;")
+        bottom_bar.addWidget(lbl_scale)
         self.scale_cb = QComboBox()
         self.scale_cb.addItems([
             "1:150", "1:200", "1:300"
@@ -569,12 +593,14 @@ class EstimateApp(QMainWindow, EditorMixin):
         )
         self.scale_cb.currentTextChanged.connect(self._on_scale_changed)
         self.scale_cb.setStyleSheet(
-            "font-size:11px; font-weight:bold; color:#1a5276;"
+            "font-size:10px; font-weight:bold; color:#1a5276;"
         )
         bottom_bar.addWidget(self.scale_cb)
 
         # Orientation mode
-        bottom_bar.addWidget(QLabel("Orientation:"))
+        lbl_orient = QLabel("Orient:")
+        lbl_orient.setStyleSheet("font-size:10px;")
+        bottom_bar.addWidget(lbl_orient)
         self.orient_cb = QComboBox()
         self.orient_cb.addItems([
             "Landscape (All)",
@@ -589,30 +615,30 @@ class EstimateApp(QMainWindow, EditorMixin):
             "Auto + Overrides allows manual page overrides."
         )
         self.orient_cb.currentTextChanged.connect(self._on_orientation_mode_changed)
-        self.orient_cb.setStyleSheet("font-size:11px; color:#1a5276;")
+        self.orient_cb.setStyleSheet("font-size:10px; color:#1a5276;")
         bottom_bar.addWidget(self.orient_cb)
 
-        self.page_override_btn = QPushButton("Page Overrides")
+        self.page_override_btn = QPushButton("Overrides")
         self.page_override_btn.setToolTip(
             "Set manual orientation for specific pages, e.g. 2:P, 5:L.\n"
             "Note: overrides that conflict with current grid geometry are ignored."
         )
         self.page_override_btn.setStyleSheet(
-            "font-size:10px; padding:3px 6px;"
+            "font-size:10px; padding:2px 5px;"
         )
         self.page_override_btn.clicked.connect(self._edit_page_overrides)
         bottom_bar.addWidget(self.page_override_btn)
 
         # Separator
         sep3 = QLabel("|")
-        sep3.setStyleSheet("color:#ccc; font-size:14px;")
+        sep3.setStyleSheet("color:#ccc; font-size:12px;")
         bottom_bar.addWidget(sep3)
 
         # GPS Background toggle
         self.gps_bg_chk = QCheckBox("GPS BG")
         self.gps_bg_chk.setChecked(False)
         self.gps_bg_chk.setToolTip("Show OpenStreetMap background for the project lat/long")
-        self.gps_bg_chk.setStyleSheet("font-size:11px; font-weight:bold; color:#d35400; spacing:4px;")
+        self.gps_bg_chk.setStyleSheet("font-size:10px; font-weight:bold; color:#d35400; spacing:3px;")
         self.gps_bg_chk.toggled.connect(self._toggle_gps_bg)
         bottom_bar.addWidget(self.gps_bg_chk)
 
@@ -621,14 +647,14 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.gps_zoom_cb.setCurrentText("Zoom 19")
         self.gps_zoom_cb.setEnabled(False)
         self.gps_zoom_cb.currentTextChanged.connect(self._change_gps_zoom)
-        self.gps_zoom_cb.setStyleSheet("font-size:11px; font-weight:bold; color:#1a5276;")
+        self.gps_zoom_cb.setStyleSheet("font-size:10px; font-weight:bold; color:#1a5276;")
         self.gps_zoom_cb.setToolTip("Map Resolution Level")
         bottom_bar.addWidget(self.gps_zoom_cb)
 
         self.gps_opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self.gps_opacity_slider.setRange(10, 100)
         self.gps_opacity_slider.setValue(50)
-        self.gps_opacity_slider.setFixedWidth(80)
+        self.gps_opacity_slider.setFixedWidth(65)
         self.gps_opacity_slider.setToolTip("Background Opacity")
         self.gps_opacity_slider.setEnabled(False)
         self.gps_opacity_slider.valueChanged.connect(self._change_gps_opacity)
@@ -641,12 +667,14 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         # Right: properties + estimate table
         right_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.splitter.addWidget(right_splitter)
-        self.splitter.setSizes([1000, 650])
-
         right_splitter.addWidget(self._build_properties_panel())
         right_splitter.addWidget(self._build_estimate_panel())
-        right_splitter.setSizes([280, 720])
+        right_splitter.setSizes([260, 600])
+
+        self.splitter.addWidget(right_splitter)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 0)
+        self.splitter.setSizes([950, 420])
 
     def _build_icon_ribbon(self):
         """Small icon-only ribbon above the main drawing tools."""
@@ -725,7 +753,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def _build_draw_toolbar(self):
         bar = QHBoxLayout()
-        bar.setSpacing(3)
+        bar.setSpacing(2)
         self.tools_btns = {}
         menu_style = """
             QMenu {
@@ -735,9 +763,9 @@ class EstimateApp(QMainWindow, EditorMixin):
                 padding: 4px 0px;
             }
             QMenu::item {
-                padding: 6px 18px 6px 12px;
+                padding: 5px 16px 5px 10px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 11px;
                 color: #1e293b;
             }
             QMenu::item:selected {
@@ -828,15 +856,15 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         # Thin visual separator
         sep = QLabel("|")
-        sep.setStyleSheet("color:#bbb; font-size:16px; padding:0 4px;")
+        sep.setStyleSheet("color:#bbb; font-size:14px; padding:0 2px;")
         bar.addWidget(sep)
 
         # ── Symbol button ──────────────────────────────────────────────────
         sym_btn = QPushButton("⬡ Symbol")
         sym_btn.setToolTip("Place a decorative symbol on the canvas (circle, square, arrow, line)")
         sym_btn.setStyleSheet(
-            "padding:7px 10px; font-weight:bold;"
-            "background:#eaf7ea; color:#1e8449; border-radius:3px;"
+            "padding:4px 6px; font-weight:bold; font-size:11px;"
+            "background:#eaf7ea; color:#1e8449; border-radius:3px; border:1px solid #c2e2c2;"
         )
         sym_btn.clicked.connect(self._show_symbol_picker)
         bar.addWidget(sym_btn)
@@ -846,8 +874,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         txt_btn = QPushButton("T Text")
         txt_btn.setToolTip("Place a draggable text box on the canvas")
         txt_btn.setStyleSheet(
-            "padding:7px 10px; font-weight:bold;"
-            "background:#fef9e7; color:#7d6608; border-radius:3px;"
+            "padding:4px 6px; font-weight:bold; font-size:11px;"
+            "background:#fef9e7; color:#7d6608; border-radius:3px; border:1px solid #f6e58d;"
         )
         txt_btn.clicked.connect(lambda: self.set_tool("ADD_TEXTBOX"))
         bar.addWidget(txt_btn)
@@ -855,7 +883,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         # Thin visual separator
         sep2 = QLabel("|")
-        sep2.setStyleSheet("color:#bbb; font-size:16px; padding:0 4px;")
+        sep2.setStyleSheet("color:#bbb; font-size:14px; padding:0 2px;")
         bar.addWidget(sep2)
 
         # Fit-View button — also triggered by F key on the canvas
@@ -865,8 +893,8 @@ class EstimateApp(QMainWindow, EditorMixin):
             "Useful after zooming out too far or after loading a project."
         )
         fit_btn.setStyleSheet(
-            "padding:7px 10px; font-weight:bold;"
-            "background:#d5e8f7; color:#1a5276; border-radius:3px;"
+            "padding:4px 6px; font-weight:bold; font-size:11px;"
+            "background:#d5e8f7; color:#1a5276; border-radius:3px; border:1px solid #b8daef;"
         )
         fit_btn.clicked.connect(self._fit_view)
         bar.addWidget(fit_btn)
@@ -917,16 +945,12 @@ class EstimateApp(QMainWindow, EditorMixin):
         # Project info strip with edit button
         info_row = QHBoxLayout()
         info_row.setSpacing(0)
-        self.proj_info_label = QLabel()
+        self.proj_info_label = _ElidedLabel()
         self.proj_info_label.setWordWrap(False)
-        self.proj_info_label.setTextFormat(Qt.TextFormat.PlainText)
         self.proj_info_label.setMinimumWidth(0)
-        self.proj_info_label.setMaximumHeight(28)
-        self.proj_info_label.setSizePolicy(
-            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
-        )
+        self.proj_info_label.setFixedHeight(26)
         self.proj_info_label.setStyleSheet(
-            "font-size:9px; color:#444; padding:2px 4px;"
+            "font-size:10px; color:#444; padding:2px 4px;"
             "background:#f4f6f8; border:1px solid #d0d5da;"
             "border-radius:3px 0 0 3px; border-right:none;"
         )
@@ -1096,10 +1120,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         live_hdr = self.live_table.horizontalHeader()
         assert live_hdr is not None
         live_hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.live_table.setColumnWidth(0, 48)   # Type: Mat / Lab
-        self.live_table.setColumnWidth(1, 75)   # Code: item/lab code
-        self.live_table.setColumnWidth(3, 50)   # Qty
-        self.live_table.setColumnWidth(4, 38)   # Unit
+        self.live_table.setColumnWidth(0, 42)   # Type: Mat / Lab
+        self.live_table.setColumnWidth(1, 70)   # Code: item/lab code
+        self.live_table.setColumnWidth(3, 46)   # Qty
+        self.live_table.setColumnWidth(4, 36)   # Unit
         self.live_table.setColumnWidth(5, 68)   # Total (₹)
         live_v_hdr = self.live_table.verticalHeader()
         if live_v_hdr is not None:
@@ -1214,10 +1238,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         tot_layout.setContentsMargins(6, 4, 6, 4)
 
         self.grand_total_label = QLabel("<b>Estimated Cost (incl. taxes): ₹0.00</b>")
-        self.grand_total_label.setStyleSheet("font-size: 12px; color: #92400e; font-weight: bold;")
-        tot_layout.addWidget(self.grand_total_label)
+        self.grand_total_label.setStyleSheet("font-size: 11px; color: #92400e; font-weight: bold;")
+        tot_layout.addWidget(self.grand_total_label, 1)
 
-        hint_lbl = QLabel("<span style='font-size:9px; color:#b45309;'>Right-click or dbl-click line for rule origin</span>")
+        hint_lbl = QLabel("<span style='font-size:8px; color:#b45309;'>Right-click / dbl-click for rule info</span>")
         hint_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         tot_layout.addWidget(hint_lbl)
 
@@ -1480,7 +1504,7 @@ class EstimateApp(QMainWindow, EditorMixin):
             for key, btn in self.tools_btns.items():
                 active = key == "SELECT"
                 btn.setStyleSheet(
-                    "padding:7px 5px; font-weight:bold; background:"
+                    "padding:4px 8px; font-weight:bold; font-size:11px; background:"
                     + ("lightblue;" if active else "lightgray;")
                 )
             self.update_view_drag_mode()
@@ -1525,9 +1549,9 @@ class EstimateApp(QMainWindow, EditorMixin):
             if is_tb:
                 qss = f"""
                     QToolButton {{
-                        padding: 6px 12px;
+                        padding: 4px 8px;
                         font-weight: bold;
-                        font-size: 12px;
+                        font-size: 11px;
                         background-color: {bg};
                         border: 1.5px solid {border};
                         border-radius: 4px;
@@ -1545,9 +1569,9 @@ class EstimateApp(QMainWindow, EditorMixin):
             else:
                 qss = f"""
                     QPushButton {{
-                        padding: 6px 10px;
+                        padding: 4px 8px;
                         font-weight: bold;
-                        font-size: 12px;
+                        font-size: 11px;
                         background-color: {bg};
                         border: 1.5px solid {border};
                         border-radius: 4px;

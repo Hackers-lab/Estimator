@@ -57,26 +57,24 @@ class EditorMixin:
 
     def _build_empty_editor_hint(self):
         hint = QLabel(
-            "<b>Mouse</b><br>"
-            "• Left drag on blank space: Pan canvas<br>"
-            "• Shift + Left drag: Rubber-band multi-select<br>"
-            "• Hover on object: Select cursor<br>"
-            "• Middle drag / Ctrl + Left drag: Pan canvas<br>"
-            "• Wheel: Zoom, Ctrl + Wheel: Fine zoom<br><br>"
-            "<b>Keyboard</b><br>"
-            "• Esc: Select tool<br>"
-            "• F or Ctrl+0: Fit drawing to view<br>"
-            "• Ctrl+A: Select all objects"
+            "<b>Canvas Controls</b><br>"
+            "• Left drag: Pan blank canvas<br>"
+            "• Shift + Drag: Multi-select<br>"
+            "• Hover: Select cursor<br>"
+            "• Middle / Ctrl+Drag: Pan<br>"
+            "• Wheel: Zoom (Ctrl: Fine)<br>"
+            "• Esc: Select | F: Fit view | Ctrl+A: All"
         )
         hint.setWordWrap(True)
         hint.setStyleSheet(
             "QLabel {"
-            "  background:#f7fbff;"
-            "  border:1px solid #d7e8f6;"
-            "  border-radius:6px;"
-            "  padding:10px;"
-            "  color:#2b3d4f;"
-            "  line-height:1.35;"
+            "  font-size: 10px;"
+            "  background: #f7fbff;"
+            "  border: 1px solid #d7e8f6;"
+            "  border-radius: 4px;"
+            "  padding: 6px 8px;"
+            "  color: #2b3d4f;"
+            "  line-height: 1.3;"
             "}"
         )
         self.editor_layout.addRow(hint)
