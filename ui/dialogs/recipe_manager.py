@@ -212,7 +212,45 @@ class RecipeManagerDialog(QDialog):
         if self.recipes_list:
             self.recipe_list_widget.setCurrentRow(0)
 
+    def _save_form_to_current_recipe(self):
+        if not self.current_recipe:
+            return
+        key = self.recipe_key_input.text().strip()
+        name = self.recipe_name_input.text().strip()
+        obj_type = self.recipe_type_cb.currentText()
+
+        if not key or not name:
+            return
+
+        self.current_recipe["recipe_key"] = key
+        self.current_recipe["name"] = name
+        self.current_recipe["object_type"] = obj_type
+
+        # Parse Table Items
+        items = []
+        for row in range(self.table_widget.rowCount()):
+            cb = self.table_widget.cellWidget(row, 0)
+            desc_item = self.table_widget.item(row, 1)
+            len_box = self.table_widget.cellWidget(row, 2)
+            qty_box = self.table_widget.cellWidget(row, 3)
+
+            if cb and len_box and qty_box:
+                lpp = len_box.value()
+                qpo = qty_box.value()
+                lf = f"={qpo}*{lpp}" if qpo > 1 else str(lpp)
+                items.append({
+                    "section": cb.currentData(),
+                    "description": desc_item.text() if desc_item else cb.currentText(),
+                    "length_per_piece": lpp,
+                    "qty_per_object": qpo,
+                    "length_formula": lf,
+                })
+        self.current_recipe["items"] = items
+
     def _on_recipe_selected(self, index):
+        if self.current_recipe is not None:
+            self._save_form_to_current_recipe()
+
         if index < 0 or index >= len(self.recipes_list):
             self.current_recipe = None
             self.right_widget.setEnabled(False)
@@ -351,44 +389,31 @@ class RecipeManagerDialog(QDialog):
 
     def _save_and_close(self):
         # 1. First, save the currently selected recipe details from inputs
-        if self.current_recipe:
-            key = self.recipe_key_input.text().strip()
-            name = self.recipe_name_input.text().strip()
-            obj_type = self.recipe_type_cb.currentText()
-
-            if not key or not name:
-                QMessageBox.warning(self, "Invalid Inputs", "Recipe Key and Display Name cannot be blank.")
-                return
-
-            self.current_recipe["recipe_key"] = key
-            self.current_recipe["name"] = name
-            self.current_recipe["object_type"] = obj_type
-
-            # Parse Table Items
-            items = []
-            for row in range(self.table_widget.rowCount()):
-                cb = self.table_widget.cellWidget(row, 0)
-                desc_item = self.table_widget.item(row, 1)
-                len_box = self.table_widget.cellWidget(row, 2)
-                qty_box = self.table_widget.cellWidget(row, 3)
-
-                if cb and len_box and qty_box:
-                    lpp = len_box.value()
-                    qpo = qty_box.value()
-                    lf = f"={qpo}*{lpp}" if qpo > 1 else str(lpp)
-                    items.append({
-                        "section": cb.currentData(),
-                        "description": desc_item.text() if desc_item else cb.currentText(),
-                        "length_per_piece": lpp,
-                        "qty_per_object": qpo,
-                        "length_formula": lf,
-                    })
-            self.current_recipe["items"] = items
+        self._save_form_to_current_recipe()
 
         # 2. Write all recipes back to SQLite database using gateway save_recipe()
         try:
             for r in self.recipes_list:
                 _dbg.save_recipe(r)
+
+            # Also sync factory recipes to data/recipes.json if file exists and writable
+            try:
+                r_file = get_data_path("recipes.json")
+                if os.path.exists(r_file):
+                    with open(r_file, "r", encoding="utf-8") as f:
+                        file_data = json.load(f)
+                    for r in self.recipes_list:
+                        r_key = r.get("recipe_key")
+                        if r_key and r_key in file_data:
+                            file_data[r_key]["name"] = r["name"]
+                            file_data[r_key]["description"] = r.get("description", "")
+                            file_data[r_key]["object_type"] = r.get("object_type", "SmartStructure")
+                            file_data[r_key]["items"] = r.get("items", [])
+                    with open(r_file, "w", encoding="utf-8") as f:
+                        json.dump(file_data, f, indent=2)
+            except Exception as ex:
+                print(f"[RecipeManager] Could not sync recipes.json: {ex}")
+
             QMessageBox.information(self, "Success", "All recipes saved successfully to database!")
             self.accept()
         except Exception as e:

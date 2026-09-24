@@ -33,7 +33,7 @@ class EditorMixin:
     - self._show_advanced_pole_props (bool)
     """
 
-    _LABEL_W = 58  # fixed label width for 4-col grid alignment
+    _LABEL_W = 50  # fixed label width for 4-col grid alignment
 
     def _add_field_pair(self, label1, widget1, label2=None, widget2=None):
         """Add a row: [label1][input1] or [label1][input1][label2][input2]."""
@@ -415,14 +415,26 @@ class EditorMixin:
         self._add_delete_btn(item)
 
     def _build_service_drop_editor(self, item):
-        # Phase + Cable size — the service drop carries the actual cable.
-        # Both stay in sync with the connected consumer.
+        # Phase + Connection Type
         phase_cb = QComboBox()
         phase_cb.addItems(["1 Phase", "3 Phase"])
         phase_cb.setCurrentText(item.phase)
         phase_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_service_drop(i, "phase", t)
         )
+        conn_cb = QComboBox()
+        conn_opts = self._service_conn_types(item.phase)
+        conn_cb.addItems(conn_opts)
+        curr_conn = getattr(item, "connection_type", "I Type")
+        if curr_conn not in conn_opts:
+            curr_conn = conn_opts[0]
+        conn_cb.setCurrentText(curr_conn)
+        conn_cb.currentTextChanged.connect(
+            lambda t, i=item: self._update_service_drop(i, "connection_type", t)
+        )
+        self._add_field_pair("Phase:", phase_cb, "Type:", conn_cb)
+
+        # Cable + Length
         sz_cb = QComboBox()
         _sizes = self._service_cable_sizes(item.phase)
         sz_cb.addItems(_sizes)
@@ -432,15 +444,27 @@ class EditorMixin:
         sz_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_service_drop(i, "cable_size", t)
         )
-        self._add_field_pair("Phase:", phase_cb, "Cable:", sz_cb)
 
         len_sp = QSpinBox()
         len_sp.setRange(1, 150)
         len_sp.setValue(int(item.length))
         len_sp.valueChanged.connect(
-            lambda v, i=item: self._update_span(i, "length", v)
+            lambda v, i=item: self._update_service_drop(i, "length", v)
         )
-        self._add_field_pair("Length:", len_sp)
+        self._add_field_pair("Cable:", sz_cb, "Length(m):", len_sp)
+
+        # Live Cost Info Badge
+        try:
+            from core.nsc_calculator import calculate_nsc_service_cost
+            cost_info = calculate_nsc_service_cost(item.phase, curr_conn, item.conductor_size, item.length)
+            cost_lbl = QLabel(
+                f"<b>NSC Execution Cost:</b> ₹{cost_info['execution_cost']:.2f}<br>"
+                f"<span style='color:#555;'>{cost_info['type_code']} ({cost_info['cable_code']}): Base ₹{cost_info['base_cost']:.2f} + {cost_info['allowed_cable']:.0f}m @ ₹{cost_info['rate_m']}/m</span>"
+            )
+            cost_lbl.setStyleSheet("color: #1b5e20; background: #e8f5e9; border: 1px solid #c8e6c9; padding: 6px; border-radius: 4px; font-size: 11px;")
+            self.editor_layout.addRow(cost_lbl)
+        except Exception:
+            pass
 
     def _build_line_span_editor(self, item):
         # Status override
@@ -516,20 +540,58 @@ class EditorMixin:
     def _build_consumer_editor(self, item):
         self.editor_group.setTitle("Consumer")
 
-        # Phase + Cable Size paired
+        # Phase + Connection Type
         phase_cb = QComboBox()
         phase_cb.addItems(["1 Phase", "3 Phase"])
         phase_cb.setCurrentText(item.phase)
         phase_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_consumer(i, "phase", t)
         )
+        conn_cb = QComboBox()
+        conn_opts = self._service_conn_types(item.phase)
+        conn_cb.addItems(conn_opts)
+        curr_conn = getattr(item, "connection_type", "I Type")
+        if curr_conn not in conn_opts:
+            curr_conn = conn_opts[0]
+        conn_cb.setCurrentText(curr_conn)
+        conn_cb.currentTextChanged.connect(
+            lambda t, i=item: self._update_consumer(i, "connection_type", t)
+        )
+        self._add_field_pair("Phase:", phase_cb, "Type:", conn_cb)
+
+        # Cable + Length
         sz_cb = QComboBox()
-        sz_cb.addItems(self._service_cable_sizes(item.phase))
+        _sizes = self._service_cable_sizes(item.phase)
+        sz_cb.addItems(_sizes)
+        if item.cable_size not in _sizes:
+            sz_cb.addItem(item.cable_size)
         sz_cb.setCurrentText(item.cable_size)
         sz_cb.currentTextChanged.connect(
             lambda t, i=item: self._update_consumer(i, "cable_size", t)
         )
-        self._add_field_pair("Phase:", phase_cb, "Cable:", sz_cb)
+
+        sd = self._consumer_service_drop(item)
+        curr_len = int(sd.length) if sd else int(getattr(item, "service_length", 20))
+        len_sp = QSpinBox()
+        len_sp.setRange(1, 150)
+        len_sp.setValue(curr_len)
+        len_sp.valueChanged.connect(
+            lambda v, i=item: self._update_consumer(i, "service_length", v)
+        )
+        self._add_field_pair("Cable:", sz_cb, "Length(m):", len_sp)
+
+        # Live Cost Info Badge
+        try:
+            from core.nsc_calculator import calculate_nsc_service_cost
+            cost_info = calculate_nsc_service_cost(item.phase, curr_conn, item.cable_size, curr_len)
+            cost_lbl = QLabel(
+                f"<b>NSC Execution Cost:</b> ₹{cost_info['execution_cost']:.2f}<br>"
+                f"<span style='color:#555;'>{cost_info['type_code']} ({cost_info['cable_code']}): Base ₹{cost_info['base_cost']:.2f} + {cost_info['allowed_cable']:.0f}m @ ₹{cost_info['rate_m']}/m</span>"
+            )
+            cost_lbl.setStyleSheet("color: #1b5e20; background: #e8f5e9; border: 1px solid #c8e6c9; padding: 6px; border-radius: 4px; font-size: 11px;")
+            self.editor_layout.addRow(cost_lbl)
+        except Exception:
+            pass
 
         self._add_custom_slots_editor(item)
 
@@ -611,15 +673,18 @@ class EditorMixin:
         base_fold = {v.casefold() for v in base}
         return base + [o for o in ext if o.casefold() not in base_fold]
 
-    def _service_cable_sizes(self, phase: str) -> list[str]:
-        """Cable sizes for consumer / service drop, merged with user-added values."""
+    def _service_conn_types(self, phase: str) -> list[str]:
+        """Connection types for consumer / service drop."""
         if phase == "1 Phase":
-            base = ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM"]
+            return ["I Type", "L Type"]
+        return ["I Type", "L Type", "Drop Type"]
+
+    def _service_cable_sizes(self, phase: str) -> list[str]:
+        """Cable sizes for consumer / service drop according to phase."""
+        if phase == "1 Phase":
+            return ["4 SQMM", "6 SQMM"]
         else:
-            base = ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
-        ext = property_catalog.get_extended_options("SmartConsumer", "cable_size")
-        base_fold = {v.casefold() for v in base}
-        return base + [o for o in ext if o.casefold() not in base_fold]
+            return ["16 SQMM", "25 SQMM"]
 
     @staticmethod
     def _consumer_service_drop(consumer):
@@ -1287,14 +1352,28 @@ class EditorMixin:
             # Keep cable valid for the new phase, then mirror to the service drop.
             sizes = self._service_cable_sizes(value)
             if item.cable_size not in sizes:
-                item.cable_size = sizes[0]
+                item.cable_size = "4 SQMM" if value == "1 Phase" else "16 SQMM"
+            conns = self._service_conn_types(value)
+            if getattr(item, "connection_type", "I Type") not in conns:
+                item.connection_type = "I Type"
             if sd is not None:
                 sd.phase = value
                 sd.conductor_size = item.cable_size
+                sd.connection_type = item.connection_type
+                sd.wire_count = "2" if value == "1 Phase" else "4"
+                sd.update_visuals()
+        elif prop == "connection_type":
+            if sd is not None:
+                sd.connection_type = value
                 sd.update_visuals()
         elif prop == "cable_size":
             if sd is not None:
                 sd.conductor_size = value
+                sd.update_visuals()
+        elif prop == "service_length":
+            item.service_length = value
+            if sd is not None:
+                sd.length = value
                 sd.update_visuals()
 
         item.update_visuals()
@@ -1302,21 +1381,36 @@ class EditorMixin:
         QTimer.singleShot(10, self.on_selection_changed)
 
     def _update_service_drop(self, span, prop, value):
-        """Edit a service-drop span and mirror phase/cable back to its consumer."""
+        """Edit a service-drop span and mirror phase/cable/connection_type/length back to its consumer."""
         consumer = self._service_drop_consumer(span)
         if prop == "phase":
             span.phase = value
             sizes = self._service_cable_sizes(value)
             if span.conductor_size not in sizes:
-                span.conductor_size = sizes[0]
+                span.conductor_size = "4 SQMM" if value == "1 Phase" else "16 SQMM"
+            conns = self._service_conn_types(value)
+            if getattr(span, "connection_type", "I Type") not in conns:
+                span.connection_type = "I Type"
+            span.wire_count = "2" if value == "1 Phase" else "4"
             if consumer is not None:
                 consumer.phase = value
                 consumer.cable_size = span.conductor_size
+                consumer.connection_type = span.connection_type
+                consumer.update_visuals()
+        elif prop == "connection_type":
+            span.connection_type = value
+            if consumer is not None:
+                consumer.connection_type = value
                 consumer.update_visuals()
         elif prop == "cable_size":
             span.conductor_size = value
             if consumer is not None:
                 consumer.cable_size = value
+                consumer.update_visuals()
+        elif prop == "length":
+            span.length = value
+            if consumer is not None:
+                consumer.service_length = value
                 consumer.update_visuals()
         span.update_visuals()
         self.refresh_live_estimate()

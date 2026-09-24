@@ -547,6 +547,71 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             return "vertical"
         return "horizontal"
 
+    def lt_extension_continuous(self) -> bool:
+        """
+        Check if an existing LT pole connected to a new LT ACSR span qualifies
+        as an in-line extension requiring a new bracket + clamps + insulators.
+
+        Rule:
+        1. Pole must be an existing LT single pole (not DP/TP/4P/DTR).
+        2. Must be a DEAD-END / LAST POLE of the existing line:
+           i.e. exactly 1 existing line span (non-service-drop).
+        3. Connected to at least 1 new LT ACSR line span.
+        4. The angle between the incoming existing line span and the outgoing
+           new line span is within [120°, 180°] (i.e. deviation from 180° is <= 60°).
+        """
+        if not self.is_existing:
+            return False
+        if getattr(self, "existing_subtype", "LT") != "LT":
+            return False
+
+        ex_spans = [
+            s for s in self.connected_spans
+            if getattr(s, "is_existing_span", False) and not getattr(s, "is_service_drop", False)
+        ]
+        # Must be a last/end pole of the existing line (exactly 1 existing span)
+        if len(ex_spans) != 1:
+            return False
+
+        new_acsr_spans = [
+            s for s in self.connected_spans
+            if (not getattr(s, "is_existing_span", False))
+            and getattr(s, "conductor", "") == "ACSR"
+            and getattr(s, "is_lt_span", False)
+            and not getattr(s, "is_service_drop", False)
+        ]
+        if not new_acsr_spans:
+            return False
+
+        my_x, my_y = self.x(), self.y()
+
+        # Vector of incoming existing span (pointing away from self to the other pole)
+        ex_s = ex_spans[0]
+        other_ex = ex_s.p1 if ex_s.p2 is self else ex_s.p2
+        dx_ex = other_ex.x() - my_x
+        dy_ex = other_ex.y() - my_y
+        mag_ex = math.hypot(dx_ex, dy_ex)
+        if mag_ex == 0:
+            return False
+
+        # Check angle with the primary new ACSR span
+        new_s = new_acsr_spans[0]
+        other_new = new_s.p1 if new_s.p2 is self else new_s.p2
+        dx_new = other_new.x() - my_x
+        dy_new = other_new.y() - my_y
+        mag_new = math.hypot(dx_new, dy_new)
+        if mag_new == 0:
+            return False
+
+        # Dot product to calculate angle between the two vectors pointing away from pole
+        # When a line continues straight through, the two vectors point in opposite directions (angle = 180°, dot product = -1).
+        # We require angle in [120°, 180°] -> cos(angle) in [-1.0, cos(120°)] = [-1.0, -0.5].
+        dot = (dx_ex * dx_new + dy_ex * dy_new) / (mag_ex * mag_new)
+        dot = max(-1.0, min(1.0, dot))
+        angle_deg = math.degrees(math.acos(dot))
+
+        return 120.0 <= angle_deg <= 180.0
+
     # ── Visual update ─────────────────────────────────────────────────────────
 
     def update_visuals(self) -> None:

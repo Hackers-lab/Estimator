@@ -89,13 +89,18 @@ class SmartSpan(QGraphicsPathItem):
         _d = defaults.current
         if self.is_service_drop:
             self.conductor      = "Service Drop"
-            self.conductor_size = _d["sd_conductor_size"]
-            self.length         = _d["sd_length"]
+            self.length         = _d.get("sd_length", 20)
             self.consider_cable = False
-            self.phase          = _d["sd_phase"]
+            self.phase          = _d.get("sd_phase", "1 Phase")
+            _valid_conns = ["I Type", "L Type"] if self.phase == "1 Phase" else ["I Type", "L Type", "Drop Type"]
+            _conn = _d.get("sd_connection_type", "I Type")
+            self.connection_type = _conn if _conn in _valid_conns else _valid_conns[0]
+            _valid_sizes = ["4 SQMM", "6 SQMM"] if self.phase == "1 Phase" else ["16 SQMM", "25 SQMM"]
+            _sz = _d.get("sd_conductor_size", _valid_sizes[0])
+            self.conductor_size = _sz if _sz in _valid_sizes else _valid_sizes[0]
             self.has_cg         = False
             self.aug_type       = "New"
-            self.wire_count     = "3"
+            self.wire_count     = "2" if self.phase == "1 Phase" else "4"
         else:
             _pfx = "lt_" if self.is_lt_span else "ht_"
             self.conductor      = _d[_pfx + "conductor"]
@@ -107,6 +112,7 @@ class SmartSpan(QGraphicsPathItem):
             self.has_cg         = bool(_d.get("ht_cg_required", True)) if not self.is_lt_span else False
             self.consider_cable = False
             self.phase          = "3 Phase"
+            self.connection_type = "I Type"
 
         # Label is a standalone item (not a child) so it can be
         # added separately to the scene and remain independent.
@@ -127,6 +133,7 @@ class SmartSpan(QGraphicsPathItem):
             "is_service_drop": self.is_service_drop,
             "consider_cable": getattr(self, "consider_cable", False),
             "phase": self.phase,
+            "connection_type": getattr(self, "connection_type", "I Type"),
             "custom_note": self.custom_note,
             "dynamic_props": self.dynamic_props,
             "override_is_existing": getattr(self, "override_is_existing", "Auto"),
@@ -153,6 +160,7 @@ class SmartSpan(QGraphicsPathItem):
         self.is_service_drop = state.get("is_service_drop", False)
         self.consider_cable = state.get("consider_cable", False)
         self.phase = state.get("phase", "3 Phase")
+        self.connection_type = state.get("connection_type", "I Type")
         self.custom_note = state.get("custom_note", "")
         self.dynamic_props = dict(state.get("dynamic_props", {}))
         self.override_is_existing = state.get("override_is_existing", "Auto")
@@ -417,9 +425,9 @@ class SmartSpan(QGraphicsPathItem):
                 txt = f"Existing\n{self.conductor}" if show_len else "Existing"
         elif self.is_service_drop:
             phase_s = "1φ" if self.phase == "1 Phase" else "3φ"
-            txt = f"Service {self.length}m\n{phase_s}"
-            if self.consider_cable:
-                txt += f"\n{self.conductor_size}"
+            conn_t = getattr(self, "connection_type", "I Type")
+            conn_short = "-I" if "I" in conn_t else ("-L" if "L" in conn_t else "-D")
+            txt = f"Service {self.length}m\n{phase_s}{conn_short} ({self.conductor_size})"
         else:
             if self.conductor == "ACSR":
                 txt = f"{self.length}m"

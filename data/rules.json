@@ -2321,5 +2321,74 @@
         "formula": "4"
       }
     ]
+  },
+  {
+    "id": 245,
+    "object": "SmartPole",
+    "condition": "is_existing == True and pole_type == 'LT' and is_continuous_lt_joint == True and use_uh == False",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "",
+        "item_name": "Structural Iron (from Recipe)",
+        "formula": "LT_ACSR_BRACKET"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-51",
+        "item_name": "Fixing of LT Bracket Without Painted",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 246,
+    "object": "SmartPole",
+    "condition": "is_existing == True and pole_type == 'LT' and is_continuous_lt_joint == True and use_uh == True",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "195021741",
+        "item_name": "UH-LT BKT 4 WAY",
+        "formula": "1"
+      },
+      {
+        "type": "Material",
+        "item_code": "597011541",
+        "item_name": "UH-CLAMP FOR 8 MTR PCC POLE",
+        "formula": "4"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-51",
+        "item_name": "Fixing of LT Bracket Without Painted",
+        "formula": "1"
+      }
+    ]
+  },
+  {
+    "id": 247,
+    "object": "SmartPole",
+    "condition": "is_existing == True and pole_type == 'LT' and is_continuous_lt_joint == True",
+    "items": [
+      {
+        "type": "Material",
+        "item_code": "597011741",
+        "item_name": "UH-Diron Clump",
+        "formula": "int(new_lt_wire_count)"
+      },
+      {
+        "type": "Material",
+        "item_code": "0508040441",
+        "item_name": "Porcelain Shackle Insulator",
+        "formula": "int(new_lt_wire_count)"
+      },
+      {
+        "type": "Labor",
+        "item_code": "LAB-47",
+        "item_name": "Fixing of LT Shackle Insulator with N/B",
+        "formula": "int(new_lt_wire_count)"
+      }
+    ]
   }
 ]

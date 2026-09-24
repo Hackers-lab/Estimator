@@ -74,9 +74,10 @@ _FACTORY: dict = {
     "ht_cg_required":     True,
 
     # Service Drop
-    "sd_conductor_size":  "10 SQMM",
+    "sd_conductor_size":  "4 SQMM",
     "sd_length":          20,
-    "sd_phase":           "3 Phase",
+    "sd_phase":           "1 Phase",
+    "sd_connection_type": "I Type",
 
     # Canvas symbol colours  (hex strings; customisable via Property Editor → Canvas Symbols)
     "canvas_lt_pole":         "#2980b9",   # LT pole fill (base / fallback)

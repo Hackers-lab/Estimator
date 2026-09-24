@@ -790,8 +790,9 @@ class PDFExporter:
         m   = app.project_meta
 
         subject = m.get("subject", "Project_Drawing")
-        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
-        default = f"{safe}.pdf" if safe else "Project_Drawing.pdf"
+        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|').strip()
+        safe_stem = safe[:100].rstrip(" ._")
+        default = f"{safe_stem}.pdf" if safe_stem else "Project_Drawing.pdf"
 
         filename = output_path
         if not filename:

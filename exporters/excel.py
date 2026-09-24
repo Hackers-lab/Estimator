@@ -57,8 +57,9 @@ class ExcelExporter:
         app = self._app
         m   = app.project_meta
         subject = m.get("subject", "ERP_Estimate")
-        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|')
-        default = f"{safe}_Estimate.xlsx" if safe else "ERP_Estimate.xlsx"
+        safe    = "".join(c for c in subject if c not in r'\/*?:"<>|').strip()
+        safe_stem = safe[:100].rstrip(" ._")
+        default = f"{safe_stem}_Estimate.xlsx" if safe_stem else "ERP_Estimate.xlsx"
 
         filename = output_path
         if not filename:
@@ -333,7 +334,10 @@ class ExcelExporter:
             "ht_ext_count":     len([p for p in new_ht_poles if getattr(p, "has_extension", False)]),
             "lt_acsr_count":    len([p for p in new_lt_poles if any(
                                     getattr(s, "conductor", "") == "ACSR"
-                                    for s in getattr(p, "connected_spans", []))]),
+                                    for s in getattr(p, "connected_spans", []))]) +
+                                len([p for p in poles if getattr(p, "is_existing", False)
+                                     and getattr(p, "pole_type", "") == "LT"
+                                     and bool(getattr(p, "lt_extension_continuous", lambda: False)())]),
             "ab_cable_count":   len([sp for sp in spans
                                     if getattr(sp, "conductor", "") == "AB Cable"
                                     and not getattr(sp, "is_existing_span", False)]),
@@ -524,17 +528,8 @@ class ExcelExporter:
              "lpp": 3.0, "qpo": 1, "lf": "=3"},
         ])
 
-        add_direct_obj(f"LT ACSR Bracket ({counts['lt_acsr_count']} poles)", counts["lt_acsr_count"], [
-            {"description": "LT ACSR Bracket (Angle)", "section": "ANG_65X65X6",
-             "lpp": 1.0, "qpo": 1, "lf": "=1"},
-            {"description": "LT ACSR Bracket (Flat)", "section": "FLAT_65X6",
-             "lpp": 1.0, "qpo": 1, "lf": "=1"},
-        ])
-
-        add_direct_obj(f"AB Cable Clamp ({counts['ab_cable_count']} spans)", counts["ab_cable_count"], [
-            {"description": "AB Cable Clamp (Flat)", "section": "FLAT_65X6",
-             "lpp": 0.5, "qpo": 1, "lf": "=0.5"},
-        ])
+        add_recipe_obj(f"LT ACSR Bracket ({counts['lt_acsr_count']} poles)", "LT_ACSR_BRACKET", counts["lt_acsr_count"])
+        add_recipe_obj(f"AB Cable Clamp ({counts['ab_cable_count']} spans)", "AB_CABLE_CLAMP", counts["ab_cable_count"])
 
         # ── Build section → [objects with items for that section] ─────────────
         from collections import defaultdict

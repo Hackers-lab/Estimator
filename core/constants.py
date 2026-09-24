@@ -172,8 +172,9 @@ PROPERTY_DATA = {
     },
     "SmartConsumer": {
         "phase":            ["1 Phase", "3 Phase"],
+        "connection_type":  ["I Type", "L Type", "Drop Type"],
         "cable_size":       [
-            "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"
+            "4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"
         ],
         "agency_supply":    [True, False],
         "consider_cable":   [True, False],
@@ -266,14 +267,15 @@ SIM_DEFAULTS = {
         "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
     },
     "SmartConsumer": {
-        "phase":            ("combo", ["1 Phase", "3 Phase"],            "3 Phase"),
+        "phase":            ("combo", ["1 Phase", "3 Phase"],            "1 Phase"),
+        "connection_type":  ("combo", ["I Type", "L Type", "Drop Type"], "I Type"),
         "cable_size":       ("combo",
-                             ["10 SQMM", "16 SQMM",
-                              "25 SQMM", "50 SQMM"],                    "10 SQMM"),
+                             ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM",
+                              "25 SQMM", "50 SQMM"],                    "4 SQMM"),
         "agency_supply":    ("combo", ["False", "True"],                 "False"),
         "consider_cable":   ("combo", ["False", "True"],                 "False"),
         "service_length":   ("spin",  (0, 200),                           20),
-        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],                     "NSC"),
+        "project_type":     ("combo", ["NSC", "FDS / TURNKEY"],          "NSC"),
     },
 }
 

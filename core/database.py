@@ -608,7 +608,7 @@ def _seed_recipes_and_sections_tables(cursor) -> None:
                 if rkey in deleted_factory_recipes:
                     continue
                 cursor.execute(
-                    "INSERT OR REPLACE INTO recipes (recipe_key, name, description, object_type, items_json) "
+                    "INSERT OR IGNORE INTO recipes (recipe_key, name, description, object_type, items_json) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (
                         rkey,
@@ -618,6 +618,55 @@ def _seed_recipes_and_sections_tables(cursor) -> None:
                         json.dumps(rval.get("items", []))
                     )
                 )
+
+            # Migration: ensure POLE_LT_TOP_ADAPTOR has Flat qty 2, and revert LT_ACSR_BRACKET Flat to 1
+            cursor.execute("SELECT items_json FROM recipes WHERE recipe_key='POLE_LT_TOP_ADAPTOR'")
+            row = cursor.fetchone()
+            if row:
+                try:
+                    items = json.loads(row[0])
+                    changed = False
+                    for it in items:
+                        if it.get("section") == "FLAT_65X6" and it.get("qty_per_object") != 2:
+                            it["qty_per_object"] = 2
+                            it["length_formula"] = "=2*1"
+                            changed = True
+                    if changed:
+                        cursor.execute("UPDATE recipes SET items_json=? WHERE recipe_key='POLE_LT_TOP_ADAPTOR'", (json.dumps(items),))
+                except Exception:
+                    pass
+
+            cursor.execute("SELECT items_json FROM recipes WHERE recipe_key='LT_ACSR_BRACKET'")
+            row = cursor.fetchone()
+            if row:
+                try:
+                    items = json.loads(row[0])
+                    changed = False
+                    for it in items:
+                        if it.get("section") == "FLAT_65X6" and it.get("qty_per_object") != 2:
+                            it["qty_per_object"] = 2
+                            it["length_formula"] = "=2*1.0"
+                            changed = True
+                    if changed:
+                        cursor.execute("UPDATE recipes SET items_json=? WHERE recipe_key='LT_ACSR_BRACKET'", (json.dumps(items),))
+                except Exception:
+                    pass
+
+            # Migration: Ensure continuous LT joint rules (245, 246, 247) exist in rules table
+            try:
+                _rfile = get_data_path("rules.json")
+                if os.path.exists(_rfile):
+                    with open(_rfile, "r", encoding="utf-8") as _rf:
+                        _all_rules = json.load(_rf)
+                    for _r in _all_rules:
+                        if _r.get("id") in (245, 246, 247):
+                            cursor.execute(
+                                "INSERT OR REPLACE INTO rules (id, object_type, condition, items_json, enabled, sort_order) "
+                                "VALUES (?, ?, ?, ?, 1, ?)",
+                                (_r["id"], _r.get("object", "SmartPole"), _r.get("condition", ""), json.dumps(_r.get("items", [])), _r["id"])
+                            )
+            except Exception as _re:
+                print(f"[DB] Error syncing continuous rules: {_re}")
         except Exception as e:
             print(f"[DB] Error seeding recipes: {e}")
 

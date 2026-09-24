@@ -121,11 +121,11 @@ class ProjectSetupDialog(QDialog):
         form.setSpacing(8)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        # Subject — max ~5 lines (300 chars) with live counter
-        _SUBJECT_MAX = 300
+        # Subject — max 1000 chars with live counter
+        _SUBJECT_MAX = 1000
         self._subject = QTextEdit(self._meta.get("subject", ""))
         self._subject.setPlaceholderText("e.g. GOCHIYA II LT Line Extension")
-        self._subject.setFixedHeight(80)
+        self._subject.setFixedHeight(105)
         self._subject.setStyleSheet("font-size: 13px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;")
         _subj_counter = QLabel()
         _subj_counter.setStyleSheet("color:#888; font-size:11px;")
@@ -142,7 +142,7 @@ class ProjectSetupDialog(QDialog):
             remaining = _SUBJECT_MAX - len(text)
             _subj_counter.setText(f"{len(text)}/{_SUBJECT_MAX} chars")
             _subj_counter.setStyleSheet(
-                "color:#c0392b; font-size:11px;" if remaining < 30
+                "color:#c0392b; font-size:11px;" if remaining < 50
                 else "color:#888; font-size:11px;"
             )
 

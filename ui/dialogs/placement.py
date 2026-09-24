@@ -75,7 +75,7 @@ class PlacementDefaultsDialog(QDialog):
         ("PVC Cable", "LT"): ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM", "95 SQMM", "120 SQMM"],
         ("PVC Cable", "HT"): ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM", "95 SQMM", "120 SQMM"],
     }
-    _SD_SIZES = ["10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
+    _SD_SIZES = ["4 SQMM", "6 SQMM", "10 SQMM", "16 SQMM", "25 SQMM", "50 SQMM"]
 
     @staticmethod
     def _pole_type2_opts(obj_type: str = "SmartPole") -> list:
@@ -393,21 +393,57 @@ class PlacementDefaultsDialog(QDialog):
         sd_grp = QGroupBox("Service Drop")
         sd_frm = QFormLayout(sd_grp)
 
+        self.sd_phase = QComboBox()
+        self.sd_phase.addItems(["1 Phase", "3 Phase"])
+        self.sd_phase.setCurrentText(d.get("sd_phase", "1 Phase"))
+        sd_frm.addRow("Phase:", self.sd_phase)
+
+        self.sd_conn_type = QComboBox()
+        sd_frm.addRow("Connection Type:", self.sd_conn_type)
+
         self.sd_size = QComboBox()
-        self.sd_size.addItems(self._SD_SIZES)
-        self.sd_size.setCurrentText(d["sd_conductor_size"])
         sd_frm.addRow("Cable Size:", self.sd_size)
+
+        def _refresh_sd_options():
+            ph = self.sd_phase.currentText()
+            # Conn types
+            c_types = ["I Type", "L Type"] if ph == "1 Phase" else ["I Type", "L Type", "Drop Type"]
+            cur_c = self.sd_conn_type.currentText()
+            self.sd_conn_type.blockSignals(True)
+            self.sd_conn_type.clear()
+            self.sd_conn_type.addItems(c_types)
+            if cur_c in c_types:
+                self.sd_conn_type.setCurrentText(cur_c)
+            else:
+                self.sd_conn_type.setCurrentText(c_types[0])
+            self.sd_conn_type.blockSignals(False)
+
+            # Sizes
+            sizes = ["4 SQMM", "6 SQMM"] if ph == "1 Phase" else ["16 SQMM", "25 SQMM"]
+            cur_sz = self.sd_size.currentText()
+            self.sd_size.blockSignals(True)
+            self.sd_size.clear()
+            self.sd_size.addItems(sizes)
+            if cur_sz in sizes:
+                self.sd_size.setCurrentText(cur_sz)
+            else:
+                self.sd_size.setCurrentText(sizes[0])
+            self.sd_size.blockSignals(False)
+
+        # Initialize combo items
+        _refresh_sd_options()
+        if d.get("sd_connection_type") in (["I Type", "L Type"] if d.get("sd_phase", "1 Phase") == "1 Phase" else ["I Type", "L Type", "Drop Type"]):
+            self.sd_conn_type.setCurrentText(d["sd_connection_type"])
+        if d.get("sd_conductor_size") in (["4 SQMM", "6 SQMM"] if d.get("sd_phase", "1 Phase") == "1 Phase" else ["16 SQMM", "25 SQMM"]):
+            self.sd_size.setCurrentText(d["sd_conductor_size"])
+
+        self.sd_phase.currentTextChanged.connect(lambda: _refresh_sd_options())
 
         self.sd_len = QSpinBox()
         self.sd_len.setRange(1, 500)
         self.sd_len.setSuffix(" m")
         self.sd_len.setValue(d["sd_length"])
         sd_frm.addRow("Default Length:", self.sd_len)
-
-        self.sd_phase = QComboBox()
-        self.sd_phase.addItems(["1 Phase", "3 Phase"])
-        self.sd_phase.setCurrentText(d["sd_phase"])
-        sd_frm.addRow("Phase:", self.sd_phase)
 
         lay.addWidget(self._wrap_collapsible("Service Drop", sd_grp, expanded=False))
 
@@ -562,6 +598,7 @@ class PlacementDefaultsDialog(QDialog):
             "sd_conductor_size": self.sd_size.currentText(),
             "sd_length":         self.sd_len.value(),
             "sd_phase":          self.sd_phase.currentText(),
+            "sd_connection_type": self.sd_conn_type.currentText(),
             # Label prefixes
             "label_new_lt":   self.lbl_new_lt.text().strip() or "PLT",
             "label_new_ht":   self.lbl_new_ht.text().strip() or "PHT",
@@ -629,6 +666,7 @@ class PlacementDefaultsDialog(QDialog):
             self.sd_size.setCurrentText(f["sd_conductor_size"])
             self.sd_len.setValue(f["sd_length"])
             self.sd_phase.setCurrentText(f["sd_phase"])
+            self.sd_conn_type.setCurrentText(f.get("sd_connection_type", "I Type"))
         elif idx == 2:   # Labels
             self.lbl_new_lt.setText(f["label_new_lt"])
             self.lbl_new_ht.setText(f["label_new_ht"])

@@ -33,10 +33,10 @@ from PyQt6.QtWidgets import (
 # pyrefly: ignore [missing-import]
 from PyQt6.QtGui import (
     QPen, QColor, QAction, QKeySequence, QIcon,
-    QPixmap
+    QPixmap, QFont
 )
 # pyrefly: ignore [missing-import]
-from PyQt6.QtCore import Qt, QTimer, QPointF, QEvent, QSize, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QTimer, QPointF, QEvent, QSize, pyqtSignal, QThread, QObject
 
 from core.constants import (
     TOOLS, SAG_ITEMS
@@ -133,6 +133,19 @@ class _UpdateDownloadThread(QThread):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Wheel-event blocker for combo/spin boxes inside scroll areas
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _WheelBlockFilter(QObject):
+    """Ignores wheel events on QComboBox / QSpinBox when they don't have focus."""
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel and not obj.hasFocus():
+            event.ignore()
+            return True
+        return super().eventFilter(obj, event)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  MAIN APPLICATION CLASS
 # ─────────────────────────────────────────────────────────────────────────────
 from ui.editors import EditorMixin
@@ -147,6 +160,7 @@ class EstimateApp(QMainWindow, EditorMixin):
     def __init__(self, headless=False):
         super().__init__()
         self.headless = headless
+        self._combo_wheel_filter = _WheelBlockFilter(self)
 
         setup_database()
         defaults.load()
@@ -632,7 +646,7 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         right_splitter.addWidget(self._build_properties_panel())
         right_splitter.addWidget(self._build_estimate_panel())
-        right_splitter.setSizes([320, 680])
+        right_splitter.setSizes([280, 720])
 
     def _build_icon_ribbon(self):
         """Small icon-only ribbon above the main drawing tools."""
@@ -894,29 +908,37 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def _build_properties_panel(self):
         w = QWidget()
+        w.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        w.setMinimumWidth(180)
         lay = QVBoxLayout(w)
-        lay.setContentsMargins(6, 6, 6, 0)
-        lay.setSpacing(4)
+        lay.setContentsMargins(4, 4, 4, 0)
+        lay.setSpacing(3)
 
         # Project info strip with edit button
         info_row = QHBoxLayout()
         info_row.setSpacing(0)
         self.proj_info_label = QLabel()
-        self.proj_info_label.setWordWrap(True)
+        self.proj_info_label.setWordWrap(False)
+        self.proj_info_label.setTextFormat(Qt.TextFormat.PlainText)
         self.proj_info_label.setMinimumWidth(0)
+        self.proj_info_label.setMaximumHeight(28)
+        self.proj_info_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+        )
         self.proj_info_label.setStyleSheet(
-            "font-size:11px; color:#555; padding:3px 5px;"
-            "background:#f0f0f0; border-radius:3px 0 0 3px;"
+            "font-size:9px; color:#444; padding:2px 4px;"
+            "background:#f4f6f8; border:1px solid #d0d5da;"
+            "border-radius:3px 0 0 3px; border-right:none;"
         )
         info_row.addWidget(self.proj_info_label, 1)
 
         self.edit_proj_btn = QPushButton("✏️")
         self.edit_proj_btn.setToolTip("Edit Project Settings")
-        self.edit_proj_btn.setFixedSize(28, 24)
+        self.edit_proj_btn.setFixedSize(24, 22)
         self.edit_proj_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.edit_proj_btn.setStyleSheet(
-            "QPushButton { background:#f0f0f0; border:1px solid #ccc;"
-            "  border-left:none; border-radius:0 3px 3px 0; font-size:13px; }"
+            "QPushButton { background:#f4f6f8; border:1px solid #d0d5da;"
+            "  border-left:none; border-radius:0 3px 3px 0; font-size:11px; }"
             "QPushButton:hover { background:#d5e8f7; }"
         )
         self.edit_proj_btn.clicked.connect(lambda: self._run_project_wizard(first_run=False))
@@ -927,10 +949,10 @@ class EstimateApp(QMainWindow, EditorMixin):
         # Object property editor
         self.editor_group = QGroupBox("Object Properties")
         self.editor_layout = QFormLayout()
-        self.editor_layout.setSpacing(3)
-        self.editor_layout.setHorizontalSpacing(6)
-        self.editor_layout.setVerticalSpacing(3)
-        self.editor_layout.setContentsMargins(6, 4, 6, 4)
+        self.editor_layout.setSpacing(2)
+        self.editor_layout.setHorizontalSpacing(4)
+        self.editor_layout.setVerticalSpacing(2)
+        self.editor_layout.setContentsMargins(4, 3, 4, 3)
         self.editor_layout.setLabelAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -942,14 +964,18 @@ class EstimateApp(QMainWindow, EditorMixin):
         )
         self.editor_group.setLayout(self.editor_layout)
         self.editor_group.setStyleSheet(
-            "QGroupBox { font-size:11px; }"
-            "QLabel { font-size:11px; }"
+            "QGroupBox { font-size:10px; font-weight:600;"
+            "  padding-top:10px; margin-top:2px; }"
+            "QGroupBox::title { subcontrol-origin:margin;"
+            "  left:6px; padding:0 3px; }"
+            "QLabel { font-size:10px; }"
             "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {"
-            "  min-height:22px; padding:1px 4px; font-size:11px;"
+            "  min-height:18px; max-height:22px;"
+            "  padding:0px 3px; font-size:10px;"
             "}"
-            "QPushButton { min-height:22px; padding:2px 6px; font-size:11px; }"
-            "QCheckBox { font-size:11px; spacing:6px; min-height:22px; }"
-            "QCheckBox::indicator { width:14px; height:14px; }"
+            "QPushButton { min-height:18px; padding:1px 4px; font-size:10px; }"
+            "QCheckBox { font-size:10px; spacing:4px; min-height:16px; }"
+            "QCheckBox::indicator { width:12px; height:12px; }"
         )
 
         # Property editor UX prefs (kept simple and session-local)
@@ -961,7 +987,8 @@ class EstimateApp(QMainWindow, EditorMixin):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        lay.addWidget(scroll)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lay.addWidget(scroll, 1)
 
         return w
 
@@ -972,8 +999,20 @@ class EstimateApp(QMainWindow, EditorMixin):
         lay.setSpacing(4)
 
         # ── Header row: title + toggle buttons ────────────────────────────────
-        hdr_row = QHBoxLayout()
-        self._panel_title_label = QLabel("<b>Live Estimate</b> (double-click Qty to edit)")
+        hdr_frame = QFrame()
+        hdr_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a365d, stop:1 #2b6cb0);
+                border-radius: 6px;
+                padding: 3px 6px;
+            }
+        """)
+        hdr_row = QHBoxLayout(hdr_frame)
+        hdr_row.setContentsMargins(6, 4, 6, 4)
+        hdr_row.setSpacing(6)
+
+        self._panel_title_label = QLabel("📊  <b>Live Estimate</b>")
+        self._panel_title_label.setStyleSheet("color: #ffffff; font-size: 11px; font-weight: bold;")
         hdr_row.addWidget(self._panel_title_label, 1)
 
         self._btn_show_estimate = QPushButton("Estimate")
@@ -981,16 +1020,31 @@ class EstimateApp(QMainWindow, EditorMixin):
         for btn, active in [(self._btn_show_estimate, True), (self._btn_show_breakup, False)]:
             btn.setCheckable(True)
             btn.setChecked(active)
-            btn.setStyleSheet(
-                "QPushButton{padding:3px 8px; border-radius:4px; font-size:11px;}"
-                "QPushButton:checked{background:#1F4E79; color:white; font-weight:bold;}"
-                "QPushButton:!checked{background:#d0d0d0; color:#333;}"
-            )
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 3px 10px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    font-weight: bold;
+                    border: none;
+                }
+                QPushButton:checked {
+                    background: #ffffff;
+                    color: #1a365d;
+                }
+                QPushButton:!checked {
+                    background: rgba(255, 255, 255, 0.2);
+                    color: #ffffff;
+                }
+                QPushButton:hover:!checked {
+                    background: rgba(255, 255, 255, 0.35);
+                }
+            """)
         self._btn_show_estimate.clicked.connect(lambda: self._switch_panel_view(0))
         self._btn_show_breakup.clicked.connect(lambda: self._switch_panel_view(1))
         hdr_row.addWidget(self._btn_show_estimate)
         hdr_row.addWidget(self._btn_show_breakup)
-        lay.addLayout(hdr_row)
+        lay.addWidget(hdr_frame)
 
         # ── Stacked widget: page 0 = estimate, page 1 = breakup ───────────────
         self._panel_stack = QStackedWidget()
@@ -1004,14 +1058,53 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         self.live_table = QTableWidget(0, 6)
         self.live_table.setHorizontalHeaderLabels(
-            ["Type", "Code", "Name", "Qty", "Unit", "Total (Rs)"]
+            ["Type", "Code", "Name", "Qty", "Unit", "Total (₹)"]
         )
+        self.live_table.setStyleSheet("""
+            QTableWidget {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10px;
+                background-color: #ffffff;
+                alternate-background-color: #f8fafc;
+                gridline-color: #e2e8f0;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                selection-background-color: #e0f2fe;
+                selection-color: #0369a1;
+            }
+            QTableWidget::item {
+                padding: 1px 4px;
+                border: none;
+            }
+            QTableWidget::item:hover {
+                background-color: #f1f5f9;
+            }
+            QHeaderView::section {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10px;
+                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f8fafc, stop:1 #e2e8f0);
+                color: #334155;
+                padding: 2px 4px;
+                border: none;
+                border-right: 1px solid #cbd5e1;
+                border-bottom: 1px solid #cbd5e1;
+                height: 22px;
+            }
+        """)
+        self.live_table.setAlternatingRowColors(True)
         live_hdr = self.live_table.horizontalHeader()
         assert live_hdr is not None
         live_hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.live_table.setColumnWidth(0, 65)
-        self.live_table.setColumnWidth(1, 85)
-        self.live_table.setColumnWidth(3, 65)
+        self.live_table.setColumnWidth(0, 48)   # Type: Mat / Lab
+        self.live_table.setColumnWidth(1, 75)   # Code: item/lab code
+        self.live_table.setColumnWidth(3, 50)   # Qty
+        self.live_table.setColumnWidth(4, 38)   # Unit
+        self.live_table.setColumnWidth(5, 68)   # Total (₹)
+        live_v_hdr = self.live_table.verticalHeader()
+        if live_v_hdr is not None:
+            live_v_hdr.setDefaultSectionSize(19)
+            live_v_hdr.setVisible(False)
         self.live_table.itemChanged.connect(self.on_table_edit)
         # Transparency: right-click or double-click a line to see where it came from
         self.live_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -1020,12 +1113,35 @@ class EstimateApp(QMainWindow, EditorMixin):
         est_lay.addWidget(self.live_table)
 
         btn_row = QHBoxLayout()
-        add_mat = QPushButton("+ Add Material")
-        add_lab = QPushButton("+ Add Labor")
+        btn_row.setSpacing(6)
+        add_mat = QPushButton("＋ Add Material")
+        add_lab = QPushButton("＋ Add Labor")
         add_mat.clicked.connect(lambda: self.open_search("Material"))
         add_lab.clicked.connect(lambda: self.open_search("Labor"))
-        add_mat.setStyleSheet("background:#3498db; color:white; font-weight:bold; padding:5px;")
-        add_lab.setStyleSheet("background:#e67e22; color:white; font-weight:bold; padding:5px;")
+        add_mat.setStyleSheet("""
+            QPushButton {
+                background: #0284c7;
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover { background: #0369a1; }
+        """)
+        add_lab.setStyleSheet("""
+            QPushButton {
+                background: #ea580c;
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover { background: #c2410c; }
+        """)
         btn_row.addWidget(add_mat)
         btn_row.addWidget(add_lab)
         est_lay.addLayout(btn_row)
@@ -1041,22 +1157,71 @@ class EstimateApp(QMainWindow, EditorMixin):
         self.breakup_table.setHorizontalHeaderLabels(
             ["Description", "No", "Length", "Total (m)", "Iron (MT)"]
         )
+        self.breakup_table.setStyleSheet("""
+            QTableWidget {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10px;
+                background-color: #ffffff;
+                gridline-color: #e2e8f0;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+            }
+            QTableWidget::item {
+                padding: 1px 4px;
+                border: none;
+            }
+            QHeaderView::section {
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10px;
+                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f8fafc, stop:1 #e2e8f0);
+                color: #334155;
+                padding: 2px 4px;
+                border: none;
+                border-right: 1px solid #cbd5e1;
+                border-bottom: 1px solid #cbd5e1;
+                height: 22px;
+            }
+        """)
         brk_hdr = self.breakup_table.horizontalHeader()
         assert brk_hdr is not None
         brk_hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.breakup_table.setColumnWidth(1, 40)
-        self.breakup_table.setColumnWidth(2, 80)
-        self.breakup_table.setColumnWidth(3, 68)
-        self.breakup_table.setColumnWidth(4, 68)
+        self.breakup_table.setColumnWidth(1, 32)
+        self.breakup_table.setColumnWidth(2, 60)
+        self.breakup_table.setColumnWidth(3, 56)
+        self.breakup_table.setColumnWidth(4, 58)
+        brk_v_hdr = self.breakup_table.verticalHeader()
+        if brk_v_hdr is not None:
+            brk_v_hdr.setDefaultSectionSize(19)
+            brk_v_hdr.setVisible(False)
         self.breakup_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.breakup_table.setAlternatingRowColors(False)
         brk_lay.addWidget(self.breakup_table)
         self._panel_stack.addWidget(brk_page)
 
-        # ── Grand total label (shown for both views) ───────────────────────────
-        self.grand_total_label = QLabel("<b>Grand Total: Rs. 0.00</b>")
-        self.grand_total_label.setStyleSheet("font-size:15px; color:#d32f2f; margin-top:4px;")
-        lay.addWidget(self.grand_total_label)
+        # ── Grand total card ──────────────────────────────────────────────────
+        total_card = QFrame()
+        total_card.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #fffbeb, stop:1 #fef3c7);
+                border: 1px solid #fcd34d;
+                border-radius: 5px;
+                padding: 3px 6px;
+                margin-top: 2px;
+            }
+        """)
+        tot_layout = QHBoxLayout(total_card)
+        tot_layout.setContentsMargins(6, 4, 6, 4)
+
+        self.grand_total_label = QLabel("<b>Estimated Cost (incl. taxes): ₹0.00</b>")
+        self.grand_total_label.setStyleSheet("font-size: 12px; color: #92400e; font-weight: bold;")
+        tot_layout.addWidget(self.grand_total_label)
+
+        hint_lbl = QLabel("<span style='font-size:9px; color:#b45309;'>Right-click or dbl-click line for rule origin</span>")
+        hint_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        tot_layout.addWidget(hint_lbl)
+
+        lay.addWidget(total_card)
 
         return w
 
@@ -1274,12 +1439,14 @@ class EstimateApp(QMainWindow, EditorMixin):
         sup_pct = int(m.get("supervision_rate", 0.10) * 100)
         uh_txt  = "UH Materials" if m.get("use_uh") else "Raw Steel"
         path_txt = f"  ({os.path.basename(self.current_project_path)})" if getattr(self, "current_project_path", None) else ""
-        self.proj_info_label.setText(
+        text = (
             f"📌 {m.get('subject','(no subject)')}{path_txt}   |   "
             f"Type: {m.get('project_type','NSC')}   |   "
             f"Sup: {sup_pct}%   |   "
             f"Materials: {uh_txt}"
         )
+        self.proj_info_label.setText(text)
+        self.proj_info_label.setToolTip(text)
         self._update_lock_state()
 
     def _update_lock_state(self):
@@ -1957,13 +2124,19 @@ class EstimateApp(QMainWindow, EditorMixin):
         """Keep editor controls visually consistent regardless of content text."""
         fields = self.editor_group.findChildren((QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox))
         for w in fields:
-            w.setMinimumHeight(24)
+            w.setMinimumHeight(20)
             w.setMinimumWidth(0)
             w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             if isinstance(w, QComboBox):
                 w.setMinimumContentsLength(1)
                 w.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
                 w.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+                # Prevent accidental value changes when scrolling the panel
+                w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                w.installEventFilter(self._combo_wheel_filter)
+            elif isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                w.installEventFilter(self._combo_wheel_filter)
 
     def _pack_editor_rows_two_columns(self):
         """Compact editor by showing two form entries per visual row."""
@@ -1990,7 +2163,7 @@ class EstimateApp(QMainWindow, EditorMixin):
             if item is None:
                 continue
 
-        label_w = 88
+        label_w = 72
 
         def _make_cell(lbl: QWidget, fld: QWidget) -> QWidget:
             cell = QWidget()
@@ -2417,11 +2590,61 @@ class EstimateApp(QMainWindow, EditorMixin):
                     code, rate, unit, db_name = row
                     if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type:
                         qty = self.bom_overrides[db_name]["qty"]
+
+                    # ── Dynamic NSC Service Connection Execution Cost ─────────
+                    if code in ("LAB-68", "LAB-67"):
+                        target_phase = "1 Phase" if code == "LAB-68" else "3 Phase"
+                        consumers = [
+                            i for i in canvas_items
+                            if isinstance(i, SmartConsumer) and (
+                                (target_phase == "1 Phase" and getattr(i, "phase", "") == "1 Phase") or
+                                (target_phase == "3 Phase" and getattr(i, "phase", "") != "1 Phase")
+                            )
+                        ]
+                        if consumers:
+                            from core.nsc_calculator import calculate_nsc_service_cost
+                            cost_groups = {}
+                            for c in consumers:
+                                sd = next((s for s in getattr(c, "connected_spans", []) if getattr(s, "is_service_drop", False) and getattr(s, "scene", lambda: None)() is not None), None)
+                                actual_len = float(sd.length) if sd else float(getattr(c, "service_length", 20.0))
+                                conn_t = getattr(c, "connection_type", getattr(sd, "connection_type", "I Type") if sd else "I Type")
+                                cable_sz = getattr(c, "cable_size", getattr(sd, "conductor_size", "4 SQMM" if target_phase == "1 Phase" else "16 SQMM") if sd else ("4 SQMM" if target_phase == "1 Phase" else "16 SQMM"))
+                                c_info = calculate_nsc_service_cost(c.phase, conn_t, cable_sz, actual_len)
+                                grp_key = (c_info["execution_cost"], c_info["type_code"], c_info["allowed_cable"], c_info["rate_m"], c_info["base_cost"], c_info["cable_code"])
+                                cost_groups.setdefault(grp_key, []).append((c, c_info))
+
+                            is_single_group = len(cost_groups) == 1
+                            for grp_key, grp_items in cost_groups.items():
+                                grp_cost, type_code, allowed_cable, rate_m, base_cost, cable_code = grp_key
+                                grp_qty = len(grp_items)
+                                if db_name in self.bom_overrides and self.bom_overrides[db_name]["type"] == item_type and is_single_group:
+                                    grp_qty = self.bom_overrides[db_name]["qty"]
+                                line_name = db_name if is_single_group else f"{db_name} ({type_code} - {int(allowed_cable)}m)"
+                                grp_prov = []
+                                for c, c_info in grp_items:
+                                    grp_prov.append({
+                                        "object_label": f"Consumer SC{getattr(c, 'seq_id', 1)}",
+                                        "object_type": "SmartConsumer",
+                                        "rule_id": 161 if target_phase == "1 Phase" else 160,
+                                        "condition": f"phase=='{c.phase}' & {c_info['conn_type']} & {c_info['cable_size']}",
+                                        "formula": f"{type_code} (Base ₹{base_cost:.2f} + {allowed_cable:.0f}m @ ₹{rate_m}/m)",
+                                        "qty": 1,
+                                    })
+                                self.live_bom_data.append({
+                                    "type": item_type, "code": code, "name": line_name,
+                                    "qty": round(grp_qty, 3), "unit": unit, "rate": grp_cost,
+                                    "amt": round(round(grp_qty, 3) * grp_cost, 2),
+                                    "provenance": grp_prov,
+                                })
+                            processed.add(name)
+                            processed.add(db_name)
+                            continue
+
                     qty_rounded = round(qty, 3)
                     self.live_bom_data.append({
                         "type": item_type, "code": code, "name": db_name,
                         "qty": qty_rounded, "unit": unit, "rate": rate,
-                        "amt": qty_rounded * rate,
+                        "amt": round(qty_rounded * rate, 2),
                         "provenance": prov.get((item_type, name), []),
                     })
                     processed.add(name)
@@ -2574,17 +2797,56 @@ class EstimateApp(QMainWindow, EditorMixin):
 
         self.live_table.setUpdatesEnabled(False)
         self.live_table.setRowCount(0)
+        f_dense = QFont("Segoe UI", 9)
+        f_bold  = QFont("Segoe UI", 9)
+        f_bold.setBold(True)
+
         for i, item in enumerate(self.live_bom_data):
             self.live_table.insertRow(i)
-            self.live_table.setItem(i, 0, QTableWidgetItem(item["type"]))
-            self.live_table.setItem(i, 1, QTableWidgetItem(item["code"]))
-            self.live_table.setItem(i, 2, QTableWidgetItem(item["name"]))
+            self.live_table.setRowHeight(i, 20)
+
+            # Col 0: Type (Mat / Lab)
+            it_type = item["type"]
+            short_type = "Mat" if it_type == "Material" else ("Lab" if it_type == "Labor" else it_type)
+            item_0 = QTableWidgetItem(short_type)
+            item_0.setFont(f_dense)
+            item_0.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_0.setForeground(QColor("#1b4f72" if it_type == "Material" else "#78281f"))
+            self.live_table.setItem(i, 0, item_0)
+
+            # Col 1: Code
+            item_1 = QTableWidgetItem(item["code"])
+            item_1.setFont(f_dense)
+            item_1.setToolTip(item["code"])
+            self.live_table.setItem(i, 1, item_1)
+
+            # Col 2: Name
+            item_2 = QTableWidgetItem(item["name"])
+            item_2.setFont(f_dense)
+            item_2.setToolTip(item["name"])
+            self.live_table.setItem(i, 2, item_2)
+
+            # Col 3: Qty
             qty_text = self._fmt_qty(item["qty"], item.get("unit", ""))
             qty_item = QTableWidgetItem(qty_text)
-            qty_item.setBackground(QColor("#fff3cd"))
+            qty_item.setFont(f_bold)
+            qty_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            qty_item.setBackground(QColor("#fff8e1"))
+            qty_item.setToolTip("Double-click to override quantity")
             self.live_table.setItem(i, 3, qty_item)
-            self.live_table.setItem(i, 4, QTableWidgetItem(item["unit"]))
-            self.live_table.setItem(i, 5, QTableWidgetItem(f"{item['amt']:.2f}"))
+
+            # Col 4: Unit
+            item_4 = QTableWidgetItem(item["unit"])
+            item_4.setFont(f_dense)
+            item_4.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.live_table.setItem(i, 4, item_4)
+
+            # Col 5: Total Amt
+            item_5 = QTableWidgetItem(f"{item['amt']:.2f}")
+            item_5.setFont(f_dense)
+            item_5.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.live_table.setItem(i, 5, item_5)
+
             for col in (0, 1, 2, 4, 5):
                 t = self.live_table.item(i, col)
                 if t:

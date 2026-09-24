@@ -347,10 +347,17 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self._init_node(x, y, refresh_signal, detail_view)
 
         _d = defaults.current
-        self.phase          = _d.get("sd_phase", "3 Phase")
-        self.cable_size     = _d.get("sd_conductor_size", "10 SQMM")
+        self.phase          = _d.get("sd_phase", "1 Phase")
+        _valid_conns = ["I Type", "L Type"] if self.phase == "1 Phase" else ["I Type", "L Type", "Drop Type"]
+        _conn = _d.get("sd_connection_type", "I Type")
+        self.connection_type = _conn if _conn in _valid_conns else _valid_conns[0]
+
+        _valid_sizes = ["4 SQMM", "6 SQMM"] if self.phase == "1 Phase" else ["16 SQMM", "25 SQMM"]
+        _sz = _d.get("sd_conductor_size", _valid_sizes[0])
+        self.cable_size     = _sz if _sz in _valid_sizes else _valid_sizes[0]
         self.agency_supply  = False
         self.consider_cable = False
+        self.service_length = _d.get("sd_length", 20)
 
         self.seq_id = SmartConsumer._next_seq()
 
@@ -375,18 +382,22 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
             "type": "Consumer",
             "seq_id": self.seq_id,
             "phase": self.phase,
+            "connection_type": getattr(self, "connection_type", "I Type"),
             "cable_size": self.cable_size,
             "agency_supply": self.agency_supply,
             "consider_cable": getattr(self, "consider_cable", False),
+            "service_length": getattr(self, "service_length", 20),
         })
         return d
 
     def apply_state(self, state: dict) -> None:
         super().apply_state(state)
-        self.phase = state.get("phase", "3 Phase")
-        self.cable_size = state.get("cable_size", "10 SQMM")
+        self.phase = state.get("phase", "1 Phase")
+        self.connection_type = state.get("connection_type", "I Type")
+        self.cable_size = state.get("cable_size", "4 SQMM" if self.phase == "1 Phase" else "16 SQMM")
         self.agency_supply = state.get("agency_supply", False)
         self.consider_cable = state.get("consider_cable", False)
+        self.service_length = state.get("service_length", 20)
         self.seq_id = state.get("seq_id", self.seq_id)
 
     # ── Visual update ─────────────────────────────────────────────────────────
@@ -394,8 +405,10 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
     def update_visuals(self) -> None:
         _pfx = defaults.current.get("label_consumer", "SC")
         phase_short = "1φ" if self.phase == "1 Phase" else "3φ"
+        conn_t = getattr(self, "connection_type", "I Type")
+        conn_short = "-I" if "I" in conn_t else ("-L" if "L" in conn_t else "-D")
         supply_tag  = " [A]" if self.agency_supply else ""
-        txt = f"{_pfx}{self.seq_id}\n{phase_short}{supply_tag}"
+        txt = f"{_pfx}{self.seq_id}\n{phase_short}{conn_short}{supply_tag}"
         if self.custom_note:
             txt += f"\n📝 {self.custom_note}"
 

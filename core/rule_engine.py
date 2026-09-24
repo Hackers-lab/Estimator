@@ -242,6 +242,12 @@ class DynamicRuleEngine:
             (int(getattr(s, "wire_count", 0)) for s in existing_lt_acsr_spans),
             default=0
         )
+        ctx["new_lt_wire_count"]        = max(
+            (int(getattr(s, "wire_count", 0)) for s in new_lt_acsr_spans),
+            default=0
+        )
+        # Continuous joint check: dead-end existing pole continuing in-line (120° to 180°)
+        ctx["is_continuous_lt_joint"]   = bool(getattr(item, "lt_extension_continuous", lambda: False)())
 
         # AB cable context — distribution box / clamp / IPC rules
         ab_spans = [
@@ -392,15 +398,17 @@ class DynamicRuleEngine:
     ) -> dict:
         service_span = next(
             (s for s in getattr(item, "connected_spans", [])
-             if getattr(s, "is_service_drop", False)),
+             if getattr(s, "is_service_drop", False) and getattr(s, "scene", lambda: None)() is not None),
             None,
         )
-        service_length = service_span.length if service_span else 20
+        service_length = service_span.length if service_span else getattr(item, "service_length", 20)
+        conn_type = getattr(item, "connection_type", getattr(service_span, "connection_type", "I Type") if service_span else "I Type")
         ctx: dict = {
             "object_type":       "SmartConsumer",
             # Keep SmartHome alias so any legacy rules survive
             "object_type_alias": "SmartHome",
             "phase":             item.phase,
+            "connection_type":   conn_type,
             "cable_size":        item.cable_size,
             "agency_supply":     item.agency_supply,
             "consider_cable":    getattr(item, "consider_cable", False),
