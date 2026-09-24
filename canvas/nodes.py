@@ -316,7 +316,13 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
 
         self.label.setPlainText(txt)
         if not getattr(self.label, "user_moved", False):
-            self.label.set_auto_pos(-(self.label.boundingRect().width() / 2), 26)
+            # Place label safely below the lowest extent of the structure (body, earthing, stays)
+            lowest_y = max(
+                self._body_path.boundingRect().bottom() if hasattr(self, "_body_path") and not self._body_path.isEmpty() else 0.0,
+                self._detail_path.boundingRect().bottom() if self.detail_view and hasattr(self, "_detail_path") and not self._detail_path.isEmpty() else 0.0,
+            )
+            lbl_y = max(24.0, lowest_y + 8.0)
+            self.label.set_auto_pos(-(self.label.boundingRect().width() / 2), lbl_y)
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:

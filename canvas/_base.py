@@ -767,22 +767,23 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
             if not getattr(self.label, "user_moved", False):
                 lw = self.label.boundingRect().width()
                 lh = self.label.boundingRect().height()
+                # Determine vertical clearance from the item's visual path bounds
+                p_bounds = path.boundingRect()
+                struct_bottom = max(r, p_bounds.bottom()) if not path.isEmpty() else r
+                lbl_y = struct_bottom + 8
+
                 if self.connected_spans:
                     layout = self._connected_span_layout()
                     if layout == "vertical":
-                        self.label.set_auto_pos(r + 10, -lh / 2)
+                        struct_right = max(r, p_bounds.right()) if not path.isEmpty() else r
+                        self.label.set_auto_pos(struct_right + 8, -lh / 2)
                     elif layout == "mixed":
                         stay_angle = self.stay_angle_override % 360 if self.stay_angle_override is not None else self._calc_stay_angle()
                         p = self._label_pos_from_stay(r, lw, lh, stay_angle)
                         self.label.set_auto_pos(p.x(), p.y())
                     else:
-                        lbl_y = r + 8
                         self.label.set_auto_pos(-lw / 2, lbl_y)
                 else:
-                    if self.is_existing and self.existing_subtype in ("TP", "4P"):
-                        lbl_y = 27   # taller structure symbol
-                    else:
-                        lbl_y = r + 8
                     self.label.set_auto_pos(-lw / 2, lbl_y)
         finally:
             self._updating_visuals = False
