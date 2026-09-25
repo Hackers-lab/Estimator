@@ -887,3 +887,81 @@ class CanvasTextBox(QGraphicsTextItem):
             d.get("rotation", 0.0),
             z_value=d.get("z_value", -1.0),
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  LIVE CANVAS PDF LEGEND OVERLAY
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CanvasLegendItem(QGraphicsItem):
+    """
+    Faded live preview of the PDF legend rendered directly on the last A4 canvas page.
+    Informs the user of reserved/unutilised space so they don't place items over the legend.
+    """
+
+    def __init__(self, parent_app, target_rect: QRectF | None = None) -> None:
+        super().__init__()
+        self.parent_app = parent_app
+        self._target_rect: QRectF = target_rect or QRectF()
+        self.setZValue(-0.5)  # Under interactive nodes/spans, above page background
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setAcceptHoverEvents(False)
+
+    def set_target_rect(self, rect: QRectF) -> None:
+        self.prepareGeometryChange()
+        self._target_rect = QRectF(rect)
+        self.update()
+
+    def boundingRect(self) -> QRectF:
+        # Include top label tag (top - 14) and margins
+        return self._target_rect.adjusted(-4, -16, 4, 4)
+
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
+        if not self._target_rect or self._target_rect.isNull() or self._target_rect.isEmpty():
+            return
+        if not getattr(self.parent_app, "pdf_show_legend", True):
+            return
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+
+        # Faded opacity so it serves as a soft, unobtrusive guide watermark
+        painter.setOpacity(0.16)
+
+        # Subtle dashed guide border
+        guide_pen = QPen(QColor(140, 165, 195, 130), 0.8, Qt.PenStyle.DashLine)
+        painter.setPen(guide_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(self._target_rect)
+
+        # Scale coordinates so PDF exporter's font & element sizes fit scene space
+        scale_factor = self._target_rect.width() / 340.0
+        painter.save()
+        painter.translate(self._target_rect.left(), self._target_rect.top())
+        painter.scale(scale_factor, scale_factor)
+
+        try:
+            from exporters.pdf import PDFExporter
+            exporter = PDFExporter(self.parent_app)
+            # Give border rect with bottom pinned so _draw_pdf_legend aligns flush with bottom-right
+            normalized_h = self._target_rect.height() / scale_factor
+            normalized_rect = QRectF(0, 0, 340.0, normalized_h)
+            exporter._draw_pdf_legend(painter, normalized_rect)
+        except Exception:
+            pass
+        painter.restore()
+
+        # Subtle watermark tag indicating reserved PDF legend area
+        painter.setPen(QColor(100, 130, 165, 150))
+        font = QFont("Arial", 6)
+        font.setItalic(True)
+        painter.setFont(font)
+        painter.drawText(
+            QRectF(self._target_rect.left() + 4, self._target_rect.top() - 10, self._target_rect.width(), 9),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            "Reserved PDF Legend Area"
+        )
+
+        painter.restore()
+

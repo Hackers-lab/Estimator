@@ -37,10 +37,10 @@ class PDFExporter:
 
     # ── PDF layout constants ──────────────────────────────────────────────────
     MARG_T = MARG_B = MARG_L = MARG_R = 10
-    PAGE_EDGE_GAP  = 20
+    PAGE_EDGE_GAP  = 6
     TITLE_H_MIN   = 20   # minimum title strip height (device px) when text fits on one line
     FOOTER_H       = 16   # footer strip height
-    LEGEND_RESERVE = 140  # px reserved at bottom of last page for the legend box
+    LEGEND_RESERVE = 110  # px reserved at bottom of last page for the legend box only if unavoidable
 
     def __init__(self, app: "EstimateApp") -> None:
         self._app = app
@@ -844,6 +844,13 @@ class PDFExporter:
         ]
         continuation_marks = self._build_continuation_marks_for_tiles(tiles, inset_scene=20.0)
 
+        # Temporarily hide live canvas legend watermark so it is not double-printed in PDF
+        legend_overlay = getattr(getattr(app, "grid_manager", None), "_legend_item", None)
+        legend_overlay_was_visible = False
+        if legend_overlay is not None and legend_overlay.isVisible():
+            legend_overlay_was_visible = True
+            legend_overlay.setVisible(False)
+
         painter: QPainter | None = None
 
         for page_idx, tile in enumerate(tiles):
@@ -950,38 +957,10 @@ class PDFExporter:
                 max(1.0, draw_h  - 2 * PAGE_EDGE_GAP),
             )
 
-            # Reserve legend strip only when last-page bottom-right has content.
-            # This keeps full drawing scale when the corner is already empty.
-            if is_last and app.pdf_show_legend:
-                probe_scene = QRectF(
-                    src_rect.left() + src_rect.width() * 0.58,
-                    src_rect.top() + src_rect.height() * 0.62,
-                    src_rect.width() * 0.42,
-                    src_rect.height() * 0.38,
-                )
-                reserve_legend_strip = any(
-                    item.scene() is not None
-                    and item.isVisible()
-                    and src_rect.intersects(item.sceneBoundingRect())
-                    and probe_scene.intersects(item.sceneBoundingRect())
-                    for item in drawable_items
-                )
-            else:
-                reserve_legend_strip = False
-
-            if reserve_legend_strip:
-                content_rect = QRectF(
-                    draw_rect.left(), draw_rect.top(),
-                    draw_rect.width(),
-                    max(1.0, draw_rect.height() - self.LEGEND_RESERVE),
-                )
-                legend_strip = QRectF(
-                    draw_rect.left(), content_rect.bottom(),
-                    draw_rect.width(), self.LEGEND_RESERVE,
-                )
-            else:
-                content_rect = draw_rect
-                legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
+            # Never shrink the network drawing: the drawing always uses full draw_rect.
+            # The legend is rendered as an overlay in the bottom-right corner where space is unutilised.
+            content_rect = draw_rect
+            legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
 
             page_marks = continuation_marks.get(page_num, [])
 
@@ -1027,6 +1006,9 @@ class PDFExporter:
 
             for mark in page_marks:
                 self._draw_continuation_stub(painter, draw_rect, render_rect, src_rect, mark)
+
+        if legend_overlay_was_visible and legend_overlay is not None:
+            legend_overlay.setVisible(True)
 
         if painter:
             painter.end()
@@ -1189,36 +1171,10 @@ class PDFExporter:
                 max(1.0, draw_h  - 2 * PAGE_EDGE_GAP),
             )
 
-            if is_last and app.pdf_show_legend:
-                probe_scene = QRectF(
-                    src_rect.left() + src_rect.width() * 0.58,
-                    src_rect.top() + src_rect.height() * 0.62,
-                    src_rect.width() * 0.42,
-                    src_rect.height() * 0.38,
-                )
-                reserve_legend_strip = any(
-                    item.scene() is not None
-                    and item.isVisible()
-                    and src_rect.intersects(item.sceneBoundingRect())
-                    and probe_scene.intersects(item.sceneBoundingRect())
-                    for item in drawable_items
-                )
-            else:
-                reserve_legend_strip = False
-
-            if reserve_legend_strip:
-                content_rect = QRectF(
-                    draw_rect.left(), draw_rect.top(),
-                    draw_rect.width(),
-                    max(1.0, draw_rect.height() - self.LEGEND_RESERVE),
-                )
-                legend_strip = QRectF(
-                    draw_rect.left(), content_rect.bottom(),
-                    draw_rect.width(), self.LEGEND_RESERVE,
-                )
-            else:
-                content_rect = draw_rect
-                legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
+            # Never shrink the network drawing: the drawing always uses full draw_rect.
+            # The legend is rendered as an overlay in the bottom-right corner where space is unutilised.
+            content_rect = draw_rect
+            legend_strip = draw_rect if (is_last and app.pdf_show_legend) else None
 
             page_marks = continuation_marks.get(page_num, [])
 

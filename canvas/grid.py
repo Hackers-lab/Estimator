@@ -10,6 +10,7 @@ from core.constants import A4_W_MM, A4_H_MM
 from canvas._base import SmartPole
 from canvas.nodes import SmartStructure, SmartConsumer
 from canvas.span import SmartSpan
+from canvas.annotations import CanvasLegendItem
 
 
 class GridManager:
@@ -21,6 +22,7 @@ class GridManager:
         self.app = app
         # Constants from app
         self._SCENE_UNITS_PER_M = 17.5
+        self._legend_item = None
         
     def refresh(self):
         """
@@ -57,6 +59,7 @@ class GridManager:
                 except Exception:
                     pass
             
+            self._update_canvas_legend()
             view.viewport().update()
             return
 
@@ -103,6 +106,7 @@ class GridManager:
                     except Exception:
                         pass
                 
+                self._update_canvas_legend()
                 view.viewport().update()
                 return
 
@@ -175,7 +179,66 @@ class GridManager:
             margin = max(w_l, h_l)
             scene.setSceneRect(full_rect.adjusted(-margin, -margin, margin, margin))
         
+        self._update_canvas_legend()
         view.viewport().update()
+
+    def _update_canvas_legend(self):
+        """
+        Updates or removes the live faded PDF legend overlay on the last page tile.
+        """
+        scene = self.app.scene
+        view = self.app.view
+
+        show_legend = bool(getattr(self.app, "pdf_show_legend", True))
+        if not show_legend or not getattr(view, "grid_tiles", []):
+            if self._legend_item is not None:
+                try:
+                    if self._legend_item.scene() is not None:
+                        scene.removeItem(self._legend_item)
+                except RuntimeError:
+                    pass
+                self._legend_item = None
+            return
+
+        last_tile = view.grid_tiles[-1]
+        tile_rect = last_tile["rect"]
+
+        # Approximate legend size in scene units based on current scale
+        scale_val = self.app.pdf_scale
+        # In PDF: legend table is compact. Scale to scene coordinate units.
+        scene_per_mm = (scale_val / 1000.0) * self._SCENE_UNITS_PER_M
+        # Compact legend footprint: ~105mm wide by ~50mm tall on paper
+        leg_w_scene = max(190.0, 105.0 * scene_per_mm)
+        leg_h_scene = max(90.0, 50.0 * scene_per_mm)
+
+        # Place close to the bottom-right page edge (tight ~6mm margin)
+        margin_x = 6.0 * scene_per_mm
+        margin_y = 6.0 * scene_per_mm
+
+        leg_rect = QRectF(
+            tile_rect.right() - leg_w_scene - margin_x,
+            tile_rect.bottom() - leg_h_scene - margin_y,
+            leg_w_scene,
+            leg_h_scene
+        )
+
+        item_needs_creation = False
+        if self._legend_item is None:
+            item_needs_creation = True
+        else:
+            try:
+                # Check if underlying Qt C++ object is still alive
+                cur_scene = self._legend_item.scene()
+                if cur_scene is None:
+                    scene.addItem(self._legend_item)
+                self._legend_item.set_target_rect(leg_rect)
+            except RuntimeError:
+                # C++ object was deleted (e.g. by scene.clear())
+                item_needs_creation = True
+
+        if item_needs_creation:
+            self._legend_item = CanvasLegendItem(self.app, leg_rect)
+            scene.addItem(self._legend_item)
 
     def _a4_scene_dims(self, scale):
         m_per_mm = scale / 1000.0

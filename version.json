@@ -1,11 +1,12 @@
 {
-    "version": "10.2",
+    "version": "10.3",
     "display_name": "ERP Estimate Generator",
     "app_name": "ERP_Estimate",
     "author": "Pramod Verma",
     "expiry": "2026-12-31",
     "release_date": "2026-09-25",
     "changelog": {
+        "10.3": "Faded live PDF legend watermark overlay on canvas page to preview reserved space, full-scale PDF export drawing space utilization without shrinkage, ultra-smooth wavy conductor rendering, Road and Rail Line annotation symbols, and non-overlapping label clearance.",
         "10.2": "Interactive click-and-drag to size for annotation symbols and text boxes, immediate in-place text editing on release, fixed 'f'/space/shift key interception during text editing, I-beam cursor for text selection, endpoint grip handles for lines, center-pinned transformations, sidebar property inspector for annotations, and persistent Z-order.",
         "10.1": "IEC 60617-inspired DTR symbol with compact side squares and intersecting coils, DP symbol updated to compact red squares matching HT poles with balanced spacing, orientation support (Horizontal/Vertical) for both new & existing DP/DTR with non-overlapping label clearance, dynamic Cradle Guard bracket calculation per connected span, and stay line rendering behind pole bodies.",
         "9.4": "Extended application validity until 31.12.2026.",

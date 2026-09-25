@@ -2,6 +2,32 @@
 
 ---
 
+## v10.3 — September 25, 2026
+
+### What's New
+
+#### 🗺️ Live Faded PDF Legend Overlay on Canvas
+- Added a soft, faded live legend guide watermark (`CanvasLegendItem`, opacity 0.16) directly on the last A4 canvas page.
+- Informs users of reserved/unutilised space in real-time, allowing them to route network spans and place poles without overlapping the final PDF legend.
+- Tightly hugs the bottom-right margin with a clean $6\text{ mm}$ gap.
+- Automatically hides during PDF export so it never double-prints or creates shadow artifacts behind the exported PDF legend table.
+
+#### 📐 Full-Scale Drawing Space Utilization in PDF Export
+- Eliminated artificial drawing shrinkage in PDF export: the power-line drawing now utilizes 100% of available page space (`draw_rect`) without shrinking.
+- Removed bottom-strip height deductions so drawing scale remains faithful to canvas page boundaries.
+- Reclaimed printable page margins by reducing `PAGE_EDGE_GAP` from $20\text{ px}$ to $6\text{ px}$.
+
+#### 🌊 Ultra-Smooth Span Waves & Visual Polish
+- Conductor wavy spans (AB cable, PVC cable, service drops) now use high-resolution sampling (2 steps/px, minimum 60 steps) with rounded caps and joins (`RoundCap`, `RoundJoin`), producing silky-smooth curves.
+- Clean consumer phase label formatting on a single line (e.g. `SC1 1φ-I`).
+- Cleaned custom note labels by removing emoji prefixes.
+- Automatic clearance scoring for pole and structure labels away from connected spans.
+
+#### 🛣️ New Annotation Symbols
+- Added dedicated **Road** (dual-pavement with dashed centerline) and **Rail Line** (track ties) symbols to the drawing annotation options.
+
+---
+
 ## v10.2 — September 25, 2026
 
 ### What's New
