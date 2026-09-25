@@ -883,10 +883,12 @@ class ExcelExporter:
             return
 
         from core.service_allocator import compile_per_consumer_estimates, get_consumer_label, get_consumer_full_name
+        from core import db_gateway as _dbg
+        rules = _dbg.get_rules()
 
         data = compile_per_consumer_estimates(
             list(app.scene.items()),
-            app.rules,
+            rules,
             m,
             getattr(app, "bom_overrides", {})
         )
