@@ -469,12 +469,31 @@ class PDFExporter:
             painter.drawLine(QPointF(cx - 0.7, cy - 0.1), QPointF(cx + 0.7, cy - 0.1))
         elif kind == "tp":
             col = d.get("canvas_tp", "#1abc9c")
-            _circle(col, 2.0, 0.0, -2.2); _circle(col, 2.0, -2.4, 1.8); _circle(col, 2.0, 2.4, 1.8)
+            painter.setBrush(QBrush(QColor(col)))
+            painter.setPen(QPen(QColor("#222222"), 0.4))
+            # Triangle of 3 rounded squares: top, bottom-left, bottom-right
+            tp_offs = [(0.0, -2.2), (-2.8, 1.8), (2.8, 1.8)]
+            s = 2.0  # half-size
+            for ox, oy in tp_offs:
+                painter.drawRoundedRect(QRectF(cx + ox - s, cy + oy - s, s * 2, s * 2), 0.6, 0.6)
+            # Connecting bars
+            for i in range(len(tp_offs)):
+                p1 = tp_offs[i]; p2 = tp_offs[(i + 1) % len(tp_offs)]
+                painter.drawLine(QPointF(cx + p1[0], cy + p1[1]), QPointF(cx + p2[0], cy + p2[1]))
         elif kind == "4p":
             col = d.get("canvas_4p", "#16a085")
+            painter.setBrush(QBrush(QColor(col)))
+            painter.setPen(QPen(QColor("#222222"), 0.4))
+            # 2x2 grid of rounded squares
+            s = 1.8  # half-size
             for ox in (-2.4, 2.4):
                 for oy in (-2.4, 2.4):
-                    _circle(col, 1.9, ox, oy)
+                    painter.drawRoundedRect(QRectF(cx + ox - s, cy + oy - s, s * 2, s * 2), 0.5, 0.5)
+            # Connecting bars around perimeter
+            corners = [(-2.4, -2.4), (2.4, -2.4), (2.4, 2.4), (-2.4, 2.4)]
+            for i in range(len(corners)):
+                p1 = corners[i]; p2 = corners[(i + 1) % len(corners)]
+                painter.drawLine(QPointF(cx + p1[0], cy + p1[1]), QPointF(cx + p2[0], cy + p2[1]))
         elif kind == "dtr":
             col = d.get("canvas_dtr", "#e67e22")
             painter.setBrush(QBrush(QColor(col)))

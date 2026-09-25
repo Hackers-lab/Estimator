@@ -180,25 +180,45 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
             body_path.lineTo( cx_dp - r_dp, 0.0)
 
         elif st == "TP":
-            # Triangle: top + bottom-left + bottom-right
+            # Triangle: top + bottom-left + bottom-right — rounded squares
+            r_tp = 5.5
             offsets = [
                 (0,           -(r + gap // 2)),          # top
                 (-(r + gap),   (r + gap // 2)),           # bottom-left
                 ( (r + gap),   (r + gap // 2)),           # bottom-right
             ]
             for ox, oy in offsets:
-                body_path.addEllipse(ox - r, oy - r, r * 2, r * 2)
-            # Connecting lines
-            _draw_connecting_lines(body_path, offsets, r)
+                body_path.addRoundedRect(ox - r_tp, oy - r_tp, r_tp * 2, r_tp * 2, 1.0, 1.0)
+            # Connecting bars between square centers (edge to edge)
+            for i in range(len(offsets)):
+                p1 = offsets[i]
+                p2 = offsets[(i + 1) % len(offsets)]
+                vx, vy = p2[0] - p1[0], p2[1] - p1[1]
+                dist = math.hypot(vx, vy)
+                if dist == 0:
+                    continue
+                nx, ny = vx / dist, vy / dist
+                body_path.moveTo(p1[0] + nx * r_tp, p1[1] + ny * r_tp)
+                body_path.lineTo(p2[0] - nx * r_tp, p2[1] - ny * r_tp)
 
         elif st == "4P":
-            # 2×2 square grid
+            # 2×2 square grid — rounded squares
+            r_4p = 5.5
             d = r + gap // 2
             offsets = [(-d, -d), (d, -d), (d, d), (-d, d)]
             for ox, oy in offsets:
-                body_path.addEllipse(ox - r, oy - r, r * 2, r * 2)
-            # Connecting lines
-            _draw_connecting_lines(body_path, offsets, r)
+                body_path.addRoundedRect(ox - r_4p, oy - r_4p, r_4p * 2, r_4p * 2, 1.0, 1.0)
+            # Connecting bars between adjacent squares
+            for i in range(len(offsets)):
+                p1 = offsets[i]
+                p2 = offsets[(i + 1) % len(offsets)]
+                vx, vy = p2[0] - p1[0], p2[1] - p1[1]
+                dist = math.hypot(vx, vy)
+                if dist == 0:
+                    continue
+                nx, ny = vx / dist, vy / dist
+                body_path.moveTo(p1[0] + nx * r_4p, p1[1] + ny * r_4p)
+                body_path.lineTo(p2[0] - nx * r_4p, p2[1] - ny * r_4p)
 
         elif st == "DTR":
             # IEC 60617 inspired DTR: Two solid small squares on sides + two intersecting circles in center
@@ -234,6 +254,12 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
                     right_x =  cx + 3.5 + 2 # just outside right square
                 detail_path.addPath(_earth_path(left_x, 0, 180))   # pointing left
                 detail_path.addPath(_earth_path(right_x, 0, 0))    # pointing right
+            elif st == "4P":
+                # Earth at four outer corners pointing outward
+                d4 = r + gap // 2
+                r_4p = 5.5
+                detail_path.addPath(_earth_path(-d4 - r_4p - 2, -d4, 180))
+                detail_path.addPath(_earth_path( d4 + r_4p + 2,  d4, 0))
             else:
                 bottom_y = r + gap // 2 + r + 2
                 for i in range(min(self.earth_count, 5)):
@@ -256,6 +282,18 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
                 ]
                 for i in range(min(self.stay_count, 6)):
                     ox, oy, ang = dp_stay_configs[i % len(dp_stay_configs)]
+                    detail_path.addPath(_stay_path(ang, ox, oy))
+            elif st == "4P":
+                # Stays perpendicular from each pole center: outward from structure
+                d4 = r + gap // 2
+                fourp_stay_configs = [
+                    (-d4, -d4, 225),  # Top-left, up-left
+                    ( d4, -d4, 315),  # Top-right, up-right
+                    ( d4,  d4,  45),  # Bottom-right, down-right
+                    (-d4,  d4, 135),  # Bottom-left, down-left
+                ]
+                for i in range(min(self.stay_count, 4)):
+                    ox, oy, ang = fourp_stay_configs[i % len(fourp_stay_configs)]
                     detail_path.addPath(_stay_path(ang, ox, oy))
             else:
                 stay_angles = [225, 315, 180, 0, 270, 90]

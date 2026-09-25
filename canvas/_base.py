@@ -136,16 +136,36 @@ def _existing_struct_path(st: str) -> QPainterPath:
         p.moveTo(-cx_dp + r_dp, 0.0)
         p.lineTo( cx_dp - r_dp, 0.0)
     elif st == "TP":
+        r_tp = 5.5
         offs = [(0, -(r + gap // 2)), (-(r + gap), r + gap // 2), (r + gap, r + gap // 2)]
         for ox, oy in offs:
-            p.addEllipse(ox - r, oy - r, r * 2, r * 2)
-        _cl(p, offs, r)
+            p.addRoundedRect(ox - r_tp, oy - r_tp, r_tp * 2, r_tp * 2, 1.0, 1.0)
+        for i in range(len(offs)):
+            p1 = offs[i]
+            p2 = offs[(i + 1) % len(offs)]
+            vx, vy = p2[0] - p1[0], p2[1] - p1[1]
+            dist = math.hypot(vx, vy)
+            if dist == 0:
+                continue
+            nx, ny = vx / dist, vy / dist
+            p.moveTo(p1[0] + nx * r_tp, p1[1] + ny * r_tp)
+            p.lineTo(p2[0] - nx * r_tp, p2[1] - ny * r_tp)
     elif st == "4P":
+        r_4p = 5.5
         d = r + gap // 2
         offs = [(-d, -d), (d, -d), (d, d), (-d, d)]
         for ox, oy in offs:
-            p.addEllipse(ox - r, oy - r, r * 2, r * 2)
-        _cl(p, offs, r)
+            p.addRoundedRect(ox - r_4p, oy - r_4p, r_4p * 2, r_4p * 2, 1.0, 1.0)
+        for i in range(len(offs)):
+            p1 = offs[i]
+            p2 = offs[(i + 1) % len(offs)]
+            vx, vy = p2[0] - p1[0], p2[1] - p1[1]
+            dist = math.hypot(vx, vy)
+            if dist == 0:
+                continue
+            nx, ny = vx / dist, vy / dist
+            p.moveTo(p1[0] + nx * r_4p, p1[1] + ny * r_4p)
+            p.lineTo(p2[0] - nx * r_4p, p2[1] - ny * r_4p)
     elif st == "DTR":
         cx = 18.0
         p.setFillRule(Qt.FillRule.WindingFill)
@@ -871,6 +891,26 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                         ]
                     for i in range(min(self.stay_count, 4)):
                         ox, oy, ang = dp_stay_configs[i % len(dp_stay_configs)]
+                        painter.drawPath(_stay_path(ang, ox, oy))
+                elif self.is_existing and self.existing_subtype == "4P":
+                    r4 = 8; gap4 = 6; d4 = r4 + gap4 // 2
+                    is_vert = str(getattr(self, "orientation", "Horizontal")).lower().startswith("v")
+                    if is_vert:
+                        fourp_stay_configs = [
+                            (-d4, -d4, 225),
+                            ( d4, -d4, 315),
+                            ( d4,  d4,  45),
+                            (-d4,  d4, 135),
+                        ]
+                    else:
+                        fourp_stay_configs = [
+                            (-d4, -d4, 225),
+                            ( d4, -d4, 315),
+                            ( d4,  d4,  45),
+                            (-d4,  d4, 135),
+                        ]
+                    for i in range(min(self.stay_count, 4)):
+                        ox, oy, ang = fourp_stay_configs[i % len(fourp_stay_configs)]
                         painter.drawPath(_stay_path(ang, ox, oy))
                 else:
                     for i in range(min(self.stay_count, 4)):
