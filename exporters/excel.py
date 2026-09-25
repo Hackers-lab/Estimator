@@ -76,6 +76,7 @@ class ExcelExporter:
         wb = openpyxl.Workbook()
         self._write_estimate_sheet(wb, m)
         self._write_iron_breakup_sheet(wb)
+        self._write_pole_case_sheet(wb, m)
         wb.save(filename)
         if show_success:
             msg = QMessageBox(app)
@@ -868,4 +869,303 @@ class ExcelExporter:
             ws.cell(cr, 6).number_format = '0.000 "MT"'
             style_row(cr, fill_color="C6EFCE", bold=True, size=12, center_cols=(6,))
             ws.row_dimensions[cr].height = 26
+
+    def _write_pole_case_sheet(self, wb: Any, m: dict) -> None:
+        """
+        Creates the 'POLE CASE BREAKDOWN' sheet detailing material and labor
+        allocations per consumer / service connection, matching WBSEDCL pole-case format.
+        Only generated when the drawing contains at least 1 SmartConsumer.
+        """
+        app = self._app
+        from canvas.nodes import SmartConsumer
+        consumers = [i for i in app.scene.items() if isinstance(i, SmartConsumer)]
+        if not consumers:
+            return
+
+        from core.service_allocator import compile_per_consumer_estimates, get_consumer_label, get_consumer_full_name
+
+        data = compile_per_consumer_estimates(
+            list(app.scene.items()),
+            app.rules,
+            m,
+            getattr(app, "bom_overrides", {})
+        )
+
+        openpyxl, Font, Alignment, PatternFill, Border, Side = _xl()
+        ws = wb.create_sheet(title="POLE CASE BREAKDOWN")
+
+        ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.views.sheetView[0].showGridLines = True
+
+        thin_side = Side(border_style="thin", color="B0C4DE")
+        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        dark_side = Side(border_style="thin", color="404040")
+
+        cons_list = data["consumers"]
+        n_cons = len(cons_list)
+
+        # Header definitions:
+        # Col 1: DESCRIPTION OF MATERIALS
+        # Col 2: UNIT
+        # Col 3 .. 3 + n_cons - 1: Consumer columns (Appl No / ID)
+        # Col 3 + n_cons: TOTAL QTY.
+        # Col 3 + n_cons + 1: UNIT RATE
+        # Col 3 + n_cons + 2: TOTAL PRICE
+        total_cols = 2 + n_cons + 3
+
+        def get_col_letter(col_idx: int) -> str:
+            from openpyxl.utils import get_column_letter
+            return get_column_letter(col_idx)
+
+        # Row 1: Company Title
+        ws.row_dimensions[1].height = 26
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+        c1 = ws.cell(1, 1, "WEST BENGAL STATE ELECTRICITY DISTRIBUTION COMPANY LIMITED")
+        c1.font = Font(name="Segoe UI", size=13, bold=True, color="FFFFFF")
+        c1.alignment = Alignment(horizontal="center", vertical="center")
+        c1.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
+        # Row 2: Subtitle
+        ws.row_dimensions[2].height = 20
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=total_cols)
+        subj = m.get("subject", "ERP PROJECT")
+        c2 = ws.cell(2, 1, f"LIST OF MATERIALS AND LABOUR FOR POLE CASE (PER SERVICE CONNECTION) — {subj}")
+        c2.font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        c2.alignment = Alignment(horizontal="center", vertical="center")
+        c2.fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+
+        # Row 3: Column Headers
+        ws.row_dimensions[3].height = 28
+        h_row = 3
+        cell_desc = ws.cell(h_row, 1, "DESCRIPTION OF ITEMS")
+        cell_unit = ws.cell(h_row, 2, "UNIT")
+        
+        for c in (cell_desc, cell_unit):
+            c.font = Font(name="Segoe UI", size=9.5, bold=True, color="FFFFFF")
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+            c.border = thin_border
+
+        for idx, con in enumerate(cons_list):
+            col_i = 3 + idx
+            lbl = get_consumer_label(con)
+            cell = ws.cell(h_row, col_i, lbl)
+            cell.font = Font(name="Segoe UI", size=9.5, bold=True, color="FFFFFF")
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+            cell.border = thin_border
+
+        c_tot = ws.cell(h_row, 3 + n_cons, "TOTAL QTY.")
+        c_rate = ws.cell(h_row, 3 + n_cons + 1, "UNIT RATE (₹)")
+        c_amt = ws.cell(h_row, 3 + n_cons + 2, "TOTAL PRICE (₹)")
+        for c in (c_tot, c_rate, c_amt):
+            c.font = Font(name="Segoe UI", size=9.5, bold=True, color="FFFFFF")
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            c.border = thin_border
+
+        curr_r = 4
+
+        # ── SECTION A: MATERIALS ─────────────────────────────────────────────
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=total_cols)
+        s_cell = ws.cell(curr_r, 1, "SECTION A: MATERIALS")
+        s_cell.font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        s_cell.alignment = Alignment(horizontal="left", vertical="center")
+        s_cell.fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
+        curr_r += 1
+
+        mat_start_r = curr_r
+        for m_item in data["materials"]:
+            ws.row_dimensions[curr_r].height = 18
+            ws.cell(curr_r, 1, m_item["name"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws.cell(curr_r, 2, m_item["unit"]).alignment = Alignment(horizontal="center", vertical="center")
+
+            # Quantities per consumer
+            for idx, con in enumerate(cons_list):
+                q = m_item["quantities"].get(con, 0.0)
+                cell = ws.cell(curr_r, 3 + idx, round(q, 3) if q > 0 else "")
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+                if q > 0:
+                    cell.number_format = '0.###'
+
+            # Total Qty formula: SUM across consumer columns
+            start_col_let = get_col_letter(3)
+            end_col_let = get_col_letter(3 + n_cons - 1)
+            tot_cell = ws.cell(curr_r, 3 + n_cons, f"=SUM({start_col_let}{curr_r}:{end_col_let}{curr_r})")
+            tot_cell.alignment = Alignment(horizontal="right", vertical="center")
+            tot_cell.font = Font(name="Segoe UI", size=9.5, bold=True)
+            tot_cell.number_format = '0.###'
+
+            rate_cell = ws.cell(curr_r, 3 + n_cons + 1, m_item["rate"])
+            rate_cell.alignment = Alignment(horizontal="right", vertical="center")
+            rate_cell.number_format = '#,##0.00'
+
+            amt_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=ROUND({get_col_letter(3+n_cons)}{curr_r}*{get_col_letter(3+n_cons+1)}{curr_r},2)")
+            amt_cell.alignment = Alignment(horizontal="right", vertical="center")
+            amt_cell.font = Font(name="Segoe UI", size=9.5, bold=True)
+            amt_cell.number_format = '#,##0.00'
+
+            for c in range(1, total_cols + 1):
+                ws.cell(curr_r, c).border = thin_border
+            curr_r += 1
+
+        mat_end_r = curr_r - 1
+
+        # Material Subtotal row
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "Total Materials (A)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=9.5, bold=True)
+        amt_col_let = get_col_letter(3 + n_cons + 2)
+        mat_sub_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=SUM({amt_col_let}{mat_start_r}:{amt_col_let}{mat_end_r})")
+        mat_sub_cell.alignment = Alignment(horizontal="right", vertical="center")
+        mat_sub_cell.font = Font(name="Segoe UI", size=10, bold=True)
+        mat_sub_cell.number_format = '#,##0.00'
+        mat_sub_r = curr_r
+        for c in range(1, total_cols + 1):
+            cell = ws.cell(curr_r, c)
+            cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+            cell.border = thin_border
+        curr_r += 1
+
+        # Sundries @ 5%
+        ws.row_dimensions[curr_r].height = 18
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "Sundries @ 5%").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=9)
+        sund_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=ROUND({amt_col_let}{mat_sub_r}*0.05,2)")
+        sund_cell.alignment = Alignment(horizontal="right", vertical="center")
+        sund_cell.number_format = '#,##0.00'
+        sund_r = curr_r
+        for c in range(1, total_cols + 1):
+            cell = ws.cell(curr_r, c)
+            cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+            cell.border = thin_border
+        curr_r += 1
+
+        # Materials Total (incl. Sundries)
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "Total Cost of Materials").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        mat_tot_cell = ws.cell(curr_r, 3 + n_cons + 2, f"={amt_col_let}{mat_sub_r}+{amt_col_let}{sund_r}")
+        mat_tot_cell.alignment = Alignment(horizontal="right", vertical="center")
+        mat_tot_cell.font = Font(name="Segoe UI", size=10.5, bold=True, color="1F4E79")
+        mat_tot_cell.number_format = '#,##0.00'
+        mat_tot_r = curr_r
+        for c in range(1, total_cols + 1):
+            cell = ws.cell(curr_r, c)
+            cell.fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            cell.border = thin_border
+        curr_r += 1
+
+        # ── SECTION B: LABOUR ────────────────────────────────────────────────
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=total_cols)
+        s_cell = ws.cell(curr_r, 1, "SECTION B: LABOUR CHARGE")
+        s_cell.font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        s_cell.alignment = Alignment(horizontal="left", vertical="center")
+        s_cell.fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
+        curr_r += 1
+
+        lab_start_r = curr_r
+        for l_item in data["labor"]:
+            ws.row_dimensions[curr_r].height = 18
+            ws.cell(curr_r, 1, l_item["name"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws.cell(curr_r, 2, l_item["unit"]).alignment = Alignment(horizontal="center", vertical="center")
+
+            for idx, con in enumerate(cons_list):
+                q = l_item["quantities"].get(con, 0.0)
+                cell = ws.cell(curr_r, 3 + idx, round(q, 3) if q > 0 else "")
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+                if q > 0:
+                    cell.number_format = '0.###'
+
+            start_col_let = get_col_letter(3)
+            end_col_let = get_col_letter(3 + n_cons - 1)
+            tot_cell = ws.cell(curr_r, 3 + n_cons, f"=SUM({start_col_let}{curr_r}:{end_col_let}{curr_r})")
+            tot_cell.alignment = Alignment(horizontal="right", vertical="center")
+            tot_cell.font = Font(name="Segoe UI", size=9.5, bold=True)
+            tot_cell.number_format = '0.###'
+
+            rate_cell = ws.cell(curr_r, 3 + n_cons + 1, l_item["rate"])
+            rate_cell.alignment = Alignment(horizontal="right", vertical="center")
+            rate_cell.number_format = '#,##0.00'
+
+            amt_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=ROUND({get_col_letter(3+n_cons)}{curr_r}*{get_col_letter(3+n_cons+1)}{curr_r},2)")
+            amt_cell.alignment = Alignment(horizontal="right", vertical="center")
+            amt_cell.font = Font(name="Segoe UI", size=9.5, bold=True)
+            amt_cell.number_format = '#,##0.00'
+
+            for c in range(1, total_cols + 1):
+                ws.cell(curr_r, c).border = thin_border
+            curr_r += 1
+
+        lab_end_r = curr_r - 1
+
+        # Total Labour
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "Total Cost of Labour (B)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        lab_tot_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=SUM({amt_col_let}{lab_start_r}:{amt_col_let}{lab_end_r})")
+        lab_tot_cell.alignment = Alignment(horizontal="right", vertical="center")
+        lab_tot_cell.font = Font(name="Segoe UI", size=10.5, bold=True, color="1F4E79")
+        lab_tot_cell.number_format = '#,##0.00'
+        lab_tot_r = curr_r
+        for c in range(1, total_cols + 1):
+            cell = ws.cell(curr_r, c)
+            cell.fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            cell.border = thin_border
+        curr_r += 1
+
+        # ── SECTION C: SUMMARY ───────────────────────────────────────────────
+        curr_r += 1
+        ws.row_dimensions[curr_r].height = 20
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=total_cols)
+        s_cell = ws.cell(curr_r, 1, "SUMMARY & GRAND TOTAL")
+        s_cell.font = Font(name="Segoe UI", size=10, bold=True, color="1F4E79")
+        s_cell.alignment = Alignment(horizontal="left", vertical="center")
+        s_cell.fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
+        curr_r += 1
+
+        # Supervision @ 10%
+        ws.row_dimensions[curr_r].height = 18
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "Supervision Charges @ 10%").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=9.5)
+        sup_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=ROUND(({amt_col_let}{mat_tot_r}+{amt_col_let}{lab_tot_r})*0.10,2)")
+        sup_cell.alignment = Alignment(horizontal="right", vertical="center")
+        sup_cell.number_format = '#,##0.00'
+        sup_r = curr_r
+        for c in range(1, total_cols + 1):
+            ws.cell(curr_r, c).border = thin_border
+        curr_r += 1
+
+        # Grand Total
+        ws.row_dimensions[curr_r].height = 24
+        ws.merge_cells(start_row=curr_r, start_column=1, end_row=curr_r, end_column=2)
+        ws.cell(curr_r, 1, "TOTAL SCHEME VALUE (Rs.)").alignment = Alignment(horizontal="right", vertical="center")
+        ws.cell(curr_r, 1).font = Font(name="Segoe UI", size=11, bold=True, color="1F4E79")
+        gt_cell = ws.cell(curr_r, 3 + n_cons + 2, f"=ROUND({amt_col_let}{mat_tot_r}+{amt_col_let}{lab_tot_r}+{amt_col_let}{sup_r},2)")
+        gt_cell.alignment = Alignment(horizontal="right", vertical="center")
+        gt_cell.font = Font(name="Segoe UI", size=12, bold=True, color="1F4E79")
+        gt_cell.number_format = '#,##0.00'
+        for c in range(1, total_cols + 1):
+            cell = ws.cell(curr_r, c)
+            cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            cell.border = thin_border
+
+        # Auto-adjust column widths
+        ws.column_dimensions["A"].width = 52.0
+        ws.column_dimensions["B"].width = 10.0
+        for idx in range(n_cons):
+            col_let = get_col_letter(3 + idx)
+            ws.column_dimensions[col_let].width = 14.0
+        ws.column_dimensions[get_col_letter(3 + n_cons)].width = 13.0
+        ws.column_dimensions[get_col_letter(3 + n_cons + 1)].width = 14.0
+        ws.column_dimensions[get_col_letter(3 + n_cons + 2)].width = 16.0
+
 

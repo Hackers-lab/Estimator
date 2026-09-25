@@ -485,7 +485,8 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self.cable_size     = _sz if _sz in _valid_sizes else _valid_sizes[0]
         self.agency_supply  = False
         self.consider_cable = False
-        self.service_length = _d.get("sd_length", 20)
+        self.appl_no        = ""
+        self.consumer_name  = ""
 
         self.seq_id = SmartConsumer._next_seq()
 
@@ -515,6 +516,8 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
             "agency_supply": self.agency_supply,
             "consider_cable": getattr(self, "consider_cable", False),
             "service_length": getattr(self, "service_length", 20),
+            "appl_no": getattr(self, "appl_no", ""),
+            "consumer_name": getattr(self, "consumer_name", ""),
         })
         return d
 
@@ -526,6 +529,8 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         self.agency_supply = state.get("agency_supply", False)
         self.consider_cable = state.get("consider_cable", False)
         self.service_length = state.get("service_length", 20)
+        self.appl_no = state.get("appl_no", "")
+        self.consumer_name = state.get("consumer_name", "")
         self.seq_id = state.get("seq_id", self.seq_id)
 
     # ── Visual update ─────────────────────────────────────────────────────────

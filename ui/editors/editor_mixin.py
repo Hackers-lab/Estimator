@@ -545,6 +545,19 @@ class EditorMixin:
         self.editor_group.setTitle("Consumer")
         self._add_delete_btn(item)
 
+        # Appl No + Consumer Name
+        appl_edit = QLineEdit(getattr(item, "appl_no", ""))
+        appl_edit.setPlaceholderText("e.g. 2005770600")
+        appl_edit.textChanged.connect(
+            lambda t, i=item: setattr(i, "appl_no", t)
+        )
+        name_edit = QLineEdit(getattr(item, "consumer_name", ""))
+        name_edit.setPlaceholderText("Consumer name...")
+        name_edit.textChanged.connect(
+            lambda t, i=item: setattr(i, "consumer_name", t)
+        )
+        self._add_field_pair("Appl No:", appl_edit, "Name:", name_edit)
+
         # Phase + Connection Type
         phase_cb = QComboBox()
         phase_cb.addItems(["1 Phase", "3 Phase"])
