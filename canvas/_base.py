@@ -251,6 +251,7 @@ class _NodeMixin(_NodeBase):
             "y": self.y(),
             "label_x": self.label.pos().x(),
             "label_y": self.label.pos().y(),
+            "label_user_moved": getattr(self.label, "user_moved", False),
             "label_text": self.label.toPlainText(),
             "custom_note": self.custom_note,
             "dynamic_props": self.dynamic_props,
@@ -260,6 +261,7 @@ class _NodeMixin(_NodeBase):
         """Apply serialized state back to the node."""
         self.setPos(state["x"], state["y"])
         self.label.setPos(state["label_x"], state["label_y"])
+        self.label.user_moved = state.get("label_user_moved", False)
         self.label.setPlainText(state["label_text"])
         self.custom_note = state.get("custom_note", "")
         self.dynamic_props = dict(state.get("dynamic_props", {}))
@@ -754,7 +756,7 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 if (not self.detail_view) and self.stay_count > 0:
                     txt += f"\nS×{self.stay_count} Stay"
             if self.custom_note:
-                txt += f"\n📝 {self.custom_note}"
+                txt += f"\n{self.custom_note}"
 
             self.label.setPlainText(txt)
             show_lbl = getattr(getattr(self.scene(), "parent_app", None), "show_pole_labels", True)
@@ -782,7 +784,27 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                         p = self._label_pos_from_stay(r, lw, lh, stay_angle)
                         self.label.set_auto_pos(p.x(), p.y())
                     else:
-                        self.label.set_auto_pos(-lw / 2, lbl_y)
+                        # horizontal layout — use candidate-based placement
+                        candidates = [
+                            (-(lw / 2), lbl_y),          # below center
+                            (-(lw / 2), -(r + lh + 4)),  # above center
+                            (r + 6,     -(lh / 2)),       # right
+                            (-(lw + r + 6), -(lh / 2)),  # left
+                        ]
+                        def _score_pole(ox, oy):
+                            lx_c = ox + lw / 2
+                            ly_c = oy + lh / 2
+                            dists = []
+                            for sp in self.connected_spans:
+                                try:
+                                    mx = ((sp.p1.x() + sp.p2.x()) / 2) - self.x()
+                                    my = ((sp.p1.y() + sp.p2.y()) / 2) - self.y()
+                                    dists.append(math.hypot(lx_c - mx, ly_c - my))
+                                except Exception:
+                                    pass
+                            return min(dists) if dists else 0.0
+                        best = max(candidates, key=lambda c: _score_pole(*c))
+                        self.label.set_auto_pos(best[0], best[1])
                 else:
                     self.label.set_auto_pos(-lw / 2, lbl_y)
         finally:

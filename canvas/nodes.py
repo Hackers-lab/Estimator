@@ -312,17 +312,35 @@ class SmartStructure(_NodeMixin, QGraphicsPathItem):
         if (not self.detail_view) and self.stay_count > 0:
             txt += f"\nS×{self.stay_count} Stay"
         if self.custom_note:
-            txt += f"\n📝 {self.custom_note}"
+            txt += f"\n{self.custom_note}"
 
         self.label.setPlainText(txt)
         if not getattr(self.label, "user_moved", False):
-            # Place label safely below the lowest extent of the structure (body, earthing, stays)
-            lowest_y = max(
-                self._body_path.boundingRect().bottom() if hasattr(self, "_body_path") and not self._body_path.isEmpty() else 0.0,
-                self._detail_path.boundingRect().bottom() if self.detail_view and hasattr(self, "_detail_path") and not self._detail_path.isEmpty() else 0.0,
-            )
-            lbl_y = max(24.0, lowest_y + 8.0)
-            self.label.set_auto_pos(-(self.label.boundingRect().width() / 2), lbl_y)
+            lw = self.label.boundingRect().width()
+            lh = self.label.boundingRect().height()
+            r  = 18  # approximate structure radius
+            # Candidate offsets (cx, cy) relative to node origin
+            candidates = [
+                (-(lw / 2), r + 4),          # below center
+                (-(lw / 2), -(r + lh + 4)),  # above center
+                (r + 6,     -(lh / 2)),       # right
+                (-(lw + r + 6), -(lh / 2)),  # left
+            ]
+            # Pick the candidate whose center is furthest from all connected span midpoints
+            def _score(ox, oy):
+                lx_c = ox + lw / 2
+                ly_c = oy + lh / 2
+                dists = []
+                for sp in getattr(self, "connected_spans", []):
+                    try:
+                        mx = ((sp.p1.x() + sp.p2.x()) / 2) - self.x()
+                        my = ((sp.p1.y() + sp.p2.y()) / 2) - self.y()
+                        dists.append(math.hypot(lx_c - mx, ly_c - my))
+                    except Exception:
+                        pass
+                return min(dists) if dists else 0.0  # maximise the minimum distance
+            best = max(candidates, key=lambda c: _score(*c))
+            self.label.set_auto_pos(best[0], best[1])
 
     # ── Qt overrides ──────────────────────────────────────────────────────────
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
@@ -480,9 +498,9 @@ class SmartConsumer(_NodeMixin, QGraphicsPathItem):
         conn_t = getattr(self, "connection_type", "I Type")
         conn_short = "-I" if "I" in conn_t else ("-L" if "L" in conn_t else "-D")
         supply_tag  = " [A]" if self.agency_supply else ""
-        txt = f"{_pfx}{self.seq_id}\n{phase_short}{conn_short}{supply_tag}"
+        txt = f"{_pfx}{self.seq_id} {phase_short}{conn_short}{supply_tag}"
         if self.custom_note:
-            txt += f"\n📝 {self.custom_note}"
+            txt += f"\n{self.custom_note}"
 
         if bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False)):
             from_cfg = str(getattr(self, "dynamic_props", {}).get("aug_from_config", "") or "")

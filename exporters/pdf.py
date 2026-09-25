@@ -62,13 +62,15 @@ class PDFExporter:
 
     @staticmethod
     def _span_pen_for_export(span: SmartSpan) -> QPen:
-        color = span._PEN_COLORS.get(span.conductor, QColor("#222222"))
-        pen = QPen(color, 1.8)
+        color = span._PEN_COLORS.get(span.conductor, QColor("#111111"))
         if span.is_existing_span:
-            pen.setStyle(Qt.PenStyle.SolidLine)
-            pen.setWidthF(1.2)
+            faded = QColor(color)
+            faded.setAlpha(125)
+            pen = QPen(faded, 1.2, Qt.PenStyle.SolidLine)
         elif span.conductor == "ACSR":
-            pen.setStyle(Qt.PenStyle.DashLine)
+            pen = QPen(color, 2.2, Qt.PenStyle.DashLine)
+        else:
+            pen = QPen(color, 2.2, Qt.PenStyle.SolidLine)
         return pen
 
     @staticmethod
@@ -503,25 +505,33 @@ class PDFExporter:
             x0 = rect.left() + 2
             x1 = rect.right() - 2
             if kind in ("span_ab", "span_pvc", "span_svc"):
-                # Wavy line — AB Cable, PVC Cable and Service Drop are drawn as
-                # sine waves on the canvas (see SmartSpan.update_visuals).
-                painter.setPen(QPen(color, 1.1))
+                # Continuous sine wave path + dash pen (same approach as canvas)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 path = QPainterPath()
+                seg_len = x1 - x0
+                freq = seg_len / 15.0   # ~same as _WAVY_FREQUENCY_DIV
+                steps = max(60, int(seg_len * 2.0))
                 path.moveTo(x0, cy)
-                steps, cycles, amp = 26, 3.0, 1.8
                 for i in range(1, steps + 1):
-                    t = i / steps
-                    off = math.sin(t * cycles * 2 * math.pi) * amp
-                    path.lineTo(x0 + (x1 - x0) * t, cy + off)
+                    t   = i / float(steps)
+                    off = math.sin(t * freq * 2 * math.pi) * 1.8
+                    path.lineTo(x0 + seg_len * t, cy + off)
+                dash_pen = QPen(color, 1.4, Qt.PenStyle.CustomDashLine)
+                dash_pen.setDashPattern([5, 1.5])
+                dash_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                dash_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(dash_pen)
                 painter.drawPath(path)
             else:
-                # ACSR dashed-straight, existing span thin-solid (matches canvas).
-                pen = QPen(color, 1.3)
+                pen = QPen(color, 1.4)
                 if kind == "span_acsr":
                     pen.setStyle(Qt.PenStyle.DashLine)
                 else:
-                    pen.setWidthF(0.7)
+                    # Existing span: faded solid thin line
+                    faded = QColor(color)
+                    faded.setAlpha(125)
+                    pen.setColor(faded)
+                    pen.setWidthF(0.8)
                 painter.setPen(pen)
                 painter.drawLine(QPointF(x0, cy), QPointF(x1, cy))
 

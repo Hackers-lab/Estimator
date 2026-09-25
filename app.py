@@ -656,7 +656,9 @@ class EstimateApp(QMainWindow, EditorMixin):
         menu = QMenu(self)
         shapes = [("⬤ Circle", "circle"), ("■ Square", "square"),
                   ("➤ Arrow", "arrow"),   ("― Line",  "line"),
-                  ("╌ Dashed Line", "dashed_line")]
+                  ("╌ Dashed Line", "dashed_line"),
+                  ("═ Road", "road"),
+                  ("╪ Rail Line", "rail")]
         for label, shape in shapes:
             act = QAction(label, self)
             act.triggered.connect(lambda checked, s=shape: self._activate_symbol_tool(s))
@@ -2898,11 +2900,20 @@ class EstimateApp(QMainWindow, EditorMixin):
 
     def compile_save_data(self):
         from core.project_io import compile_project_state
+        view_settings = {
+            "ex_len":     self.ex_len_chk.isChecked(),
+            "pole_labels": self.pole_label_chk.isChecked(),
+            "legend":     self.legend_chk.isChecked(),
+            "detail":     self.detail_chk.isChecked(),
+            "scale":      self.scale_cb.currentText(),
+            "orient":     self.orient_cb.currentText(),
+        }
         return compile_project_state(
             scene_items=self.scene.items(),
             project_meta=self.project_meta,
             bom_overrides=self.bom_overrides,
-            current_project_path=getattr(self, "current_project_path", None)
+            current_project_path=getattr(self, "current_project_path", None),
+            view_settings=view_settings
         )
 
     def parse_load_data(self, state, fit_view=True):
@@ -2979,6 +2990,38 @@ class EstimateApp(QMainWindow, EditorMixin):
                 pass
 
         self.refresh_live_estimate()
+
+        # Restore view settings
+        vs = state.get("view_settings", {})
+        if vs:
+            self.ex_len_chk.blockSignals(True)
+            self.pole_label_chk.blockSignals(True)
+            self.legend_chk.blockSignals(True)
+            self.detail_chk.blockSignals(True)
+            self.scale_cb.blockSignals(True)
+            self.orient_cb.blockSignals(True)
+
+            self.ex_len_chk.setChecked(vs.get("ex_len", True))
+            self.pole_label_chk.setChecked(vs.get("pole_labels", True))
+            self.legend_chk.setChecked(vs.get("legend", True))
+            self.detail_chk.setChecked(vs.get("detail", False))
+            if vs.get("scale"):
+                self.scale_cb.setCurrentText(vs["scale"])
+            if vs.get("orient"):
+                self.orient_cb.setCurrentText(vs["orient"])
+
+            self.ex_len_chk.blockSignals(False)
+            self.pole_label_chk.blockSignals(False)
+            self.legend_chk.blockSignals(False)
+            self.detail_chk.blockSignals(False)
+            self.scale_cb.blockSignals(False)
+            self.orient_cb.blockSignals(False)
+
+            # Apply the restored values to the app state directly
+            SmartSpan.show_existing_length = vs.get("ex_len", True)
+            self.show_pole_labels = vs.get("pole_labels", True)
+            self.detail_view = vs.get("detail", False)
+
         self._calibrate_label_counters()
 
         # After loading, optionally fit the view

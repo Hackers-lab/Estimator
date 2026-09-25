@@ -18,7 +18,8 @@ def compile_project_state(
     scene_items: list[Any],
     project_meta: dict,
     bom_overrides: dict,
-    current_project_path: str | None = None
+    current_project_path: str | None = None,
+    view_settings: dict | None = None
 ) -> dict:
     """Compile canvas scene items and project properties into a serializable dict."""
     state = {
@@ -28,7 +29,8 @@ def compile_project_state(
         "nodes": [],
         "spans": [],
         "annotations": [],
-        "current_project_path": current_project_path
+        "current_project_path": current_project_path,
+        "view_settings": view_settings or {},
     }
     node_id_by_obj = {}
     for i, item in enumerate(scene_items):

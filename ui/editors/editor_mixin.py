@@ -1470,7 +1470,7 @@ class EditorMixin:
 
         # Shape picker
         shape_cb = QComboBox()
-        shape_cb.addItems(["circle", "square", "arrow", "line", "dashed_line"])
+        shape_cb.addItems(["circle", "square", "arrow", "line", "dashed_line", "road", "rail"])
         shape_cb.setCurrentText(item.shape)
 
         def _on_shape_change(s):

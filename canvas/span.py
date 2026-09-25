@@ -38,21 +38,22 @@ class SmartSpan(QGraphicsPathItem):
 
     Visual style
     ------------
-    ACSR new       — dashed black line
-    ACSR existing  — solid black line
-    AB Cable new   — wavy dark-blue line
-    AB Cable exist — solid dark-blue line
-    PVC Cable      — wavy dark-green line
-    Service Drop   — wavy orange line
+    ACSR new       — dashed dark line (width 2.2)
+    ACSR existing  — solid faded line (width 1.2, 55% opacity)
+    AB Cable new   — dashed wavy dark-blue line (width 2.2)
+    AB Cable exist — solid faded dark-blue line (width 1.2, 55% opacity)
+    PVC Cable new  — dashed wavy dark-green line (width 2.2)
+    PVC Cable exist— solid faded dark-green line (width 1.2, 55% opacity)
+    Service Drop   — solid orange line (faded if existing)
     CG symbol      — small crosshatch bracket below span midpoint
                      (only when detail_view=True and has_cg=True)
     """
 
     # Pen colours per conductor type
     _PEN_COLORS = {
-        "ACSR":         QColor("#222222"),
-        "AB Cable":     QColor("#1a5276"),   # dark blue
-        "PVC Cable":    QColor("#107C41"),   # dark green
+        "ACSR":         QColor("#111111"),
+        "AB Cable":     QColor("#0d3b66"),   # dark blue
+        "PVC Cable":    QColor("#0b532c"),   # dark green
         "Service Drop": QColor("#d35400"),   # orange
     }
     _WAVY_AMPLITUDE: float = 4.0
@@ -141,6 +142,7 @@ class SmartSpan(QGraphicsPathItem):
             "label_x": self.label.pos().x(),
             "label_y": self.label.pos().y(),
             "label_text": self.label.toPlainText(),
+            "label_user_moved": getattr(self.label, "user_moved", False),
         }
 
     def apply_state(self, state: dict) -> None:
@@ -165,6 +167,7 @@ class SmartSpan(QGraphicsPathItem):
         self.dynamic_props = dict(state.get("dynamic_props", {}))
         self.override_is_existing = state.get("override_is_existing", "Auto")
         self.label.setPos(state.get("label_x", 0), state.get("label_y", 0))
+        self.label.user_moved = state.get("label_user_moved", False)
         self.label.setPlainText(state.get("label_text", ""))
 
     # ── Voltage detection ─────────────────────────────────────────────────────
@@ -274,18 +277,19 @@ class SmartSpan(QGraphicsPathItem):
         px_len = math.hypot(dx, dy)
 
         wavy_conductors = {"AB Cable", "PVC Cable", "Service Drop"}
-        if self.conductor in wavy_conductors and px_len > 0:
-            steps     = max(self._MIN_WAVY_STEPS, int(px_len / 2))
+        if (self.conductor in wavy_conductors or getattr(self, "is_service_drop", False)) and px_len > 0:
             nx        = -dy / px_len
             ny        =  dx / px_len
-            frequency = px_len / self._WAVY_FREQUENCY_DIV
             amplitude = self._WAVY_AMPLITUDE
 
+            # High-resolution sampling (2 steps/px, min 60) for an ultra-smooth continuous curve
+            steps     = max(60, int(px_len * 2.0))
+            frequency = px_len / self._WAVY_FREQUENCY_DIV
             for i in range(1, steps + 1):
-                t          = i / float(steps)
-                cx_        = x1 + dx * t
-                cy_        = y1 + dy * t
-                sine_off   = math.sin(t * frequency * 2 * math.pi) * amplitude
+                t        = i / float(steps)
+                cx_      = x1 + dx * t
+                cy_      = y1 + dy * t
+                sine_off = math.sin(t * frequency * 2 * math.pi) * amplitude
                 path.lineTo(cx_ + nx * sine_off, cy_ + ny * sine_off)
         else:
             path.lineTo(x2, y2)
@@ -373,7 +377,6 @@ class SmartSpan(QGraphicsPathItem):
             if _c_override: _color_hex = _c_override
 
         color = QColor(_color_hex)
-        pen   = QPen(color, 1.8)
         aug_overlay_pair = (
             bool(getattr(self, "dynamic_props", {}).get("conductor_aug_required", False))
             and self.conductor == "ACSR"
@@ -392,30 +395,44 @@ class SmartSpan(QGraphicsPathItem):
             # The pair (existing + projected) is drawn manually in paint().
             pen = QPen(Qt.PenStyle.NoPen)
         elif self.is_existing_span:
-            pen.setStyle(Qt.PenStyle.SolidLine)
-            pen.setWidthF(3.0 if is_33kv else 1.2)
+            # Faded appearance for all existing span types
+            color_faded = QColor(color)
+            color_faded.setAlpha(125)  # ~49% opacity for a soft faded look
+            pen = QPen(color_faded, 2.0 if is_33kv else 1.2, Qt.PenStyle.SolidLine)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         elif is_33kv:
-            pen.setStyle(Qt.PenStyle.DashLine if self.conductor == "ACSR" else Qt.PenStyle.SolidLine)
-            pen.setWidthF(3.0)
+            # Darker bold line for new 33kV spans
+            pen = QPen(color, 3.2, Qt.PenStyle.DashLine if self.conductor == "ACSR" else Qt.PenStyle.SolidLine)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         elif self.conductor in ("AB Cable", "PVC Cable", "Service Drop") or getattr(self, "is_service_drop", False):
-            pen.setStyle(Qt.PenStyle.SolidLine)
-            pen.setWidthF(1.8)
+            # New wavy cable: dash pen so Qt draws dashes along the sine wave path
+            pen = QPen(color, 2.2, Qt.PenStyle.CustomDashLine)
+            pen.setDashPattern([5, 1.5])   # 5 units drawn, 1.5 units gap
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         else:
-            pen.setStyle(Qt.PenStyle.DashLine)
-            pen.setWidthF(1.8)
+            # Darker bold dashed line for new ACSR & other conductors
+            pen = QPen(color, 2.2, Qt.PenStyle.DashLine)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
 
         self.setPen(pen)
 
         # ── Label text ────────────────────────────────────────────────────
         if self.is_existing_span:
+            self.label.setDefaultTextColor(QColor(115, 115, 115))
             show_len = getattr(SmartSpan, "show_existing_length", True)
             if self.conductor in ("ACSR", "AB Cable"):
                 txt = f"{self.length}m" if show_len else ""
             else:
                 txt = f"Existing\n{self.conductor}" if show_len else "Existing"
         elif self.is_service_drop:
+            self.label.setDefaultTextColor(QColor(0, 0, 0))
             txt = f"{self.length}m"
         else:
+            self.label.setDefaultTextColor(QColor(0, 0, 0))
             if self.conductor == "ACSR":
                 txt = f"{self.length}m"
             elif self.conductor == "AB Cable":
@@ -432,7 +449,7 @@ class SmartSpan(QGraphicsPathItem):
                 txt += "\n+CG"
 
         if self.custom_note:
-            txt += f"\n📝 {self.custom_note}"
+            txt += f"\n{self.custom_note}"
 
         self.label.setPlainText(txt)
         self.update_position()
@@ -534,29 +551,36 @@ class SmartSpan(QGraphicsPathItem):
             aug_to = str(getattr(self, "dynamic_props", {}).get("aug_to_config", "") or "")
 
             painter.save()
-            # Existing line in pair.
-            painter.setPen(QPen(QColor("#222222"), 1.3, Qt.PenStyle.SolidLine))
+            # Existing line in pair (faded).
+            ex_col = QColor("#222222")
+            ex_col.setAlpha(125)
+            painter.setPen(QPen(ex_col, 1.2, Qt.PenStyle.SolidLine))
             painter.drawLine(QLineF(exx1, exy1, exx2, exy2))
 
             if aug_to == "ABC":
-                # Wavy projected line for ABC conversion.
+                # Dashed wavy projected line for ABC conversion.
                 wavy = QPainterPath()
+                pdx, pdy = px2 - px1, py2 - py1
+                steps = max(60, int(px_len * 2.0))
+                frequency = px_len / self._WAVY_FREQUENCY_DIV
                 wavy.moveTo(px1, py1)
-                steps = max(self._MIN_WAVY_STEPS, int(px_len / 2))
-                amp = 2.8
-                freq = px_len / self._WAVY_FREQUENCY_DIV
                 for i in range(1, steps + 1):
-                    t = i / float(steps)
-                    lx = px1 + (px2 - px1) * t
-                    ly = py1 + (py2 - py1) * t
-                    off = math.sin(t * freq * 2 * math.pi) * amp
+                    t   = i / float(steps)
+                    lx  = px1 + pdx * t
+                    ly  = py1 + pdy * t
+                    off = math.sin(t * frequency * 2 * math.pi) * 2.8
                     wavy.lineTo(lx + nx * off, ly + ny * off)
-                painter.setPen(QPen(QColor("#1a5276"), 1.4))
+
+                dash_pen = QPen(QColor("#0d3b66"), 1.8, Qt.PenStyle.CustomDashLine)
+                dash_pen.setDashPattern([5, 1.5])
+                dash_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                dash_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(dash_pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawPath(wavy)
             else:
                 # Dashed projected line for 3/4/5 wire ACSR projection.
-                dash_pen = QPen(QColor("#4a4a4a"), 1.4, Qt.PenStyle.DashLine)
+                dash_pen = QPen(QColor("#111111"), 1.8, Qt.PenStyle.DashLine)
                 painter.setPen(dash_pen)
                 painter.drawLine(QLineF(px1, py1, px2, py2))
             painter.restore()

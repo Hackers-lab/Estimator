@@ -104,7 +104,7 @@ class CanvasSymbol(QGraphicsItem):
     EDGE_TOL = 12.0   # px from edge that triggers resize cursor
     ROT_ZONE = 24.0   # px above shape top that is the rotation zone
 
-    SHAPES = ("circle", "square", "arrow", "line", "dashed_line")
+    SHAPES = ("circle", "square", "arrow", "line", "dashed_line", "road", "rail")
 
     def __init__(self, shape: str = "circle",
                  x: float = 0, y: float = 0,
@@ -212,7 +212,7 @@ class CanvasSymbol(QGraphicsItem):
         stroker.setWidth(max(12.0, self.EDGE_TOL * 2.0))
         hit = stroker.createStroke(raw)
 
-        if self.shape in ("circle", "square", "arrow"):
+        if self.shape in ("circle", "square", "arrow", "road", "rail"):
             hit = hit.united(raw)
             hw = self._hw()
             hh = self._hh()
@@ -252,6 +252,8 @@ class CanvasSymbol(QGraphicsItem):
             path.lineTo(shaft_end,  shaft_h)
             path.lineTo(-hw,        shaft_h)
             path.closeSubpath()
+        elif self.shape in ("road", "rail"):
+            path.addRect(self._body_rect())
         elif self._is_line():
             path.moveTo(-hw, 0)
             path.lineTo( hw, 0)
@@ -265,12 +267,62 @@ class CanvasSymbol(QGraphicsItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         color = QColor(self._color)
-        pen   = QPen(color, 1.8)
-        if self.shape == "dashed_line":
-            pen.setStyle(Qt.PenStyle.DashLine)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(self._build_shape_path())
+
+        if self.shape == "road":
+            hw = self._hw()
+            hh = self._hh()
+
+            # Subtle asphalt background
+            asphalt_col = QColor(color)
+            asphalt_col.setAlpha(28)
+            painter.setBrush(QBrush(asphalt_col))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(self._body_rect())
+
+            # Two solid outer curb lines
+            curb_pen = QPen(color, 2.0, Qt.PenStyle.SolidLine)
+            curb_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(curb_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(QPointF(-hw, -hh), QPointF(hw, -hh))
+            painter.drawLine(QPointF(-hw,  hh), QPointF(hw,  hh))
+
+            # Dashed center dividing lane
+            div_pen = QPen(color, 1.4, Qt.PenStyle.CustomDashLine)
+            div_pen.setDashPattern([6, 4])
+            div_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(div_pen)
+            painter.drawLine(QPointF(-hw, 0), QPointF(hw, 0))
+        elif self.shape == "rail":
+            hw = self._hw()
+            hh = self._hh()
+
+            # Cross-ties (railway sleepers) drawn regularly across track length
+            tie_spacing = max(8.0, min(16.0, hh * 1.2))
+            tie_pen = QPen(color, 1.5, Qt.PenStyle.SolidLine)
+            tie_pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            painter.setPen(tie_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            x = -hw + (tie_spacing / 2.0)
+            while x <= hw:
+                painter.drawLine(QPointF(x, -hh), QPointF(x, hh))
+                x += tie_spacing
+
+            # Two continuous steel rail lines running parallel along track length
+            rail_inset = max(1.0, hh * 0.25)
+            rail_pen = QPen(color, 2.4, Qt.PenStyle.SolidLine)
+            rail_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(rail_pen)
+            painter.drawLine(QPointF(-hw, -hh + rail_inset), QPointF(hw, -hh + rail_inset))
+            painter.drawLine(QPointF(-hw,  hh - rail_inset), QPointF(hw,  hh - rail_inset))
+        else:
+            pen = QPen(color, 1.8)
+            if self.shape == "dashed_line":
+                pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(self._build_shape_path())
 
         if self.isSelected():
             hw = self._hw()
