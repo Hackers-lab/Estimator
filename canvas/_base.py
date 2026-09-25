@@ -661,8 +661,8 @@ class SmartPole(_NodeMixin, QGraphicsPathItem):
                 # LT Pole: Circle
                 path.addEllipse(-r, -r, r * 2, r * 2)
             else:
-                # HT Pole: Perfect Square with sharp corners
-                path.addRect(-r, -r, r * 2, r * 2)
+                # HT Pole: Square with rounded corners (matching DP)
+                path.addRoundedRect(-r, -r, r * 2, r * 2, 1.6, 1.6)
 
             self.setPath(path)
 

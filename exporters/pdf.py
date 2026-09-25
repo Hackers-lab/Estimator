@@ -414,7 +414,7 @@ class PDFExporter:
         elif kind == "ht_pole":
             painter.setBrush(QBrush(QColor(d.get("canvas_ht_pole", "#c0392b"))))
             painter.setPen(QPen(QColor("#222222"), 0.5))
-            painter.drawRect(QRectF(cx - 3.5, cy - 3.5, 7, 7))
+            painter.drawRoundedRect(QRectF(cx - 3.5, cy - 3.5, 7, 7), 1.0, 1.0)
             painter.setPen(QPen(QColor("#ffffff")))
             font = QFont("Arial", 4, QFont.Weight.Bold)
             font.setPixelSize(5)
@@ -451,7 +451,7 @@ class PDFExporter:
         elif kind == "ex_ht_pole":
             painter.setBrush(QBrush(QColor(255, 255, 255, 255)))
             painter.setPen(QPen(QColor("#222222"), 0.8))
-            painter.drawRect(QRectF(cx - 3.5, cy - 3.5, 7, 7))
+            painter.drawRoundedRect(QRectF(cx - 3.5, cy - 3.5, 7, 7), 1.0, 1.0)
             painter.setPen(QPen(QColor("#222222")))
             font = QFont("Arial", 4, QFont.Weight.Bold)
             font.setPixelSize(5)
@@ -461,8 +461,12 @@ class PDFExporter:
             _circle(d.get("canvas_ex_pole", "#cccccc"), border="#777777", bw=0.6)
 
         elif kind == "dp":
-            col = d.get("canvas_dp", "#27ae60")
-            _circle(col, 2.2, -2.6); _circle(col, 2.2, 2.6)
+            col = d.get("canvas_dp", "#c0392b")
+            painter.setBrush(QBrush(QColor(col)))
+            painter.setPen(QPen(QColor("#222222"), 0.5))
+            painter.drawRoundedRect(QRectF(cx - 4.5, cy - 2.0, 3.8, 3.8), 0.7, 0.7)
+            painter.drawRoundedRect(QRectF(cx + 0.7, cy - 2.0, 3.8, 3.8), 0.7, 0.7)
+            painter.drawLine(QPointF(cx - 0.7, cy - 0.1), QPointF(cx + 0.7, cy - 0.1))
         elif kind == "tp":
             col = d.get("canvas_tp", "#1abc9c")
             _circle(col, 2.0, 0.0, -2.2); _circle(col, 2.0, -2.4, 1.8); _circle(col, 2.0, 2.4, 1.8)
